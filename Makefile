@@ -21,7 +21,7 @@ format: ${PYTHON_SRCS}
 	$(IN_ENV) yapf -i ${PYTHON_SRCS}
 
 test-py:
-	$(IN_ENV) cd tests; PYTHONPATH=../ python -m unittest
+	$(IN_ENV) pytest --doctest-modules
 
 clean:
 	rm -rf env

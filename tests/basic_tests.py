@@ -9,4 +9,4 @@
 #
 # SPDX-License-Identifier: ISC
 
-import fpga_interchange
+import fpga_interchange.interchange_capnp
