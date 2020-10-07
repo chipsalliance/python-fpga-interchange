@@ -1,0 +1,25 @@
+language: python
+
+matrix:
+  include:
+    - python: 3.7
+      env: TOXENV=py37
+    - python: 3.8
+      env: TOXENV=py38
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-5.0
+    packages:
+      - clang-format-5.0
+      - xsltproc
+
+install:
+  - python -m pip install -r requirements.txt
+
+script:
+  - make test-py
+  - make format
+  - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
