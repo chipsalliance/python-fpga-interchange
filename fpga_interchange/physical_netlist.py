@@ -797,6 +797,7 @@ class PhysicalNetList():
         self.nets = []
         self.physical_cells = {}
         self.site_instances = {}
+        self.null_net = []
 
     def add_site_instance(self, site_name, site_type):
         """ Add the site type for a site instance.
@@ -855,3 +856,6 @@ class PhysicalNetList():
         self.nets.append(
             PhysicalNet(
                 name=net_name, type=net_type, sources=sources, stubs=stubs))
+
+    def set_null_net(self, stubs):
+        self.null_net = stubs

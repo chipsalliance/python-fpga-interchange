@@ -26,8 +26,7 @@ setuptools.setup(
     python_requires=">=3.7",
     packages=setuptools.find_packages(),
     include_package_data=True,
-    install_requires=[
-        "pycapnp"],
+    install_requires=["pycapnp"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: ISC License",

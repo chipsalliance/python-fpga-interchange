@@ -15,6 +15,13 @@ output_logical_netlist - Implements conversion of classes from logical_netlist
 PhysicalNetlistBuilder - Internal helper class for constructing physical
                          netlist format.
 
+output_logical_netlist - Implements conversion of classes from physicla
+                         module to FPGA interchange physical netlist format.
+                         This function requires PhysicalNetlist schema loaded,
+                         recommend to use Interchange class to load schemas
+                         from interchange schema directory, and then invoke
+                         Interchange.output_interchange.
+
 Interchange - Class that handles loading capnp schemas.
 
 """
@@ -24,7 +31,8 @@ capnp.remove_import_hook()
 import enum
 import gzip
 import os.path
-from .logical_netlist import check_logical_netlist
+from .logical_netlist import check_logical_netlist, LogicalNetlist, Cell, CellInstance, Library
+from .physical_netlist import PhysicalNetlist, PhysicalCellType, PhysicalNetType, PhysicalBelPin, PhysicalSitePin, PhysicalSitePip, PhysicalPip, PhysicalNet, Placement
 
 # Flag indicating use of Packed Cap'n Proto Serialization
 IS_PACKED = False
@@ -505,6 +513,225 @@ def output_physical_netlist(physical_netlist_schema, physical_netlist):
     return builder.encode(physical_netlist)
 
 
+def to_logical_netlist(netlist_capnp):
+    # name     @0 : Text;
+    # propMap  @1 : PropertyMap;
+    # topInst  @2 : CellInstance;
+    # strList  @3 : List(Text);
+    # cellList @4 : List(Cell);
+    # portList @5 : List(Port);
+    # instList @6 : List(CellInstance);
+
+    strs = [s for s in netlist_capnp.strList]
+    libraries = {}
+
+    def convert_property_map(prop_map):
+        out = {}
+
+        for prop in prop_map.entries:
+            key = strs[prop.key]
+            if prop.which() == 'textValue':
+                value = strs[prop.textValue]
+            elif prop.which() == 'intValue':
+                value = prop.intValue
+            else:
+                assert prop.which() == 'boolValue'
+                value = prop.boolValue
+            out[key] = value
+
+        return out
+
+    def convert_cell_instance(cell_instance_capnp):
+        prop_map = convert_property_map(cell_instance_capnp.propMap)
+
+        return CellInstance(
+                name=strs[cell_instance_capnp.name],
+                view=strs[cell_instance_capnp.view],
+                cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].name],
+                property_map=prop_map)
+
+    for cell_capnp in netlist_capnp.cellList:
+        cell = Cell(
+                name=strs[cell_capnp.name],
+                property_map=convert_property_map(cell_capnp.propMap),
+                )
+        cell.view = strs[cell_capnp.view]
+
+        for inst in cell_capnp.insts:
+            cell_instance = convert_cell_instance(netlist_capnp.instList[inst])
+            cell.cell_instances[cell_instance.name] = cell_instance
+
+        for net in cell_capnp.nets:
+            net_name = strs[net.name]
+            cell.add_net(
+                    name=net_name,
+                    property_map=convert_property_map(net.propMap),
+                        )
+
+            for port_inst in net.portInsts:
+                port_capnp = netlist_capnp.portList[port_inst.port]
+                port_name = strs[port_capnp.name]
+
+                if port_inst.busIdx.which() == 'singleBit':
+                    idx = None
+                else:
+                    assert port_inst.busIdx.which() == 'idx'
+                    assert port_capnp.which() == 'bus'
+                    bus = port_capnp.bus
+                    if bus.busStart <= bus.busEnd:
+                        idx = port_capnp.busIdx.idx + bus.busStart
+                    else:
+                        idx = bus.busStart - port_capnp.busIdx.idx
+
+                if port_inst.which() == 'extPort':
+                    cell.connect_net_to_cell_port(
+                            net_name=net_name,
+                            port=port_name,
+                            idx=idx)
+                else:
+                    assert port_inst.which() == 'inst'
+                    instance_name = strs[netlist_capnp.instList[port_inst.inst].name]
+                    cell.connect_net_to_instance(
+                            net_name=net_name,
+                            instance_name=instance_name,
+                            port=port_name,
+                            idx=idx)
+
+        for port in cell_capnp.ports:
+            pass
+
+        library = strs[cell_capnp.lib]
+        if library not in libraries:
+            libraries[library] = Library(name=library)
+        libraries[Library].add_cell(cell)
+
+    return LogicalNetlist(
+            name=netlist_capnp.name,
+            property_map=convert_property_map(netlist_capnp.property_map),
+            top_instance=convert_cell_instance(netlist_capnp.topInst),
+            libraries=libraries)
+
+
+def to_physical_netlist(phys_netlist_capnp):
+    strs = [s for s in phys_netlist_capnp.strList]
+
+    properties = {}
+    for prop in phys_netlist_capnp.properties:
+        properties[strs[prop.key]] = strs[prop.value]
+
+    phys_netlist = PhysicalNetlist(phys_netlist_capnp.part, properties)
+
+    for site_instance in phys_netlist_capnp.siteInsts:
+        phys_netlist.add_site_instance(strs[site_instance.site],
+                                       strs[site_instance.type])
+
+    for physical_cell in phys_netlist_capnp.physCells:
+        phys_netlist.add_physical_cell(
+            strs[physical_cell.cellName],
+            PhysicalCellType(physical_cell.physType))
+
+    def convert_route_segment(route_segment_capnp):
+        which = route_segment_capnp.which()
+        if which == 'belPin':
+            # TODO: Fix BEL pin direction
+            bel_pin = route_segment_capnp.belPin
+            return PhysicalBelPin(
+                site=strs[bel_pin.site],
+                bel=strs[bel_pin.bel],
+                pin=strs[bel_pin.pin],
+                direction='input')
+        elif which == 'sitePin':
+            site_pin = route_segment_capnp.sitePin
+            return PhysicalSitePin(
+                site=strs[site_pin.site], pin=strs[site_pin.pin])
+        elif which == 'pip':
+            # TODO: Shouldn't be discard isFixed field
+            pip = route_segment_capnp.pip
+            return PhysicalPip(
+                tile=strs[pip.tile],
+                wire0=strs[pip.wire0],
+                wire1=strs[pip.wire1],
+                forward=pip.forward)
+        else:
+            assert which == 'sitePIP'
+            # TODO: Shouldn't be discard isFixed and inverts, isInverting
+            # fields
+            site_pip = route_segment_capnp.sitePIP
+            return PhysicalSitePip(
+                site=strs[site_pip.site],
+                bel=strs[site_pip.bel],
+                pin=strs[site_pip.pin])
+
+    def convert_route_branch(route_branch_capnp):
+        obj = convert_route_segment(route_branch_capnp.route_segment)
+
+        for branch in route_branch_capnp.branches:
+            obj.branches.append(convert_route_branch(branch))
+
+        return obj
+
+    def convert_net(net_capnp):
+        sources = []
+        for source_capnp in net_capnp.sources:
+            sources.append(convert_route_branch(source_capnp))
+
+        stubs = []
+        for stub_capnp in net_capnp.stubs:
+            stubs.append(convert_route_branch(stub_capnp))
+
+        return PhysicalNet(
+            name=net_capnp.name,
+            type=PhysicalNetType(net_capnp.type),
+            sources=sources,
+            stubs=stubs)
+
+    null_net = convert_net(phys_netlist_capnp.nullNet)
+    assert len(null_net.name) == 0
+    assert len(null_net.sources) == 0
+    phys_netlist.set_null_net(null_net.stubs)
+
+    for physical_net in phys_netlist_capnp.physNets:
+        net = convert_net(physical_net)
+        phys_netlist.add_physical_net(
+            net_name=net.name,
+            sources=net.sources,
+            stubs=net.stubs,
+            net_type=net.type)
+
+    for placement_capnp in phys_netlist_capnp.placements:
+        # TODO: Shouldn't be discarding isBelFixed/isSiteFixed/altSiteType
+        placement = Placement(
+                cell_type=strs[placement_capnp.type],
+                cell_name=strs[placement_capnp.cellName],
+                site=strs[placement_capnp.site],
+                bel=strs[placement_capnp.bel],
+                )
+
+        for pin_map in placement_capnp.pinMap:
+            # TODO: Shouldn't be discarding isFixed
+            other_cell_name = None
+            other_cell_type = None
+
+            if pin_map.which() == 'otherCell':
+                other_cell = pin_map.otherCell
+                other_cell_name = strs[other_cell.multiCell]
+                other_cell_type = strs[other_cell.multiType]
+
+            placement.add_bel_pin_to_cell_pin(
+                    bel=strs[pin_map.bel],
+                    bel_pin=strs[pin_map.belPin],
+                    cell_pin=strs[pin_map.cellPin],
+                    other_cell_type=other_cell_type,
+                    other_cell_name=other_cell_name)
+
+        for other_bel in placement_capnp.otherBels:
+            placement.other_bels.add(strs[other_bel])
+
+        phys_netlist.add_placement(placement)
+
+    return phys_netlist
+
+
 class Interchange():
     def __init__(self, schema_directory):
 
@@ -540,23 +767,38 @@ class Interchange():
             **kwargs)
 
     def read_logical_netlist_raw(self,
-                             f,
-                             compression_format=DEFAULT_COMPRESSION_TYPE,
-                             is_packed=IS_PACKED):
+                                 f,
+                                 compression_format=DEFAULT_COMPRESSION_TYPE,
+                                 is_packed=IS_PACKED):
         return read_capnp_file(self.logical_netlist_schema, f,
                                compression_format, is_packed)
 
-    def read_physical_netlist_raw(self,
+    def read_logical_netlist(self,
+                             f,
+                             compression_format=DEFAULT_COMPRESSION_TYPE,
+                             is_packed=IS_PACKED):
+        return to_logical_netlist(
+            read_capnp_file(self.logical_netlist_schema, f, compression_format,
+                            is_packed))
+
+    def read_physical_netlist(self,
                               f,
                               compression_format=DEFAULT_COMPRESSION_TYPE,
                               is_packed=IS_PACKED):
+        return to_physical_netlist(
+            read_capnp_file(self.logical_netlist_schema, f, compression_format,
+                            is_packed))
+
+    def read_physical_netlist_raw(self,
+                                  f,
+                                  compression_format=DEFAULT_COMPRESSION_TYPE,
+                                  is_packed=IS_PACKED):
         return read_capnp_file(self.physical_netlist_schema, f,
                                compression_format, is_packed)
 
-    def read_device_resources_raw(
-            self,
-            f,
-            compression_format=DEFAULT_COMPRESSION_TYPE,
-            is_packed=IS_PACKED):
+    def read_device_resources_raw(self,
+                                  f,
+                                  compression_format=DEFAULT_COMPRESSION_TYPE,
+                                  is_packed=IS_PACKED):
         return read_capnp_file(self.device_resources_schema, f,
                                compression_format, is_packed)
