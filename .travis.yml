@@ -1,11 +1,5 @@
 language: python
-
-matrix:
-  include:
-    - python: 3.7
-      env: TOXENV=py37
-    - python: 3.8
-      env: TOXENV=py38
+python: 3.8
 
 addons:
   apt:
@@ -19,7 +13,17 @@ addons:
 install:
   - python -m pip install -r requirements.txt
 
-script:
-  - make test-py
-  - make format
-  - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+jobs:
+  include:
+    - name: "Python Tests"
+      script:
+        - make test-py
+        - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+    - name: "Check Formatting"
+      script:
+        - make format
+        - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+    - name: "License Checks"
+      script:
+        - ./.github/check_license.sh
+        - ./.github/check_python_scripts.sh
