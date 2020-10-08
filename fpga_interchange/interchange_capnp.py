@@ -8,7 +8,6 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
-
 """ Implements models for generating FPGA interchange formats.
 
 LogicalNetlistBuilder - Internal helper class for constructing logical netlist
@@ -556,16 +555,17 @@ def to_logical_netlist(netlist_capnp):
         prop_map = convert_property_map(cell_instance_capnp.propMap)
 
         return CellInstance(
-                name=strs[cell_instance_capnp.name],
-                view=strs[cell_instance_capnp.view],
-                cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].name],
-                property_map=prop_map)
+            name=strs[cell_instance_capnp.name],
+            view=strs[cell_instance_capnp.view],
+            cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].
+                           name],
+            property_map=prop_map)
 
     for cell_capnp in netlist_capnp.cellList:
         cell = Cell(
-                name=strs[cell_capnp.name],
-                property_map=convert_property_map(cell_capnp.propMap),
-                )
+            name=strs[cell_capnp.name],
+            property_map=convert_property_map(cell_capnp.propMap),
+        )
         cell.view = strs[cell_capnp.view]
 
         for inst in cell_capnp.insts:
@@ -575,9 +575,9 @@ def to_logical_netlist(netlist_capnp):
         for net in cell_capnp.nets:
             net_name = strs[net.name]
             cell.add_net(
-                    name=net_name,
-                    property_map=convert_property_map(net.propMap),
-                        )
+                name=net_name,
+                property_map=convert_property_map(net.propMap),
+            )
 
             for port_inst in net.portInsts:
                 port_capnp = netlist_capnp.portList[port_inst.port]
@@ -596,17 +596,16 @@ def to_logical_netlist(netlist_capnp):
 
                 if port_inst.which() == 'extPort':
                     cell.connect_net_to_cell_port(
-                            net_name=net_name,
-                            port=port_name,
-                            idx=idx)
+                        net_name=net_name, port=port_name, idx=idx)
                 else:
                     assert port_inst.which() == 'inst'
-                    instance_name = strs[netlist_capnp.instList[port_inst.inst].name]
+                    instance_name = strs[netlist_capnp.instList[port_inst.
+                                                                inst].name]
                     cell.connect_net_to_instance(
-                            net_name=net_name,
-                            instance_name=instance_name,
-                            port=port_name,
-                            idx=idx)
+                        net_name=net_name,
+                        instance_name=instance_name,
+                        port=port_name,
+                        idx=idx)
 
         for port in cell_capnp.ports:
             pass
@@ -617,10 +616,10 @@ def to_logical_netlist(netlist_capnp):
         libraries[Library].add_cell(cell)
 
     return LogicalNetlist(
-            name=netlist_capnp.name,
-            property_map=convert_property_map(netlist_capnp.property_map),
-            top_instance=convert_cell_instance(netlist_capnp.topInst),
-            libraries=libraries)
+        name=netlist_capnp.name,
+        property_map=convert_property_map(netlist_capnp.property_map),
+        top_instance=convert_cell_instance(netlist_capnp.topInst),
+        libraries=libraries)
 
 
 def to_physical_netlist(phys_netlist_capnp):
@@ -712,11 +711,11 @@ def to_physical_netlist(phys_netlist_capnp):
     for placement_capnp in phys_netlist_capnp.placements:
         # TODO: Shouldn't be discarding isBelFixed/isSiteFixed/altSiteType
         placement = Placement(
-                cell_type=strs[placement_capnp.type],
-                cell_name=strs[placement_capnp.cellName],
-                site=strs[placement_capnp.site],
-                bel=strs[placement_capnp.bel],
-                )
+            cell_type=strs[placement_capnp.type],
+            cell_name=strs[placement_capnp.cellName],
+            site=strs[placement_capnp.site],
+            bel=strs[placement_capnp.bel],
+        )
 
         for pin_map in placement_capnp.pinMap:
             # TODO: Shouldn't be discarding isFixed
@@ -729,11 +728,11 @@ def to_physical_netlist(phys_netlist_capnp):
                 other_cell_type = strs[other_cell.multiType]
 
             placement.add_bel_pin_to_cell_pin(
-                    bel=strs[pin_map.bel],
-                    bel_pin=strs[pin_map.belPin],
-                    cell_pin=strs[pin_map.cellPin],
-                    other_cell_type=other_cell_type,
-                    other_cell_name=other_cell_name)
+                bel=strs[pin_map.bel],
+                bel_pin=strs[pin_map.belPin],
+                cell_pin=strs[pin_map.cellPin],
+                other_cell_type=other_cell_type,
+                other_cell_name=other_cell_name)
 
         for other_bel in placement_capnp.otherBels:
             placement.other_bels.add(strs[other_bel])

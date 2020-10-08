@@ -249,7 +249,10 @@ class Library():
         assert cell.name not in self.cells
         self.cells[cell.name] = cell
 
-LogicalNetlist = namedtuple('name property_map top_instance libraries')
+
+LogicalNetlist = namedtuple('LogicalNetlist',
+                            'name property_map top_instance libraries')
+
 
 def check_logical_netlist(libraries):
     """ Check that a logical netlist is consistent.

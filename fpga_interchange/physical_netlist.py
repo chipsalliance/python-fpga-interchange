@@ -792,7 +792,7 @@ def stitch_stubs(stubs, cursor, site_type_pins):
     return sources, stubs
 
 
-class PhysicalNetList():
+class PhysicalNetlist:
     """ Object that represents a physical netlist.
 
     part (str) - Part that this physical netlist is for.
