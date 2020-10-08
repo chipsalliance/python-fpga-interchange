@@ -1,0 +1,29 @@
+language: python
+python: 3.8
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-5.0
+    packages:
+      - clang-format-5.0
+      - xsltproc
+
+install:
+  - python -m pip install -r requirements.txt
+
+jobs:
+  include:
+    - name: "Python Tests"
+      script:
+        - make test-py
+        - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+    - name: "Check Formatting"
+      script:
+        - make format
+        - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+    - name: "License Checks"
+      script:
+        - ./.github/check_license.sh
+        - ./.github/check_python_scripts.sh
