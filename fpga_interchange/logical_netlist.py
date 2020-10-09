@@ -250,8 +250,17 @@ class Library():
         self.cells[cell.name] = cell
 
 
-LogicalNetlist = namedtuple('LogicalNetlist',
-                            'name property_map top_instance libraries')
+class LogicalNetlist(
+        namedtuple(
+            'LogicalNetlist',
+            'name property_map top_instance_name top_instance libraries')):
+    def convert_to_capnp(self, f, interchange):
+        return interchange.output_logical_netlist(
+            name=self.name,
+            libraries=self.libraries,
+            top_instance=self.top_instance,
+            top_instance_name=self.top_instance_name,
+            property_map=self.property_map)
 
 
 def check_logical_netlist(libraries):
@@ -291,6 +300,8 @@ def check_logical_netlist(libraries):
                     instance_cell_name = cell.cell_instances[
                         port.instance_name].cell_name
                     instance_cell = master_cell_list[instance_cell_name]
+                    assert port.name in instance_cell.ports, (
+                        instance_cell_name, )
                     instance_port = instance_cell.ports[port.name]
 
                     net_direction = invert_direction(instance_port.direction)

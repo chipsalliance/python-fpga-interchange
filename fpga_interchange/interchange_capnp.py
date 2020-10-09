@@ -41,7 +41,7 @@ capnp.remove_import_hook()
 import enum
 import gzip
 import os.path
-from .logical_netlist import check_logical_netlist, LogicalNetlist, Cell, CellInstance, Library
+from .logical_netlist import check_logical_netlist, LogicalNetlist, Cell, CellInstance, Library, Direction
 from .physical_netlist import PhysicalNetlist, PhysicalCellType, PhysicalNetType, PhysicalBelPin, PhysicalSitePin, PhysicalSitePip, PhysicalPip, PhysicalNet, Placement
 
 # Flag indicating use of Packed Cap'n Proto Serialization
@@ -54,7 +54,7 @@ class CompressionFormat(enum.Enum):
 
 
 # Flag indicating that files are gziped on output
-DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
+DEFAULT_COMPRESSION_TYPE = CompressionFormat.UNCOMPRESSED
 
 
 def read_capnp_file(capnp_schema,
@@ -244,8 +244,9 @@ class LogicalNetlistBuilder():
 
 def output_logical_netlist(logical_netlist_schema,
                            libraries,
-                           top_level_cell,
-                           top_level_name,
+                           name,
+                           top_instance_name,
+                           top_instance,
                            view="netlist",
                            property_map={}):
     """ Convert logical_netlist.Library python classes to a FPGA interchange LogicalNetlist capnp.
@@ -264,7 +265,7 @@ def output_logical_netlist(logical_netlist_schema,
     master_cell_list = check_logical_netlist(libraries)
 
     # Make sure top level cell is in the master cell list.
-    assert top_level_cell in master_cell_list
+    assert top_instance.cell_name in master_cell_list
 
     # Count cell, port and cell instance counts to enable pre-allocation of
     # capnp arrays.
@@ -279,7 +280,7 @@ def output_logical_netlist(logical_netlist_schema,
 
     logical_netlist = LogicalNetlistBuilder(
         logical_netlist_schema=logical_netlist_schema,
-        name=top_level_name,
+        name=name,
         cell_count=cell_count,
         port_count=port_count,
         cell_instance_count=cell_instance_count,
@@ -387,11 +388,11 @@ def output_logical_netlist(logical_netlist_schema,
     top_level_cell_instance = logical_netlist.get_top_cell_instance()
 
     # Convert the top level cell now that the libraries have been converted.
-    top_level_cell_instance.name = logical_netlist.string_id(top_level_name)
-    top_level_cell_instance.cell = cell_name_to_idx[top_level_cell]
-    top_level_cell_instance.view = logical_netlist.string_id(view)
+    top_level_cell_instance.name = logical_netlist.string_id(top_instance_name)
+    top_level_cell_instance.cell = cell_name_to_idx[top_instance.cell_name]
+    top_level_cell_instance.view = logical_netlist.string_id(top_instance.view)
     logical_netlist.create_property_map(top_level_cell_instance.propMap,
-                                        property_map)
+                                        top_instance.property_map)
 
     return logical_netlist.finish_encode()
 
@@ -523,6 +524,10 @@ def output_physical_netlist(physical_netlist_schema, physical_netlist):
     return builder.encode(physical_netlist)
 
 
+def first_upper(s):
+    return s[0].upper() + s[1:]
+
+
 def to_logical_netlist(netlist_capnp):
     # name     @0 : Text;
     # propMap  @1 : PropertyMap;
@@ -554,8 +559,8 @@ def to_logical_netlist(netlist_capnp):
     def convert_cell_instance(cell_instance_capnp):
         prop_map = convert_property_map(cell_instance_capnp.propMap)
 
-        return CellInstance(
-            name=strs[cell_instance_capnp.name],
+        name = strs[cell_instance_capnp.name]
+        return name, CellInstance(
             view=strs[cell_instance_capnp.view],
             cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].
                            name],
@@ -569,8 +574,26 @@ def to_logical_netlist(netlist_capnp):
         cell.view = strs[cell_capnp.view]
 
         for inst in cell_capnp.insts:
-            cell_instance = convert_cell_instance(netlist_capnp.instList[inst])
-            cell.cell_instances[cell_instance.name] = cell_instance
+            cell_instance_name, cell_instance = convert_cell_instance(
+                netlist_capnp.instList[inst])
+            cell.cell_instances[cell_instance_name] = cell_instance
+
+        for port_idx in cell_capnp.ports:
+            port = netlist_capnp.portList[port_idx]
+            port_name = strs[port.name]
+            direction = Direction[first_upper(str(port.dir))]
+            prop_map = convert_property_map(port.propMap)
+            if port.which() == 'bit':
+                cell.add_port(
+                    name=port_name, direction=direction, property_map=prop_map)
+            else:
+                assert port.which() == 'bus'
+                cell.add_port(
+                    name=port_name,
+                    direction=direction,
+                    property_map=prop_map,
+                    start=port.bus.busStart,
+                    end=port.bus.busEnd)
 
         for net in cell_capnp.nets:
             net_name = strs[net.name]
@@ -607,18 +630,18 @@ def to_logical_netlist(netlist_capnp):
                         port=port_name,
                         idx=idx)
 
-        for port in cell_capnp.ports:
-            pass
-
         library = strs[cell_capnp.lib]
         if library not in libraries:
             libraries[library] = Library(name=library)
-        libraries[Library].add_cell(cell)
+        libraries[library].add_cell(cell)
 
+    top_instance_name, top_instance = convert_cell_instance(
+        netlist_capnp.topInst)
     return LogicalNetlist(
         name=netlist_capnp.name,
-        property_map=convert_property_map(netlist_capnp.property_map),
-        top_instance=convert_cell_instance(netlist_capnp.topInst),
+        property_map=convert_property_map(netlist_capnp.propMap),
+        top_instance_name=top_instance_name,
+        top_instance=top_instance,
         libraries=libraries)
 
 
@@ -780,7 +803,7 @@ class Interchange():
                                  f,
                                  compression_format=DEFAULT_COMPRESSION_TYPE,
                                  is_packed=IS_PACKED):
-        return read_capnp_file(self.logical_netlist_schema, f,
+        return read_capnp_file(self.logical_netlist_schema.Netlist, f,
                                compression_format, is_packed)
 
     def read_logical_netlist(self,
@@ -788,27 +811,20 @@ class Interchange():
                              compression_format=DEFAULT_COMPRESSION_TYPE,
                              is_packed=IS_PACKED):
         return to_logical_netlist(
-            read_capnp_file(self.logical_netlist_schema, f, compression_format,
-                            is_packed))
+            read_capnp_file(self.logical_netlist_schema.Netlist, f,
+                            compression_format, is_packed))
 
     def read_physical_netlist(self,
                               f,
                               compression_format=DEFAULT_COMPRESSION_TYPE,
                               is_packed=IS_PACKED):
         return to_physical_netlist(
-            read_capnp_file(self.logical_netlist_schema, f, compression_format,
-                            is_packed))
+            read_capnp_file(self.physical_netlist_schema.PhysNetlist, f,
+                            compression_format, is_packed))
 
     def read_physical_netlist_raw(self,
                                   f,
                                   compression_format=DEFAULT_COMPRESSION_TYPE,
                                   is_packed=IS_PACKED):
-        return read_capnp_file(self.physical_netlist_schema, f,
-                               compression_format, is_packed)
-
-    def read_device_resources_raw(self,
-                                  f,
-                                  compression_format=DEFAULT_COMPRESSION_TYPE,
-                                  is_packed=IS_PACKED):
-        return read_capnp_file(self.device_resources_schema, f,
+        return read_capnp_file(self.physical_netlist_schema.PhysNetlist, f,
                                compression_format, is_packed)
