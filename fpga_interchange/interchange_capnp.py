@@ -774,7 +774,7 @@ class Interchange():
                 os.path.join(os.environ['CONDA_PREFIX'], 'include'))
 
         if 'CAPNP_PATH' in os.environ:
-            search_path.append(os.path.join(os.environ['CAPNP_PATH']))
+            search_path.append(os.environ['CAPNP_PATH'])
 
         for path in ['/usr/local/include', '/usr/include']:
             if os.path.exists(path):
