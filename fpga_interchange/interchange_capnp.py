@@ -502,15 +502,15 @@ class PhysicalNetlistBuilder():
             physical_cell.physType = self.physical_netlist_schema.PhysNetlist.PhysCellType.__dict__[
                 cell_type.name.lower()]
 
-        physical_netlist.init('properties', len(self.properties))
+        physical_netlist.init('properties', len(phys_netlist.properties))
         properties = physical_netlist.properties
-        for idx, (k, v) in enumerate(self.properties.items()):
+        for idx, (k, v) in enumerate(phys_netlist.properties.items()):
             properties[idx].key = self.string_id(k)
             properties[idx].value = self.string_id(v)
 
-        physical_netlist.init('siteInsts', len(self.site_instances))
+        physical_netlist.init('siteInsts', len(phys_netlist.site_instances))
         site_instances = physical_netlist.siteInsts
-        for idx, (k, v) in enumerate(self.site_instances.items()):
+        for idx, (k, v) in enumerate(phys_netlist.site_instances.items()):
             site_instances[idx].site = self.string_id(k)
             site_instances[idx].type = self.string_id(v)
 
@@ -522,7 +522,7 @@ class PhysicalNetlistBuilder():
         return physical_netlist
 
 
-def output_physical_netlist(physical_netlist_schema, physical_netlist):
+def output_physical_netlist(physical_netlist, physical_netlist_schema):
     builder = PhysicalNetlistBuilder(physical_netlist_schema)
     return builder.encode(physical_netlist)
 
@@ -699,7 +699,7 @@ def to_physical_netlist(phys_netlist_capnp):
                 pin=strs[site_pip.pin])
 
     def convert_route_branch(route_branch_capnp):
-        obj = convert_route_segment(route_branch_capnp.route_segment)
+        obj = convert_route_segment(route_branch_capnp.routeSegment)
 
         for branch in route_branch_capnp.branches:
             obj.branches.append(convert_route_branch(branch))
@@ -716,13 +716,12 @@ def to_physical_netlist(phys_netlist_capnp):
             stubs.append(convert_route_branch(stub_capnp))
 
         return PhysicalNet(
-            name=net_capnp.name,
-            type=PhysicalNetType(net_capnp.type),
+            name=strs[net_capnp.name],
+            type=PhysicalNetType[first_upper(str(net_capnp.type))],
             sources=sources,
             stubs=stubs)
 
     null_net = convert_net(phys_netlist_capnp.nullNet)
-    assert len(null_net.name) == 0
     assert len(null_net.sources) == 0
     phys_netlist.set_null_net(null_net.stubs)
 

@@ -87,7 +87,9 @@ class Placement():
         cell_pin (str) - NAme of Cell pin being associated.
 
         """
-        if bel != self.bel:
+        if bel is None:
+            bel = self.bel
+        elif bel != self.bel:
             self.other_bels.add(bel)
 
         self.pins.append(
@@ -118,7 +120,7 @@ class PhysicalBelPin():
 
     """
 
-    def __init__(self, site, bel, pin, direction):
+    def __init__(self, site, bel, pin, direction=None):
         self.site = site
         self.bel = bel
         self.pin = pin
@@ -130,10 +132,12 @@ class PhysicalBelPin():
             self.direction = Direction.Input
         elif direction == 'output':
             self.direction = Direction.Output
-        else:
-            assert direction == 'site_source'
+        elif direction == 'site_source':
             self.direction = Direction.Output
             self.site_source = True
+        else:
+            assert direction is None, (site, bel, pin)
+            self.direction = None
 
         self.branches = []
 
@@ -254,7 +258,7 @@ class PhysicalPip():
 
     """
 
-    def __init__(self, tile, wire0, wire1, forward):
+    def __init__(self, tile, wire0, wire1, forward=True):
         self.tile = tile
         self.wire0 = wire0
         self.wire1 = wire1
@@ -800,7 +804,8 @@ class PhysicalNetlist:
 
     """
 
-    def __init__(self, part, properties={}):
+    def __init__(self, name, part, properties={}):
+        self.name = name
         self.part = part
         self.properties = {}
 
@@ -870,3 +875,63 @@ class PhysicalNetlist:
 
     def set_null_net(self, stubs):
         self.null_net = stubs
+
+    @staticmethod
+    def read_from_capnp(f, interchange, *args, **kwargs):
+        """ Reads a capnp logical netlist into PhysicalNetlist object.
+
+        f (file-like)
+            File to be read
+
+        interchange (interchange_capnp.Interchange)
+            Interchange object holding capnp schema's for the FPGA interchange
+            format.
+
+        compression_format (interchange_capnp.CompressionFormat)
+            What compression format to use.  Default is
+            interchange_capnp.DEFAULT_COMPRESSION_TYPE
+
+        is_packed (bool)
+            Whether capnp is packed or not.  Default is
+            interchange_capnp.IS_PACKED.
+
+        Returns PhysicalNetlist created from input file.
+
+        """
+        return interchange.read_physical_netlist(f, *args, **kwargs)
+
+    def convert_to_capnp(self, interchange):
+        """ Convert PhysicalNetlist object into capnp object.
+
+        Use interchange_capnp.write_capnp_file to write to disk or other
+        storage.
+
+        interchange (interchange_capnp.Interchange)
+            Interchange object holding capnp schema's for the FPGA interchange
+            format.
+
+        """
+        return interchange.output_physical_netlist(self)
+
+
+def chain_branches(segments):
+    """ Convert a linear routing segment chain into the branch structure.
+
+    Returns the root of the tree.
+
+    """
+    for parent, child in zip(segments[:-1], segments[1:]):
+        parent.branches.append(child)
+
+    return segments[0]
+
+
+def chain_pips(tile, wires):
+    """ Chain a set of pips into a branch tree structure. """
+    segments = []
+
+    for wire0, wire1 in zip(wires[:-1], wires[1:]):
+        segments.append(
+            PhysicalPip(tile=tile, wire0=wire0, wire1=wire1, forward=True))
+
+    return (chain_branches(segments), )
