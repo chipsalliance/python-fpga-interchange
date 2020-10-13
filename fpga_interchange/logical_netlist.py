@@ -31,7 +31,7 @@ class Port(namedtuple('Port', 'direction property_map bus')):
 
         So ex[3] is bus index 0, ex[2] is bus index 1, etc.
 
-        A bus defined as [0:3] has a width of 4 too, However ex[3] is now bus 
+        A bus defined as [0:3] has a width of 4 too, However ex[3] is now bus
         index 3, etc.
 
         """
@@ -254,7 +254,41 @@ class LogicalNetlist(
         namedtuple(
             'LogicalNetlist',
             'name property_map top_instance_name top_instance libraries')):
-    def convert_to_capnp(self, f, interchange):
+    @staticmethod
+    def read_from_capnp(f, interchange, *args, **kwargs):
+        """ Reads a capnp logical netlist into LogicalNetlist object.
+
+        f (file-like)
+            File to be read
+
+        interchange (interchange_capnp.Interchange)
+            Interchange object holding capnp schema's for the FPGA interchange
+            format.
+
+        compression_format (interchange_capnp.CompressionFormat)
+            What compression format to use.  Default is
+            interchange_capnp.DEFAULT_COMPRESSION_TYPE
+
+        is_packed (bool)
+            Whether capnp is packed or not.  Default is
+            interchange_capnp.IS_PACKED.
+
+        Returns LogicalNetlist created from input file.
+
+        """
+        return interchange.read_logical_netlist(f, *args, **kwargs)
+
+    def convert_to_capnp(self, interchange):
+        """ Convert LogicalNetlist object into capnp object.
+
+        Use interchange_capnp.write_capnp_file to write to disk or other
+        storage.
+
+        interchange (interchange_capnp.Interchange)
+            Interchange object holding capnp schema's for the FPGA interchange
+            format.
+
+        """
         return interchange.output_logical_netlist(
             name=self.name,
             libraries=self.libraries,

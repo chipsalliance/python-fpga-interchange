@@ -117,10 +117,11 @@ class TestRoundTrip(unittest.TestCase):
             schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
 
         with tempfile.NamedTemporaryFile('w+b') as f:
-            netlist_capnp = logical_netlist.convert_to_capnp(f, interchange)
+            netlist_capnp = logical_netlist.convert_to_capnp(interchange)
             write_capnp_file(netlist_capnp, f)
             f.seek(0)
-            read_logical_netlist = interchange.read_logical_netlist(f)
+            read_logical_netlist = LogicalNetlist.read_from_capnp(
+                f, interchange)
 
         self.assertEqual(read_logical_netlist.name, logical_netlist.name)
         self.assertEqual(read_logical_netlist.top_instance,

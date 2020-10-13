@@ -8,7 +8,10 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
-""" Implements models for generating FPGA interchange formats.
+""" Implements routines for converting FPGA interchange capnp files to models.
+
+The models are implemented in python in fpga_interchange.logical_netlist and
+fpga_interchange.physical_netlist.
 
 LogicalNetlistBuilder - Internal helper class for constructing logical netlist
                         format.  Recommend use is to first construct logical
