@@ -57,7 +57,7 @@ class CompressionFormat(enum.Enum):
 
 
 # Flag indicating that files are gziped on output
-DEFAULT_COMPRESSION_TYPE = CompressionFormat.UNCOMPRESSED
+DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
 
 
 def read_capnp_file(capnp_schema,
@@ -438,7 +438,7 @@ class PhysicalNetlistBuilder():
 
         physical_netlist = self.physical_netlist_schema.PhysNetlist.new_message(
         )
-        physical_netlist.part = phys_netlist.name
+        physical_netlist.part = phys_netlist.part
         physical_netlist.init('placements', len(phys_netlist.placements))
         placements = physical_netlist.placements
         for idx, placement in enumerate(phys_netlist.placements):

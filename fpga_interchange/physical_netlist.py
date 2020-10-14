@@ -804,8 +804,7 @@ class PhysicalNetlist:
 
     """
 
-    def __init__(self, name, part, properties={}):
-        self.name = name
+    def __init__(self, part, properties={}):
         self.part = part
         self.properties = {}
 
