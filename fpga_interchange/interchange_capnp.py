@@ -74,14 +74,17 @@ def read_capnp_file(capnp_schema,
 
     """
     if compression_format == CompressionFormat.GZIP:
-        f_in = gzip.GzipFile(fileobj=f_in, mode='rb')
+        f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
+        if is_packed:
+            return capnp_schema.from_bytes_packed(f_comp.read())
+        else:
+            return capnp_schema.from_bytes(f_comp.read())
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
-
-    if is_packed:
-        return capnp_schema.read_packed(f_in)
-    else:
-        return capnp_schema.read(f_in)
+        if is_packed:
+            return capnp_schema.read_packed(f_in)
+        else:
+            return capnp_schema.read(f_in)
 
 
 def write_capnp_file(capnp_obj,

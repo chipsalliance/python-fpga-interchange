@@ -13,7 +13,8 @@ import os
 import unittest
 import tempfile
 
-from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
+from fpga_interchange.interchange_capnp import Interchange, write_capnp_file, \
+        CompressionFormat
 from fpga_interchange.logical_netlist import LogicalNetlist
 from fpga_interchange.physical_netlist import PhysicalNetlist
 from example_netlist import example_logical_netlist, example_physical_netlist
@@ -30,6 +31,7 @@ class TestRoundTrip(unittest.TestCase):
             netlist_capnp = logical_netlist.convert_to_capnp(interchange)
             write_capnp_file(netlist_capnp, f)
             f.seek(0)
+
             read_logical_netlist = LogicalNetlist.read_from_capnp(
                 f, interchange)
 
@@ -67,3 +69,27 @@ class TestRoundTrip(unittest.TestCase):
 
         self.assertEqual(
             len(phys_netlist.placements), len(read_phys_netlist.placements))
+
+    def test_capnp_modes(self):
+        logical_netlist = example_logical_netlist()
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+
+        for compression_format in [
+                CompressionFormat.UNCOMPRESSED, CompressionFormat.GZIP
+        ]:
+            for packed in [True, False]:
+                with tempfile.NamedTemporaryFile('w+b') as f:
+                    netlist_capnp = logical_netlist.convert_to_capnp(
+                        interchange)
+                    write_capnp_file(
+                        netlist_capnp,
+                        f,
+                        compression_format=compression_format,
+                        is_packed=packed)
+                    f.seek(0)
+                    _ = LogicalNetlist.read_from_capnp(
+                        f,
+                        interchange,
+                        compression_format=compression_format,
+                        is_packed=packed)
