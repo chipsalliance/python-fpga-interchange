@@ -6,3 +6,4 @@ src
 *egg-info*
 dist
 env
+*.swp

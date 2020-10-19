@@ -17,8 +17,9 @@ jobs:
   include:
     - name: "Python Tests"
       script:
-        - make test-py
-        - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
+        - git clone -b interchange https://github.com/Xilinx/RapidWright.git
+        - git clone https://github.com/capnproto/capnproto-java.git
+        - CAPNP_PATH=$(pwd)/capnproto-java/compiler/src/main/schema/ INTERCHANGE_SCHEMA_PATH=$(pwd)/RapidWright/interchange make test-py
     - name: "Check Formatting"
       script:
         - make format
