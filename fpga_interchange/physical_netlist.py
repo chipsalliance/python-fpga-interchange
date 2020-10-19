@@ -11,7 +11,6 @@
 
 import enum
 from collections import namedtuple
-from .logical_netlist import Direction
 
 
 # Physical cell type enum.
@@ -120,24 +119,10 @@ class PhysicalBelPin():
 
     """
 
-    def __init__(self, site, bel, pin, direction=None):
+    def __init__(self, site, bel, pin):
         self.site = site
         self.bel = bel
         self.pin = pin
-        self.site_source = False
-
-        if direction == 'inout':
-            self.direction = Direction.Inout
-        elif direction == 'input':
-            self.direction = Direction.Input
-        elif direction == 'output':
-            self.direction = Direction.Output
-        elif direction == 'site_source':
-            self.direction = Direction.Output
-            self.site_source = True
-        else:
-            assert direction is None, (site, bel, pin)
-            self.direction = None
 
         self.branches = []
 
@@ -157,30 +142,11 @@ class PhysicalBelPin():
 
         descend_branch(obj, self, string_id)
 
-    def nodes(self, cursor, site_type_pins):
-        return []
-
-    def is_root(self):
-        return self.direction in [Direction.Output, Direction.Inout
-                                  ] and not self.site_source
-
     def __str__(self):
-        if self.direction == Direction.Output:
-            if self.site_source:
-                direction = 'site_source'
-            else:
-                direction = 'output'
-        elif self.direction == Direction.Input:
-            direction = 'input'
-        else:
-            assert self.direction == Direction.Inout, self.direction
-            direction = 'inout'
-
-        return 'PhysicalBelPin({}, {}, {}, {})'.format(
+        return 'PhysicalBelPin({}, {}, {})'.format(
             repr(self.site),
             repr(self.bel),
             repr(self.pin),
-            direction,
         )
 
 
@@ -212,33 +178,6 @@ class PhysicalSitePin():
         obj.routeSegment.sitePin.pin = string_id(self.pin)
 
         descend_branch(obj, self, string_id)
-
-    def nodes(self, cursor, site_type_pins):
-        cursor.execute(
-            """
-WITH a_site_instance(site_pkey, phy_tile_pkey) AS (
-    SELECT site_pkey, phy_tile_pkey
-    FROM site_instance
-    WHERE name = ?
-)
-SELECT node_pkey FROM wire WHERE
-    phy_tile_pkey = (SELECT phy_tile_pkey FROM a_site_instance)
-AND
-    wire_in_tile_pkey = (
-        SELECT pkey FROM wire_in_tile WHERE
-            site_pkey = (SELECT site_pkey FROM a_site_instance)
-        AND
-            site_pin_pkey IN (SELECT pkey FROM site_pin WHERE name = ?)
-    );
-        """, (self.site, site_type_pins[self.site, self.pin]))
-
-        results = cursor.fetchall()
-        assert len(results) == 1, (results, self.site, self.pin,
-                                   site_type_pins[self.site, self.pin])
-        return [results[0][0]]
-
-    def is_root(self):
-        return False
 
     def __str__(self):
         return 'PhysicalSitePin({}, {})'.format(
@@ -284,34 +223,6 @@ class PhysicalPip():
 
         descend_branch(obj, self, string_id)
 
-    def nodes(self, cursor, site_type_pins):
-        cursor.execute("""SELECT pkey FROM phy_tile WHERE name = ?;""",
-                       (self.tile, ))
-        (phy_tile_pkey, ) = cursor.fetchone()
-
-        cursor.execute(
-            """
-SELECT node_pkey FROM wire WHERE
-    phy_tile_pkey = ?
-AND
-    wire_in_tile_pkey IN (SELECT pkey FROM wire_in_tile WHERE name = ?);""",
-            (phy_tile_pkey, self.wire0))
-        (node0_pkey, ) = cursor.fetchone()
-
-        cursor.execute(
-            """
-SELECT node_pkey FROM wire WHERE
-    phy_tile_pkey = ?
-AND
-    wire_in_tile_pkey IN (SELECT pkey FROM wire_in_tile WHERE name = ?);""",
-            (phy_tile_pkey, self.wire1))
-        (node1_pkey, ) = cursor.fetchone()
-
-        return [node0_pkey, node1_pkey]
-
-    def is_root(self):
-        return False
-
     def __str__(self):
         return 'PhysicalPip({}, {}, {}, {})'.format(
             repr(self.tile),
@@ -355,12 +266,6 @@ class PhysicalSitePip():
 
         descend_branch(obj, self, string_id)
 
-    def nodes(self, cursor, site_type_pins):
-        return []
-
-    def is_root(self):
-        return False
-
     def __str__(self):
         return 'PhysicalSitePip({}, {}, {})'.format(
             repr(self.site),
@@ -393,7 +298,7 @@ def convert_tuple_to_object(site, tup):
     >>> site_pin.branches
     []
 
-    >>> bel_pin = convert_tuple_to_object(site, ('bel_pin', 'ABEL', 'APIN', 'input'))
+    >>> bel_pin = convert_tuple_to_object(site, ('bel_pin', 'ABEL', 'APIN'))
     >>> assert isinstance(bel_pin, PhysicalBelPin)
     >>> bel_pin.site
     'TEST_SITE'
@@ -401,8 +306,6 @@ def convert_tuple_to_object(site, tup):
     'ABEL'
     >>> bel_pin.pin
     'APIN'
-    >>> bel_pin.direction
-    <Direction.Input: 0>
 
     >>> site_pip = convert_tuple_to_object(site, ('site_pip', 'BBEL', 'BPIN'))
     >>> assert isinstance(site_pip, PhysicalSitePip)
@@ -418,9 +321,9 @@ def convert_tuple_to_object(site, tup):
         _, pin = tup
         return PhysicalSitePin(site.name, pin)
     elif tup[0] == 'bel_pin':
-        assert len(tup) == 4, tup
-        _, bel, pin, direction = tup
-        return PhysicalBelPin(site.name, bel, pin, direction)
+        assert len(tup) == 3, tup
+        _, bel, pin = tup
+        return PhysicalBelPin(site.name, bel, pin)
     elif tup[0] == 'site_pip':
         _, bel, pin = tup
         return PhysicalSitePip(site.name, bel, pin)
@@ -504,296 +407,6 @@ def create_site_routing(site, net_roots, site_routing, constant_nets):
         nets[net_name].append(root_obj)
 
     return nets
-
-
-class NodeCache():
-    """ Cache of route segment to node_pkey and node_pkey to route segments. """
-
-    def __init__(self):
-        self.id_to_obj = {}
-        self.id_to_nodes = {}
-        self.node_to_ids = {}
-
-    def add_route_branch(self, obj, cursor, site_type_pins):
-        """ Add route branch to cache.
-
-        obj : PhysicalBelPin/PhysicalSitePin/PhysicalSitePip/PhysicalPip
-            Add route segment to node cache.
-
-        cursor : sqlite3.Cursor
-            Cursor to connection database.
-
-        site_type_pins
-            Map of used site pin to the site pin default name.
-
-            The interchange uses the site pin name for the particular type in
-            use, e.g. RAMB36E1.  The connection database has the site pin
-            names for the default site type (e.g. RAMBFIFO36E1).
-            site_type_pins maps the site specific type back to the default
-            type found in the connection database.
-
-            FIXME: If the connection database had the site pins for each
-            alternative site type, this map would no longer be required.
-        """
-        obj_id = id(obj)
-        assert obj_id not in self.id_to_obj
-
-        self.id_to_obj[obj_id] = obj
-        self.id_to_nodes[obj_id] = set(obj.nodes(cursor, site_type_pins))
-        for node in self.id_to_nodes[obj_id]:
-            if node not in self.node_to_ids:
-                self.node_to_ids[node] = set()
-
-            self.node_to_ids[node].add(obj_id)
-
-        for child_branch in obj.branches:
-            self.add_route_branch(child_branch, cursor, site_type_pins)
-
-    def check_tree(self, obj, parent=None):
-        """ Check that the routing tree at and below obj is valid.
-
-        This method should be called after all route segments have been added
-        to the node cache.
-
-        """
-
-        if parent is not None:
-            nodes = self.id_to_nodes[id(obj)]
-            parent_nodes = self.id_to_nodes[id(parent)]
-
-            if nodes and parent_nodes:
-                assert len(nodes & parent_nodes) > 0, (parent, obj)
-
-        for child in obj.branches:
-            self.check_tree(child, parent=obj)
-
-    def attach(self, parent_id, child_id):
-        """ Attach a child routing tree to the routing tree for parent. """
-        self.id_to_obj[parent_id].branches.append(self.id_to_obj[child_id])
-
-    def nodes_for_branch(self, obj):
-        """ Return the node pkey's attached to the routing branch in obj. """
-        return self.id_to_nodes[id(obj)]
-
-
-def yield_branches(routing_branch):
-    """ Yield all routing branches starting from the given route segment.
-
-    This will yield the input route branch in addition to its children.
-
-    """
-    objs = set()
-
-    def descend(obj):
-        obj_id = id(obj)
-        assert obj_id not in objs
-        objs.add(obj_id)
-
-        yield obj
-
-        for seg in obj.branches:
-            for s in descend(seg):
-                yield s
-
-    for s in descend(routing_branch):
-        yield s
-
-
-def duplicate_check(sources, stubs):
-    """ Check routing sources and stubs for duplicate objects.
-
-    Returns the total number of routing branches in the sources and stubs list.
-
-    """
-    objs = set()
-
-    def descend(obj):
-        obj_id = id(obj)
-        assert obj_id not in objs
-
-        objs.add(obj_id)
-
-        for obj in obj.branches:
-            descend(obj)
-
-    for obj in sources:
-        descend(obj)
-
-    for obj in stubs:
-        descend(obj)
-
-    return len(objs)
-
-
-def attach_candidates(node_cache, id_to_idx, stitched_stubs, objs_to_attach,
-                      route_branch, visited):
-    """ Attach children of branches in the routing tree route_branch.
-
-    node_cache : NodeCache
-        A node cache that contains all routing branches in the net.
-
-    id_to_idx : dict object id to int
-        Map of object id to idx in a list of unstitched routing branches.
-
-    stitched_stubs : set of int
-        Set of indicies of stubs that have been stitched.  Used to track which
-        stubs have been stitched into the tree, and verify stubs are not
-        stitched twice into the tree.
-
-    objs_to_attach : list of parent object id to child object id
-        When attach_candidates finds a stub that should be stitched into the
-        routing tree, rather than stitch it immediately, it adds a parent of
-        (id(parent), id(child)) to objs_to_attach.  This deferal enables the
-        traversal of the input routing tree without modification.
-
-        After attach_candidates returns, elements of objs_to_attach should be
-        passed to node_cache.attach to join the trees.
-
-    obj : PhysicalBelPin/PhysicalSitePin/PhysicalSitePip/PhysicalPip
-        Root of routing tree to iterate over to identify candidates to attach
-        to routing tree..
-
-    visited : set of ids to routing branches.
-
-    """
-    root_obj_id = id(route_branch)
-    assert root_obj_id not in id_to_idx
-
-    for branch in yield_branches(route_branch):
-        # Make sure each route branch is only visited once.
-        assert id(branch) not in visited
-        visited.add(id(branch))
-
-        for node in node_cache.nodes_for_branch(branch):
-            for obj_id in node_cache.node_to_ids[node]:
-                if obj_id not in id_to_idx:
-                    continue
-
-                # There should never be a loop because root_obj_id should not
-                # be in the id_to_idx map once it is stitched into another tree.
-                assert root_obj_id != obj_id
-
-                idx = id_to_idx[obj_id]
-                assert idx not in stitched_stubs
-                stitched_stubs.add(idx)
-                objs_to_attach.append((id(branch), obj_id))
-
-
-def attach_from_parents(node_cache, id_to_idx, parents, visited):
-    """ Attach children routing tree starting from list of parent routing trees.
-
-    node_cache : NodeCache
-        A node cache that contains all routing branches in the net.
-
-    id_to_idx : dict object id to int
-        Map of object id to idx in a list of unstitched routing branches.
-
-    parents : list of PhysicalBelPin/PhysicalSitePin/PhysicalSitePip/PhysicalPip
-        Roots of routing tree to search for children trees.
-
-    visited : set of ids to routing branches.
-
-    Returns set of indicies to stitched stubs.
-
-    """
-    objs_to_attach = []
-
-    stitched_stubs = set()
-    for parent in parents:
-        attach_candidates(
-            node_cache=node_cache,
-            id_to_idx=id_to_idx,
-            stitched_stubs=stitched_stubs,
-            objs_to_attach=objs_to_attach,
-            route_branch=parent,
-            visited=visited)
-
-    for branch_id, child_id in objs_to_attach:
-        # The branch_id should not be in the id_to_idx map, because it should
-        # be an outstanding stub.
-        assert branch_id not in id_to_idx
-
-        # The child_id should be in the id_to_idx map, because it should be an
-        # outstanding stub.
-        assert child_id in id_to_idx
-
-        node_cache.attach(branch_id, child_id)
-
-        stitched_stubs.add(id_to_idx[child_id])
-        del id_to_idx[child_id]
-
-    # Return the newly stitched stubs, so that they form the new parent list.
-    return stitched_stubs
-
-
-def stitch_stubs(stubs, cursor, site_type_pins):
-    """ Stitch stubs of the routing tree into trees routed from net sources. """
-    sources = []
-
-    # Verify input stubs have no loops.
-    count = duplicate_check(sources, stubs)
-
-    stitched_stubs = set()
-
-    node_cache = NodeCache()
-
-    # Populate the node cache and move root stubs to the sources list.
-    for idx, stub in enumerate(stubs):
-        if stub.is_root():
-            stitched_stubs.add(idx)
-            sources.append(stub)
-
-        node_cache.add_route_branch(stub, cursor, site_type_pins)
-
-    # Make sure all stubs appear valid before stitching.
-    for stub in stubs:
-        node_cache.check_tree(stub)
-
-    # Remove root stubs now that they are in the sources list.
-    for idx in sorted(stitched_stubs, reverse=True):
-        del stubs[idx]
-
-    # Create a id to idx map so that stitching can be deferred when walking
-    # trees
-    id_to_idx = {}
-    for idx, stub in enumerate(stubs):
-        assert idx not in id_to_idx
-        id_to_idx[id(stub)] = idx
-
-    # Initial set of tree parents are just the sources
-    parents = sources
-    stitched_stubs = set()
-
-    # Track visited nodes, as it is expected to never visit a route branch
-    # more than once.
-    visited = set()
-
-    # Continue iterating until no more stubs are stitched.
-    while len(parents) > 0:
-        # Starting from the parents of the current tree, add stubs the
-        # descend from this set, and create a new set of parents from those
-        # stubs.
-        newly_stitched_stubs = attach_from_parents(node_cache, id_to_idx,
-                                                   parents, visited)
-
-        # Mark the newly stitched stubs to be removed.
-        stitched_stubs |= newly_stitched_stubs
-
-        # New set of parents using from the newly stitched stubs.
-        parents = [stubs[idx] for idx in newly_stitched_stubs]
-
-    # Remove stitched stubs from stub list
-    for idx in sorted(stitched_stubs, reverse=True):
-        del stubs[idx]
-
-    # Make sure new trees are sensible.
-    for source in sources:
-        node_cache.check_tree(source)
-
-    # Make sure final source and stub lists have no duplicates.
-    assert count == duplicate_check(sources, stubs)
-
-    return sources, stubs
 
 
 class PhysicalNetlist:

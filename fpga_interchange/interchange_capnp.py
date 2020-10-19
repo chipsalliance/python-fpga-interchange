@@ -672,13 +672,11 @@ def to_physical_netlist(phys_netlist_capnp):
     def convert_route_segment(route_segment_capnp):
         which = route_segment_capnp.which()
         if which == 'belPin':
-            # TODO: Fix BEL pin direction
             bel_pin = route_segment_capnp.belPin
             return PhysicalBelPin(
                 site=strs[bel_pin.site],
                 bel=strs[bel_pin.bel],
-                pin=strs[bel_pin.pin],
-                direction='input')
+                pin=strs[bel_pin.pin])
         elif which == 'sitePin':
             site_pin = route_segment_capnp.sitePin
             return PhysicalSitePin(
