@@ -11,6 +11,7 @@
 
 import enum
 from collections import namedtuple
+from .route_stitching import RoutingTree, stitch_segments
 
 
 # Physical cell type enum.
@@ -142,6 +143,9 @@ class PhysicalBelPin():
 
         descend_branch(obj, self, string_id)
 
+    def get_device_resource(self, device_resources):
+        return device_resources.bel_pin(self.site, self.bel, self.pin)
+
     def __str__(self):
         return 'PhysicalBelPin({}, {}, {})'.format(
             repr(self.site),
@@ -178,6 +182,9 @@ class PhysicalSitePin():
         obj.routeSegment.sitePin.pin = string_id(self.pin)
 
         descend_branch(obj, self, string_id)
+
+    def get_device_resource(self, device_resources):
+        return device_resources.site_pin(self.site, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePin({}, {})'.format(
@@ -223,6 +230,9 @@ class PhysicalPip():
 
         descend_branch(obj, self, string_id)
 
+    def get_device_resource(self, device_resources):
+        return device_resources.pip(self.tile, self.wire0, self.wire1)
+
     def __str__(self):
         return 'PhysicalPip({}, {}, {}, {})'.format(
             repr(self.tile),
@@ -265,6 +275,9 @@ class PhysicalSitePip():
         obj.routeSegment.sitePIP.pin = string_id(self.pin)
 
         descend_branch(obj, self, string_id)
+
+    def get_device_resource(self, device_resources):
+        return device_resources.site_pip(self.site, self.bel, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePip({}, {}, {})'.format(
@@ -484,6 +497,24 @@ class PhysicalNetlist:
         self.nets.append(
             PhysicalNet(
                 name=net_name, type=net_type, sources=sources, stubs=stubs))
+
+    def check_trees(self, device_resources):
+        for net in self.nets:
+            # RoutingTree does a check on the subtrees during construction.
+            _ = RoutingTree(net.sources + net.stubs, device_resources)
+
+    def stitch_segments(self, device_resources):
+        for idx, net in enumerate(self.nets):
+            segments = net.sources + net.stubs
+
+            sources, stubs = stitch_segments(device_resources, segments)
+
+            self.nets[idx] = PhysicalNet(
+                name=net.name,
+                type=net.type,
+                sources=sources,
+                stubs=stubs,
+            )
 
     def set_null_net(self, stubs):
         self.null_net = stubs

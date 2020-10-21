@@ -70,6 +70,20 @@ class TestRoundTrip(unittest.TestCase):
         self.assertEqual(
             len(phys_netlist.placements), len(read_phys_netlist.placements))
 
+    def test_check_routing_tree(self):
+        phys_netlist = example_physical_netlist()
+
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+
+        with open(
+                os.path.join(os.environ['DEVICE_RESOURCE_PATH'],
+                             phys_netlist.part + '.device'), 'rb') as f:
+            device_resources = interchange.read_device_resources(f)
+
+        phys_netlist.check_trees(device_resources)
+        #phys_netlist.stitch_segments(device_resources)
+
     def test_capnp_modes(self):
         logical_netlist = example_logical_netlist()
         interchange = Interchange(
