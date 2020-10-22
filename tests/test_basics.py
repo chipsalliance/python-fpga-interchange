@@ -82,12 +82,12 @@ class TestRoundTrip(unittest.TestCase):
                              phys_netlist.part + '.device'), 'rb') as f:
             device_resources = interchange.read_device_resources(f)
 
-        phys_netlist.check_trees(device_resources)
+        phys_netlist.check_physical_nets(device_resources)
         before_stitch = phys_netlist.get_normalized_tuple_tree(
             device_resources)
-        phys_netlist.stitch_segments(device_resources)
+        phys_netlist.stitch_physical_nets(device_resources)
         after_stitch = phys_netlist.get_normalized_tuple_tree(device_resources)
-        phys_netlist.stitch_segments(device_resources, flatten=True)
+        phys_netlist.stitch_physical_nets(device_resources, flatten=True)
         after_stitch_from_flat = phys_netlist.get_normalized_tuple_tree(
             device_resources)
 

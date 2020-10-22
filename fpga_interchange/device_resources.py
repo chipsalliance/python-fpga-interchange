@@ -14,14 +14,17 @@ from .logical_netlist import Direction
 
 
 def first_upper(s):
+    """ Convert first letter in string. """
     return s[0].upper() + s[1:]
 
 
 def convert_direction(s):
+    """ Convert capnp enum to logical_netlist.Direction. """
     return Direction[first_upper(str(s))]
 
 
 def can_connect_via_site_wire(a_site, a_site_wire, b_site, b_site_wire):
+    """ Are these two site wires the same connection resource? """
     if a_site != b_site:
         # Not in same site, not connected
         return False
@@ -31,6 +34,7 @@ def can_connect_via_site_wire(a_site, a_site_wire, b_site, b_site_wire):
 
 
 def can_be_connected(a_direction, b_direction):
+    """ Can two resources with the following directions be connected? """
     if a_direction == Direction.Inout or b_direction == Direction.Inout:
         return True
     elif a_direction == Direction.Input:
@@ -75,7 +79,10 @@ class Node(namedtuple('Node', 'node_index')):
 
 
 class BelPin():
-    def __init__(self, site, bel_pin_index, site_wire_index, direction, is_site_pin):
+    """ BEL Pin device resource object. """
+
+    def __init__(self, site, bel_pin_index, site_wire_index, direction,
+                 is_site_pin):
         self.site = site
         self.site_wire_index = site_wire_index
         self.bel_pin_index = bel_pin_index
@@ -89,6 +96,7 @@ class BelPin():
             repr(self.is_site_pin))
 
     def site_wires(self):
+        """ Return site wires that this object is attached too. """
         if self.site_wire_index is not None:
             return [
                 SiteWire(self.site.tile_index, self.site.site_index,
@@ -98,9 +106,11 @@ class BelPin():
             return []
 
     def nodes(self):
+        """ Return site wires that this object is attached too. """
         return []
 
     def is_connected(self, other_object):
+        """ Return true if this object and other_object are directly connected. """
         # BelPin's for the site pins have a direct relationship.
         if other_object.is_site_pin_for(self.site, self.bel_pin_index):
             return True
@@ -112,11 +122,13 @@ class BelPin():
             return False
 
     def is_site_pin_for(self, site, bel_pin_index):
+        """ Return true if this object is the site pin for the specified BEL pin. """
         # BEL pins are not site pins for other BEL pins.
         return False
 
     def can_connect_via_site_wire(self, other_site, other_site_wire_index,
                                   other_direction):
+        """ Return true if this object can connected to the specified site wire. """
         if not can_connect_via_site_wire(self.site, self.site_wire_index,
                                          other_site, other_site_wire_index):
             # Not connected at all
@@ -125,15 +137,28 @@ class BelPin():
         return can_be_connected(self.direction, other_direction)
 
     def is_bel_pin(self, site, bel_pin_index):
+        """ Returns true if this object is the specified BEL pin. """
         return self.site == site and self.bel_pin_index == bel_pin_index
 
     def is_node_connected(self, node):
+        """ Returns true if this object is connected to the specified node. """
         return False
 
     def is_root(self):
-        return self.direction in [Direction.Output, Direction.Inout] and not self.is_site_pin
+        """ Returns true if this object could be a net root. """
+        return self.direction in [Direction.Output, Direction.Inout
+                                  ] and not self.is_site_pin
 
     def root_priority(self):
+        """ What root priority does this BEL pin have?
+
+        Lower priority take precedence over high priority.
+
+        In cases where a site wire has multiple possible roots, think an IOBUF
+        which will have a Pad with Inout and a OUTBUF with Output, the Output
+        take precedence.
+
+        """
         if self.direction == Direction.Output:
             return 0
         elif self.direction == Direction.Inout:
@@ -143,6 +168,8 @@ class BelPin():
 
 
 class SitePin():
+    """ Site pin device resource object. """
+
     def __init__(self, site, site_pin_index, bel_pin_index, site_wire_index,
                  node, direction):
         self.site = site
@@ -159,38 +186,48 @@ class SitePin():
             repr(self.node), repr(self.direction))
 
     def site_wires(self):
+        """ Return site wires that this object is attached too. """
         return [
             SiteWire(self.site.tile_index, self.site.site_index,
                      self.site_wire_index)
         ]
 
     def nodes(self):
+        """ Return site wires that this object is attached too. """
         return [self.node]
 
     def is_connected(self, other_object):
+        """ Return true if this object and other_object are directly connected. """
         if other_object.is_bel_pin(self.site, self.bel_pin_index):
             return True
         else:
             return other_object.is_node_connected(self.node)
 
     def is_site_pin_for(self, site, bel_pin_index):
+        """ Return true if this object is the site pin for the specified BEL pin. """
         return self.site == site and self.bel_pin_index == bel_pin_index
 
     def can_connect_via_site_wire(self, other_site_index,
                                   other_site_wire_index, other_direction):
+        """ Return true if this object can connected to the specified site wire. """
         return False
 
     def is_bel_pin(self, site, bel_pin_index):
+        """ Returns true if this object is the specified BEL pin. """
         return False
 
     def is_node_connected(self, node):
+        """ Returns true if this object is connected to the specified node. """
         return self.node == node
 
     def is_root(self):
+        """ Returns true if this object could be a net root. """
         return False
 
 
 class SitePip():
+    """ Site pip device resource object. """
+
     def __init__(self, site, in_bel_pin_index, out_bel_pin_index,
                  in_site_wire_index, out_site_wire_index):
         self.site = site
@@ -206,6 +243,7 @@ class SitePip():
             repr(self.out_site_wire_index))
 
     def site_wires(self):
+        """ Return site wires that this object is attached too. """
         return [
             SiteWire(self.site.tile_index, self.site.site_index,
                      self.in_site_wire_index),
@@ -214,9 +252,11 @@ class SitePip():
         ]
 
     def nodes(self):
+        """ Return site wires that this object is attached too. """
         return []
 
     def is_connected(self, other_object):
+        """ Return true if this object and other_object are directly connected. """
         if other_object.can_connect_via_site_wire(
                 self.site, self.in_site_wire_index, Direction.Input):
             return True
@@ -225,10 +265,12 @@ class SitePip():
                 self.site, self.out_site_wire_index, Direction.Output)
 
     def is_site_pin_for(self, site, bel_pin_index):
+        """ Return true if this object is the site pin for the specified BEL pin. """
         return False
 
     def can_connect_via_site_wire(self, other_site, other_site_wire_index,
                                   other_direction):
+        """ Return true if this object can connected to the specified site wire. """
         if can_connect_via_site_wire(self.site, self.in_site_wire_index,
                                      other_site, other_site_wire_index):
             return can_be_connected(Direction.Input, other_direction)
@@ -239,6 +281,7 @@ class SitePip():
             return False
 
     def is_bel_pin(self, site, bel_pin_index):
+        """ Returns true if this object is the specified BEL pin. """
         if not self.site == site:
             return False
         else:
@@ -246,13 +289,17 @@ class SitePip():
                                      self.out_bel_pin_index)
 
     def is_node_connected(self, node):
+        """ Returns true if this object is connected to the specified node. """
         return False
 
     def is_root(self):
+        """ Returns true if this object could be a net root. """
         return False
 
 
 class Pip():
+    """ Pip device resource object. """
+
     def __init__(self, node0, node1, directional):
         self.node0 = node0
         self.node1 = node1
@@ -263,35 +310,49 @@ class Pip():
             repr(self.node0), repr(self.node1), repr(self.directional))
 
     def site_wires(self):
+        """ Return site wires that this object is attached too. """
         return []
 
     def nodes(self):
+        """ Return site wires that this object is attached too. """
         return [self.node0, self.node1]
 
     def is_connected(self, other_object):
+        """ Return true if this object and other_object are directly connected. """
         if other_object.is_node_connected(self.node0):
             return True
         else:
             return other_object.is_node_connected(self.node1)
 
     def is_site_pin_for(self, site, bel_pin_index):
+        """ Return true if this object is the site pin for the specified BEL pin. """
         return False
 
     def can_connect_via_site_wire(self, other_site_index,
                                   other_site_wire_index, other_direction):
+        """ Return true if this object can connected to the specified site wire. """
         return False
 
     def is_bel_pin(self, site, bel_pin_index):
+        """ Returns true if this object is the specified BEL pin. """
         return False
 
     def is_node_connected(self, node):
+        """ Returns true if this object is connected to the specified node. """
         return node in [self.node0, self.node1]
 
     def is_root(self):
+        """ Returns true if this object could be a net root. """
         return False
 
 
 class SiteType():
+    """ Object for looking up device resources from a site type.
+
+    Do not construct or use directly.  Instead use DeviceResources.
+
+    """
+
     def __init__(self, strs, site_type, site_type_index):
         self.site_type = strs[site_type.name]
         self.site_type_index = site_type_index
@@ -343,6 +404,13 @@ class SiteType():
             self.site_pips[site_pip.inpin] = strs[out_bel_pin.name]
 
     def bel_pin(self, site, bel, pin):
+        """ Return BelPin device resource for BEL pin in site.
+
+        site (Site) - Site tuple
+        bel (str) - BEL name
+        pin (str) - BEL pin name
+
+        """
         assert site.site_type_index == self.site_type_index
         bel_pin_index, site_wire_index, direction = self.bel_pins[bel, pin]
 
@@ -352,9 +420,15 @@ class SiteType():
             site_wire_index=site_wire_index,
             direction=direction,
             is_site_pin=bel_pin_index in self.bel_pin_to_site_pins,
-            )
+        )
 
     def site_pin(self, site, device_resources, pin):
+        """ Return SitePin device resource for site pin in site.
+
+        site (Site) - Site tuple
+        pin (str) - Site pin name
+
+        """
         assert site.site_type_index == self.site_type_index
 
         assert pin in self.site_pins, (self.site_type, pin,
@@ -381,6 +455,13 @@ class SiteType():
             direction=direction)
 
     def site_pip(self, site, bel, pin):
+        """ Return SitePip device resource for site PIP in site.
+
+        site (Site) - Site tuple
+        bel (str) - BEL name containing site PIP.
+        pin (str) - BEL pin name for specific edge.
+
+        """
         assert site.site_type_index == self.site_type_index
 
         key = bel, pin
@@ -409,6 +490,12 @@ GenericPip = namedtuple('GenericPip', 'wire0 wire1 directional')
 
 
 class TileType():
+    """ Object for looking up device resources from a tile type.
+
+    Do not construct or use directly.  Instead use DeviceResources.
+
+    """
+
     def __init__(self, strs, tile_type, tile_type_index):
         self.tile_type_index = tile_type_index
 
@@ -426,12 +513,20 @@ class TileType():
                 self.wire_id_to_pip[pip.wire1, pip.wire0] = pip
 
     def pip(self, wire0, wire1):
+        """ Return GenericPip for specified PIP in tile type.
+
+        wire0 (int) - StringIdx for wire0 name
+        wire1 (int) - StringIdx for wire1 name
+
+        """
         wire_id0 = self.string_index_to_wire_id_in_tile_type[wire0]
         wire_id1 = self.string_index_to_wire_id_in_tile_type[wire1]
         return self.wire_id_to_pip[wire_id0, wire_id1]
 
 
 class DeviceResources():
+    """ Object for getting specific a device resource from DeviceResources capnp. """
+
     def __init__(self, device_resource_capnp):
         self.device_resource_capnp = device_resource_capnp
         self.strs = [s for s in self.device_resource_capnp.strList]
@@ -499,9 +594,11 @@ class DeviceResources():
                         site_type_index=alt_site_type_index,
                         alt_index=alt_index)
 
-        self.tile_wire_index_to_node_index = {}
+        self.tile_wire_index_to_node_index = None
 
     def build_node_index(self):
+        """ Build node index for looking up wires to nodes. """
+        self.tile_wire_index_to_node_index = {}
         for node_idx, node in enumerate(self.device_resource_capnp.nodes):
             for wire_idx in node.wires:
                 wire = self.device_resource_capnp.wires[wire_idx]
@@ -509,6 +606,7 @@ class DeviceResources():
                 self.tile_wire_index_to_node_index[key] = node_idx
 
     def get_site_type(self, site_type_index):
+        """ Get SiteType object for specified site type index. """
         if site_type_index not in self.site_types:
             self.site_types[site_type_index] = SiteType(
                 self.strs,
@@ -518,6 +616,7 @@ class DeviceResources():
         return self.site_types[site_type_index]
 
     def get_tile_type(self, tile_type_index):
+        """ Get TileType object for specified tile type index. """
         if tile_type_index not in self.tile_types:
             num_tile_types = len(self.device_resource_capnp.tileTypeList)
             assert tile_type_index < num_tile_types, (tile_type_index,
@@ -530,20 +629,50 @@ class DeviceResources():
         return self.tile_types[tile_type_index]
 
     def bel_pin(self, site_name, site_type, bel, pin):
+        """ Return BelPin device resource for BEL pin in site.
+
+        site_name (str) - Name of site
+        site_type (str) - Name of specific site type being queried.
+        bel (str) - BEL name containing site PIP.
+        pin (str) - BEL pin name for specific edge.
+
+        """
         site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).bel_pin(site, bel, pin)
 
     def site_pin(self, site_name, site_type, pin):
+        """ Return SitePin device resource for site pin in site.
+
+        site_name (str) - Name of site
+        site_type (str) - Name of specific site type being queried.
+        pin (str) - Site pin name
+
+        """
         site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).site_pin(
             site, self, pin)
 
     def site_pip(self, site_name, site_type, bel, pin):
+        """ Return SitePip device resource for site PIP in site.
+
+        site_name (str) - Name of site
+        site_type (str) - Name of specific site type being queried.
+        bel (str) - BEL name containing site PIP.
+        pin (str) - BEL pin name for specific edge.
+
+        """
         site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).site_pip(
             site, bel, pin)
 
     def pip(self, tile_name, wire0, wire1):
+        """ Return Pip device resource for pip in tile.
+
+        tile_name (str) - Name of tile
+        wire0 (str) - wire0 name
+        wire1 (str) - wire1 name
+
+        """
         tile = self.tile_name_to_tile[tile_name]
         tile_type = self.get_tile_type(tile.tile_type_index)
 
@@ -557,47 +686,22 @@ class DeviceResources():
             directional=generic_pip.directional)
 
     def node(self, tile_name, wire_name):
+        """ Return Node object for specified wire.
+
+        tile_name (str) - Name of tile
+        wire_name (str) - Name of wire in tile.
+
+        """
         assert tile_name in self.string_index, tile_name
         assert wire_name in self.string_index, wire_name
 
         tile_name_index = self.string_index[tile_name]
         wire_name_index = self.string_index[wire_name]
 
-        if len(self.tile_wire_index_to_node_index) == 0:
+        if self.tile_wire_index_to_node_index is None:
             self.build_node_index()
 
         key = tile_name_index, wire_name_index
-        if key not in self.tile_wire_index_to_node_index:
-            assert self.strs[tile_name_index] == tile_name
-            assert self.strs[wire_name_index] == wire_name
-
-            for wire_idx, wire in enumerate(self.device_resource_capnp.wires):
-                print('{}/{} -> {}'.format(self.strs[wire.tile],
-                                           self.strs[wire.wire], wire_idx))
-
-            found_wire_idx = None
-            for wire_idx, wire in enumerate(self.device_resource_capnp.wires):
-                if wire.tile == tile_name_index and wire.wire == wire_name_index:
-                    print('{}/{} -> {}'.format(tile_name, wire_name, wire_idx))
-                    found_wire_idx = wire_idx
-                    break
-
-            found_node = False
-            if found_wire_idx is not None:
-                for node_idx, node in enumerate(
-                        self.device_resource_capnp.nodes):
-                    for wire_idx in node.wires:
-                        if wire_idx == found_wire_idx:
-                            print('{}/{} -> {} -> {}'.format(
-                                tile_name, wire_name, wire_idx, node_idx))
-                            found_node = True
-
-            if found_wire_idx is None:
-                print('Failed to find wire index!')
-
-            if not found_node:
-                print('Failed to find node!')
-
         assert key in self.tile_wire_index_to_node_index, (
             self.strs[tile_name_index],
             self.strs[wire_name_index],
@@ -607,12 +711,31 @@ class DeviceResources():
         return Node(node_index=node_index)
 
     def get_site_pin(self, site, site_pin_index):
+        """ Get SitePinNames for specified site pin.
+
+        site (Site) - Site tuple
+        site_pin_index (int) - Index into SiteType.pins list.
+
+        Site pin to tile relationships are estabilished through the site type
+        in tile type data.
+
+        If the site tuple indicates this is a primary site type, then the
+        tile wire can be returned directly.
+
+        If the site tuple indicates this is an alternate site type, then the
+        tile wire is found by first mapping the site pin from the alternate
+        site type to the primary site type.  At that point, the tile wire can
+        be found.
+
+        """
         tile = self.device_resource_capnp.tileList[site.tile_index]
         tile_type_index = self.tile_type_to_idx[tile.type]
         tile_type = self.device_resource_capnp.tileTypeList[tile_type_index]
         site_type_in_tile_type = tile_type.siteTypes[site.
                                                      tile_type_site_type_index]
         if site.alt_index is None:
+            # This site type is the primary site type, return the tile wire
+            # directly.
             site_type = self.device_resource_capnp.siteTypeList[
                 site_type_in_tile_type.primaryType]
             site_type_name = self.strs[site_type.name]
@@ -620,14 +743,19 @@ class DeviceResources():
             wire_name = self.strs[site_type_in_tile_type.
                                   primaryPinsToTileWires[site_pin_index]]
         else:
+            # This site type is an alternate site type.
             prim_site_type = self.device_resource_capnp.siteTypeList[
                 site_type_in_tile_type.primaryType]
             site_type = self.device_resource_capnp.siteTypeList[
                 prim_site_type.altSiteTypes[site.alt_index]]
             site_type_name = self.strs[site_type.name]
             pin_name = self.strs[site_type.pins[site_pin_index].name]
+
+            # First translate the site_pin_index from the alternate site type
+            # To the primary site type pin index.
             prim_site_pin_index = site_type_in_tile_type.altPinsToPrimaryPins[
                 site.alt_index].pins[site_pin_index]
+            # Then lookup the tile wire using the primary site pin index.
             wire_name = self.strs[site_type_in_tile_type.
                                   primaryPinsToTileWires[prim_site_pin_index]]
 

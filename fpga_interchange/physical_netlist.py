@@ -144,10 +144,17 @@ class PhysicalBelPin():
         descend_branch(obj, self, string_id)
 
     def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
         return device_resources.bel_pin(self.site, site_types[self.site],
                                         self.bel, self.pin)
 
     def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
         return ('bel_pin', self.site, self.bel, self.pin)
 
     def __str__(self):
@@ -188,10 +195,17 @@ class PhysicalSitePin():
         descend_branch(obj, self, string_id)
 
     def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
         return device_resources.site_pin(self.site, site_types[self.site],
                                          self.pin)
 
     def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
         return ('site_pin', self.site, self.pin)
 
     def __str__(self):
@@ -239,9 +253,16 @@ class PhysicalPip():
         descend_branch(obj, self, string_id)
 
     def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
         return device_resources.pip(self.tile, self.wire0, self.wire1)
 
     def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
         return ('pip', self.tile, self.wire0, self.wire1)
 
     def __str__(self):
@@ -288,10 +309,17 @@ class PhysicalSitePip():
         descend_branch(obj, self, string_id)
 
     def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
         return device_resources.site_pip(self.site, site_types[self.site],
                                          self.bel, self.pin)
 
     def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
         return ('site_pip', self.site, self.bel, self.pin)
 
     def __str__(self):
@@ -480,7 +508,7 @@ class PhysicalNetlist:
 
     def add_placement(self, placement):
         """ Add physical_netlist.Placement python object to this physical netlist.
-site_type, 
+
         placement (physical_netlist.Placement) - Placement to add.
 
         """
@@ -513,7 +541,12 @@ site_type,
             PhysicalNet(
                 name=net_name, type=net_type, sources=sources, stubs=stubs))
 
-    def check_trees(self, device_resources):
+    def check_physical_nets(self, device_resources):
+        """ Check physical nets for errors.
+
+        Detects duplicate resources and invalid routing trees.
+
+        """
         for net in self.nets:
             # RoutingTree does a check on the subtrees during construction.
             _ = RoutingTree(
@@ -522,7 +555,15 @@ site_type,
                 sources=net.sources,
                 stubs=net.stubs)
 
-    def stitch_segments(self, device_resources, flatten=False):
+    def stitch_physical_nets(self, device_resources, flatten=False):
+        """ Stitch supplied physical nets into routing trees.
+
+        flatten (bool) - If true, existing routing trees are flattened before
+                         stitching process.  This can be useful for testing,
+                         or if the input routing tree was invalid and needs to
+                         be reconstructed.
+
+        """
         for idx, net in enumerate(self.nets):
             segments = net.sources + net.stubs
             if flatten:
@@ -539,6 +580,17 @@ site_type,
             )
 
     def get_normalized_tuple_tree(self, device_resources):
+        """ Return physical nets in canonical tuple form.
+
+        Returns a dictionary of net names to tuple trees.  Each value of the
+        dictionary is a two tuple or the stubs and sources for the net. Each
+        stub and source is a two tuple of the current segment of the routing
+        tree, and a tuple of children from that segment.
+
+        The method is mostly useful for comparing routing trees for equality,
+        as equivelent routing trees will generate the same tuple tree.
+
+        """
         output = {}
 
         for net in self.nets:

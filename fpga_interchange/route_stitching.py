@@ -1,4 +1,27 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2020  The SymbiFlow Authors.
+#
+# Use of this source code is governed by a ISC-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/ISC
+#
+# SPDX-License-Identifier: ISC
+""" This file defines the RoutingTree class which can be used for constructing
+routing trees for route segments from the fpga_interchange.physical_netlist
+class PhysicalBelPin/PhysicalSitePin/PhysicalSitePip/PhysicalPip.
+
+Use of the RoutingTree requires having the DeviceResources class loaded for
+the relevant part for the design.  Use
+interchange_capnp.Interchange.read_device_resources to load a device resource
+file.
+
+"""
+
+
 def create_id_map(id_to_segment, segments):
+    """ Create or update dict from object ids of segments to segments. """
     for segment in segments:
         segment_id = id(segment)
         assert segment_id not in id_to_segment
@@ -8,9 +31,18 @@ def create_id_map(id_to_segment, segments):
 
 
 def check_tree(routing_tree, segment):
+    """ Recursively checks a routing tree.
+
+    Checks for:
+     - Circular routing trees
+     - Child segments are connected to their parents.
+    """
+
+    # Check for circular routing tree
     for _ in yield_branches(segment):
         pass
 
+    # Ensure children are connected to parent.
     root_resource = routing_tree.get_device_resource(segment)
     for child in segment.branches:
         child_resource = routing_tree.get_device_resource(child)
@@ -61,12 +93,16 @@ def sort_branches(branches):
 
 
 def get_tuple_tree(root_branch):
+    """ Convert a rout branch in a two tuple. """
     return root_branch.to_tuple(), tuple(
         get_tuple_tree(branch) for branch in root_branch.branches)
 
 
 class RoutingTree():
+    """ Utility class for managing stitching of a routing tree. """
+
     def __init__(self, device_resources, site_types, stubs, sources):
+        # Check that no duplicate routing resources are present.
         tuple_to_id = {}
         for stub in stubs:
             for branch in yield_branches(stub):
@@ -86,8 +122,9 @@ class RoutingTree():
         self.stubs = stubs
         self.sources = sources
 
-        self.connections = {}
+        self.connections = None
 
+        # Populate id_to_segment and id_to_device_resource maps.
         create_id_map(self.id_to_segment, self.stubs)
         create_id_map(self.id_to_segment, self.sources)
 
@@ -96,9 +133,11 @@ class RoutingTree():
                 segment_id] = segment.get_device_resource(
                     site_types, device_resources)
 
+        # Verify initial input makes sense.
         self.check_trees()
 
     def segment_for_id(self, segment_id):
+        """ Get routing segment based on the object id of the routing segment. """
         return self.id_to_segment[segment_id]
 
     def normalize_tree(self):
@@ -115,13 +154,21 @@ class RoutingTree():
                 sort_branches(branch.branches)
 
     def get_tuple_tree(self):
+        """ Get tuple tree representation of the current routing tree.
+
+        This is suitable for equality checking if normalized with
+        normalize_tree.
+
+        """
         return (tuple(get_tuple_tree(stub) for stub in self.stubs),
                 tuple(get_tuple_tree(source) for source in self.sources))
 
     def get_device_resource_for_id(self, segment_id):
+        """ Get the device resource that corresponds to the segment id given. """
         return self.id_to_device_resource[segment_id]
 
     def get_device_resource(self, segment):
+        """ Get the device resource that corresponds to the segment given. """
         return self.id_to_device_resource[id(segment)]
 
     def check_trees(self):
@@ -139,6 +186,7 @@ class RoutingTree():
             check_tree(self, source)
 
     def connections_for_segment_id(self, segment_id):
+        """ Yield all connection resources connected to segment id given. """
         resource = self.id_to_device_resource[segment_id]
         for site_wire in resource.site_wires():
             yield site_wire
@@ -147,19 +195,39 @@ class RoutingTree():
             yield node
 
     def build_connections(self):
+        """ Create a dictionary of connection resources to segment ids. """
+        self.connections = {}
         for segment_id in self.id_to_segment.keys():
             for connection in self.connections_for_segment_id(segment_id):
                 if connection not in self.connections:
                     self.connections[connection] = set()
                 self.connections[connection].add(segment_id)
 
+    def get_connection(self, connection_resource):
+        """ Get list of segment ids connected to connection_resource. """
+
+        if self.connections is None:
+            self.build_connections()
+
+        return self.connections[connection_resource]
+
     def reroot(self):
+        """ Determine which routing segments are roots and non-roots.
+
+        Repopulates stubs and sources list with new roots and non-root
+        segments.
+
+        """
+        if self.connections is None:
+            self.build_connections()
+
         segments = self.stubs + self.sources
         self.stubs.clear()
         self.sources.clear()
 
         source_segment_ids = set()
 
+        # Example each connection and find the best root.
         for segment_ids in self.connections.values():
             root_priority = None
             root = None
@@ -181,6 +249,10 @@ class RoutingTree():
                         root_count += 1
 
             if root is not None:
+                # Generate an error if multiple segments could be a root.
+                # This should only occur near IO pads.  In most cases, the
+                # root should be the only Direction.Output BEL pin on the site
+                # wire.
                 assert root_count == 1
                 source_segment_ids.add(root)
 
@@ -198,6 +270,11 @@ class RoutingTree():
             self.id_to_segment[child_id])
 
     def check_count(self):
+        """ Verify that every segment is reachable from stubs and sources list. 
+
+        This check ensures no routing segment is orphaned during processing.
+
+        """
         count = 0
 
         for stub in self.stubs:
@@ -251,7 +328,7 @@ def attach_candidates(routing_tree, id_to_idx, stitched_stubs, objs_to_attach,
         visited.add(id(branch))
 
         for connection in routing_tree.connections_for_segment_id(id(branch)):
-            for segment_id in routing_tree.connections[connection]:
+            for segment_id in routing_tree.get_connection(connection):
                 if id(branch) == segment_id:
                     continue
 
@@ -329,9 +406,9 @@ def attach_from_parents(routing_tree, id_to_idx, parents, visited):
 
 
 def stitch_segments(device_resources, site_types, segments):
+    """ Stitch segments of the routing tree into trees rooted from net sources. """
     routing_tree = RoutingTree(
         device_resources, site_types, stubs=segments, sources=[])
-    routing_tree.build_connections()
     routing_tree.reroot()
 
     # Create a id to idx map so that stitching can be deferred when walking
@@ -375,6 +452,7 @@ def stitch_segments(device_resources, site_types, segments):
 
 
 def flatten_segments(segments):
+    """ Take a list of routing segments and flatten out any children. """
     output = []
 
     for segment in segments:

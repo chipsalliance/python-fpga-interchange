@@ -20,7 +20,7 @@ jobs:
         - git clone -b interchange https://github.com/Xilinx/RapidWright.git $HOME/RapidWright
           # Build RapidWright and create the device resource for the test part.
         - make -C $HOME/RapidWright update_jars
-        - cd $HOME && RAPIDWRIGHT_PATH=$HOME/RapidWright $HOME/RapidWright/scripts/invoke_rapidwright.sh com.xilinx.rapidwright.interchange.DeviceResourcesExample xc7a50tfgg484-1
+        - pushd $HOME && RAPIDWRIGHT_PATH=$HOME/RapidWright $HOME/RapidWright/scripts/invoke_rapidwright.sh com.xilinx.rapidwright.interchange.DeviceResourcesExample xc7a50tfgg484-1 && popd
         - git clone https://github.com/capnproto/capnproto-java.git $HOME/capnproto-java
         - CAPNP_PATH=$HOME/capnproto-java/compiler/src/main/schema/ INTERCHANGE_SCHEMA_PATH=$HOME/RapidWright/interchange DEVICE_RESOURCE_PATH=$HOME make test-py
         - test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
