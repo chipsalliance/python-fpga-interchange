@@ -70,7 +70,7 @@ class TestRoundTrip(unittest.TestCase):
         self.assertEqual(
             len(phys_netlist.placements), len(read_phys_netlist.placements))
 
-    def test_check_routing_tree(self):
+    def test_check_routing_tree_and_stitch_segments(self):
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
@@ -82,7 +82,7 @@ class TestRoundTrip(unittest.TestCase):
             device_resources = interchange.read_device_resources(f)
 
         phys_netlist.check_trees(device_resources)
-        #phys_netlist.stitch_segments(device_resources)
+        phys_netlist.stitch_segments(device_resources)
 
     def test_capnp_modes(self):
         logical_netlist = example_logical_netlist()

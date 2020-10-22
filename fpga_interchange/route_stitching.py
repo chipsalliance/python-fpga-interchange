@@ -8,6 +8,9 @@ def create_id_map(id_to_segment, segments):
 
 
 def check_tree(routing_tree, segment):
+    for _ in yield_branches(segment):
+        pass
+
     root_resource = routing_tree.get_device_resource(segment)
     for child in segment.branches:
         child_resource = routing_tree.get_device_resource(child)
@@ -60,13 +63,13 @@ class RoutingTree():
                 segment_id] = segment.get_device_resource(
                     site_types, device_resources)
 
-        self.check_trees()
-
         for segment in segments:
             if self.get_device_resource(segment).is_root():
                 self.sources.append(segment)
             else:
                 self.stubs.append(segment)
+
+        self.check_trees()
 
     def get_device_resource(self, segment):
         return self.id_to_device_resource[id(segment)]
@@ -101,7 +104,10 @@ class RoutingTree():
 
     def attach(self, parent_id, child_id):
         """ Attach a child routing tree to the routing tree for parent. """
-        self.id_to_segment[parent_id].branches.append(self.id_to_obj[child_id])
+        assert self.id_to_device_resource[parent_id].is_connected(
+            self.id_to_device_resource[child_id])
+        self.id_to_segment[parent_id].branches.append(
+            self.id_to_segment[child_id])
 
     def check_count(self):
         count = 0
@@ -165,7 +171,7 @@ def attach_candidates(routing_tree, id_to_idx, stitched_stubs, objs_to_attach,
                 # be in the id_to_idx map once it is stitched into another tree.
                 assert root_obj_id != segment_id
 
-                if not routing_tree.is_connected(root_obj_id, segment_id):
+                if not routing_tree.is_connected(id(branch), segment_id):
                     continue
 
                 idx = id_to_idx[segment_id]
@@ -260,7 +266,6 @@ def stitch_segments(device_resources, site_types, segments):
 
     # Make sure new trees are sensible.
     routing_tree.check_trees()
-
     routing_tree.check_count()
 
     return routing_tree.sources, routing_tree.stubs

@@ -33,11 +33,11 @@ def can_connect_via_site_wire(a_site, a_site_wire, b_site, b_site_wire):
 def can_be_connected(a_direction, b_direction):
     if a_direction == Direction.Inout or b_direction == Direction.Inout:
         return True
-    elif a_direction == Direction.Input and b_direction == Direction.Output:
-        return True
+    elif a_direction == Direction.Input:
+        return b_direction == Direction.Output
     else:
-        assert a_direction == Direction.Output
-        return b_direction == Direction.Input
+        assert a_direction == Direction.Output, (a_direction, b_direction)
+        return b_direction == Direction.Input, (a_direction, b_direction)
 
 
 class Tile(namedtuple('Tile', 'tile_index tile_name_index tile_type_index')):

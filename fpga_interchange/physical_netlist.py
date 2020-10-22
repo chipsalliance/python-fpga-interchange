@@ -582,4 +582,4 @@ def chain_pips(tile, wires):
         segments.append(
             PhysicalPip(tile=tile, wire0=wire0, wire1=wire1, forward=True))
 
-    return (chain_branches(segments), )
+    return tuple(segments)
