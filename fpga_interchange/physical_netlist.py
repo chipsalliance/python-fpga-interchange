@@ -11,7 +11,7 @@
 
 import enum
 from collections import namedtuple
-from .route_stitching import RoutingTree, stitch_segments
+from .route_stitching import RoutingTree, stitch_segments, flatten_segments
 
 
 # Physical cell type enum.
@@ -147,6 +147,9 @@ class PhysicalBelPin():
         return device_resources.bel_pin(self.site, site_types[self.site],
                                         self.bel, self.pin)
 
+    def to_tuple(self):
+        return ('bel_pin', self.site, self.bel, self.pin)
+
     def __str__(self):
         return 'PhysicalBelPin({}, {}, {})'.format(
             repr(self.site),
@@ -187,6 +190,9 @@ class PhysicalSitePin():
     def get_device_resource(self, site_types, device_resources):
         return device_resources.site_pin(self.site, site_types[self.site],
                                          self.pin)
+
+    def to_tuple(self):
+        return ('site_pin', self.site, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePin({}, {})'.format(
@@ -235,6 +241,9 @@ class PhysicalPip():
     def get_device_resource(self, site_types, device_resources):
         return device_resources.pip(self.tile, self.wire0, self.wire1)
 
+    def to_tuple(self):
+        return ('pip', self.tile, self.wire0, self.wire1)
+
     def __str__(self):
         return 'PhysicalPip({}, {}, {}, {})'.format(
             repr(self.tile),
@@ -281,6 +290,9 @@ class PhysicalSitePip():
     def get_device_resource(self, site_types, device_resources):
         return device_resources.site_pip(self.site, site_types[self.site],
                                          self.bel, self.pin)
+
+    def to_tuple(self):
+        return ('site_pip', self.site, self.bel, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePip({}, {}, {})'.format(
@@ -504,12 +516,17 @@ site_type,
     def check_trees(self, device_resources):
         for net in self.nets:
             # RoutingTree does a check on the subtrees during construction.
-            _ = RoutingTree(device_resources, self.site_instances,
-                            net.sources + net.stubs)
+            _ = RoutingTree(
+                device_resources,
+                self.site_instances,
+                sources=net.sources,
+                stubs=net.stubs)
 
-    def stitch_segments(self, device_resources):
+    def stitch_segments(self, device_resources, flatten=False):
         for idx, net in enumerate(self.nets):
             segments = net.sources + net.stubs
+            if flatten:
+                segments = flatten_segments(segments)
 
             sources, stubs = stitch_segments(device_resources,
                                              self.site_instances, segments)
@@ -520,6 +537,22 @@ site_type,
                 sources=sources,
                 stubs=stubs,
             )
+
+    def get_normalized_tuple_tree(self, device_resources):
+        output = {}
+
+        for net in self.nets:
+            routing_tree = RoutingTree(
+                device_resources,
+                self.site_instances,
+                sources=net.sources,
+                stubs=net.stubs)
+
+            routing_tree.normalize_tree()
+            assert net.name not in output
+            output[net.name] = routing_tree.get_tuple_tree()
+
+        return output
 
     def set_null_net(self, stubs):
         self.null_net = stubs

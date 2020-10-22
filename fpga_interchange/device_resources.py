@@ -75,16 +75,18 @@ class Node(namedtuple('Node', 'node_index')):
 
 
 class BelPin():
-    def __init__(self, site, bel_pin_index, site_wire_index, direction):
+    def __init__(self, site, bel_pin_index, site_wire_index, direction, is_site_pin):
         self.site = site
         self.site_wire_index = site_wire_index
         self.bel_pin_index = bel_pin_index
         self.direction = direction
+        self.is_site_pin = is_site_pin
 
     def __repr__(self):
-        return "BelPin({}, {}, {}, {})".format(
+        return "BelPin({}, {}, {}, {}, {})".format(
             repr(self.site), repr(self.bel_pin_index),
-            repr(self.site_wire_index), repr(self.direction))
+            repr(self.site_wire_index), repr(self.direction),
+            repr(self.is_site_pin))
 
     def site_wires(self):
         if self.site_wire_index is not None:
@@ -129,7 +131,15 @@ class BelPin():
         return False
 
     def is_root(self):
-        return self.direction in [Direction.Output, Direction.Inout]
+        return self.direction in [Direction.Output, Direction.Inout] and not self.is_site_pin
+
+    def root_priority(self):
+        if self.direction == Direction.Output:
+            return 0
+        elif self.direction == Direction.Inout:
+            return 1
+        else:
+            assert False, self.direction
 
 
 class SitePin():
@@ -307,10 +317,15 @@ class SiteType():
             assert key not in self.bel_pins
             self.bel_pins[key] = bel_pin_index, site_wire_index, direction
 
+        self.bel_pin_to_site_pins = {}
         self.site_pins = {}
         for site_pin_index, site_pin in enumerate(site_type.pins):
             site_pin_name = strs[site_pin.name]
             assert site_pin_name not in self.site_pins
+            bel_pin_index = site_pin.belpin
+
+            assert bel_pin_index not in self.bel_pin_to_site_pins
+            self.bel_pin_to_site_pins[bel_pin_index] = site_pin_index
 
             if bel_pin_index in bel_pin_index_to_site_wire_index:
                 site_wire_index = bel_pin_index_to_site_wire_index[
@@ -318,7 +333,7 @@ class SiteType():
             else:
                 site_wire_index = None
 
-            self.site_pins[site_pin_name] = (site_pin_index, site_pin.belpin,
+            self.site_pins[site_pin_name] = (site_pin_index, bel_pin_index,
                                              site_wire_index,
                                              convert_direction(site_pin.dir))
 
@@ -335,7 +350,9 @@ class SiteType():
             site=site,
             bel_pin_index=bel_pin_index,
             site_wire_index=site_wire_index,
-            direction=direction)
+            direction=direction,
+            is_site_pin=bel_pin_index in self.bel_pin_to_site_pins,
+            )
 
     def site_pin(self, site, device_resources, pin):
         assert site.site_type_index == self.site_type_index
@@ -368,7 +385,12 @@ class SiteType():
 
         key = bel, pin
         in_bel_pin_index, in_site_wire_index, direction = self.bel_pins[key]
-        assert direction == Direction.Input
+        assert direction == Direction.Input, (
+            site,
+            bel,
+            pin,
+            direction,
+        )
 
         out_pin = self.site_pips[in_bel_pin_index]
         out_bel_pin_index, out_site_wire_index, direction = self.bel_pins[

@@ -46,30 +46,80 @@ def yield_branches(routing_branch):
         yield s
 
 
+def sort_branches(branches):
+    """ Sort branches by the branch tuple.
+
+    The branch tuple is:
+        ('bel_pin'/'site_pin'/'site_pip'/'pip', <site>/<tile>, ...)
+
+    so sorting in this way ensures that BEL pins are grouped, etc.
+    This also canonicalize the branch order, which makes comparing trees each,
+    just normalize both trees, and compare the result.
+
+    """
+    branches.sort(key=lambda item: item.to_tuple())
+
+
+def get_tuple_tree(root_branch):
+    return root_branch.to_tuple(), tuple(
+        get_tuple_tree(branch) for branch in root_branch.branches)
+
+
 class RoutingTree():
-    def __init__(self, device_resources, site_types, segments):
+    def __init__(self, device_resources, site_types, stubs, sources):
+        tuple_to_id = {}
+        for stub in stubs:
+            for branch in yield_branches(stub):
+                tup = branch.to_tuple()
+                assert tup not in tuple_to_id, tup
+                tuple_to_id[tup] = id(branch)
+
+        for source in sources:
+            for branch in yield_branches(source):
+                tup = branch.to_tuple()
+                assert tup not in tuple_to_id, tup
+                tuple_to_id[tup] = id(branch)
+
         self.id_to_segment = {}
         self.id_to_device_resource = {}
 
-        self.stubs = []
-        self.sources = []
+        self.stubs = stubs
+        self.sources = sources
 
         self.connections = {}
 
-        create_id_map(self.id_to_segment, segments)
+        create_id_map(self.id_to_segment, self.stubs)
+        create_id_map(self.id_to_segment, self.sources)
 
         for segment_id, segment in self.id_to_segment.items():
             self.id_to_device_resource[
                 segment_id] = segment.get_device_resource(
                     site_types, device_resources)
 
-        for segment in segments:
-            if self.get_device_resource(segment).is_root():
-                self.sources.append(segment)
-            else:
-                self.stubs.append(segment)
-
         self.check_trees()
+
+    def segment_for_id(self, segment_id):
+        return self.id_to_segment[segment_id]
+
+    def normalize_tree(self):
+        """ Normalize the routing tree by sorted element. """
+        sort_branches(self.stubs)
+        sort_branches(self.sources)
+
+        for stub in self.stubs:
+            for branch in yield_branches(stub):
+                sort_branches(branch.branches)
+
+        for source in self.sources:
+            for branch in yield_branches(source):
+                sort_branches(branch.branches)
+
+    def get_tuple_tree(self):
+        return (tuple(get_tuple_tree(stub) for stub in self.stubs),
+                tuple(get_tuple_tree(source) for source in self.sources))
+
+    def get_device_resource_for_id(self, segment_id):
+        return self.id_to_device_resource[segment_id]
 
     def get_device_resource(self, segment):
         return self.id_to_device_resource[id(segment)]
@@ -85,6 +135,7 @@ class RoutingTree():
             check_tree(self, stub)
 
         for source in self.sources:
+            assert self.get_device_resource(source).is_root(), source
             check_tree(self, source)
 
     def connections_for_segment_id(self, segment_id):
@@ -101,6 +152,43 @@ class RoutingTree():
                 if connection not in self.connections:
                     self.connections[connection] = set()
                 self.connections[connection].add(segment_id)
+
+    def reroot(self):
+        segments = self.stubs + self.sources
+        self.stubs.clear()
+        self.sources.clear()
+
+        source_segment_ids = set()
+
+        for segment_ids in self.connections.values():
+            root_priority = None
+            root = None
+            root_count = 0
+            for segment_id in segment_ids:
+                resource = self.get_device_resource_for_id(segment_id)
+                if resource.is_root():
+                    possible_root_priority = resource.root_priority()
+
+                    if root is None:
+                        root_priority = possible_root_priority
+                        root = segment_id
+                        root_count = 1
+                    elif possible_root_priority < root_priority:
+                        root_priority = possible_root_priority
+                        root = segment_id
+                        root_count = 1
+                    elif possible_root_priority == root_priority:
+                        root_count += 1
+
+            if root is not None:
+                assert root_count == 1
+                source_segment_ids.add(root)
+
+        for segment in segments:
+            if id(segment) in source_segment_ids:
+                self.sources.append(segment)
+            else:
+                self.stubs.append(segment)
 
     def attach(self, parent_id, child_id):
         """ Attach a child routing tree to the routing tree for parent. """
@@ -164,6 +252,9 @@ def attach_candidates(routing_tree, id_to_idx, stitched_stubs, objs_to_attach,
 
         for connection in routing_tree.connections_for_segment_id(id(branch)):
             for segment_id in routing_tree.connections[connection]:
+                if id(branch) == segment_id:
+                    continue
+
                 if segment_id not in id_to_idx:
                     continue
 
@@ -171,13 +262,23 @@ def attach_candidates(routing_tree, id_to_idx, stitched_stubs, objs_to_attach,
                 # be in the id_to_idx map once it is stitched into another tree.
                 assert root_obj_id != segment_id
 
-                if not routing_tree.is_connected(id(branch), segment_id):
+                if not routing_tree.get_device_resource(branch).is_connected(
+                        routing_tree.get_device_resource_for_id(segment_id)):
                     continue
 
                 idx = id_to_idx[segment_id]
-                assert idx not in stitched_stubs
-                stitched_stubs.add(idx)
-                objs_to_attach.append((id(branch), segment_id))
+                if idx in stitched_stubs:
+                    assert segment_id in objs_to_attach
+
+                    proposed_parent = id(branch)
+                    old_parent = objs_to_attach[segment_id]
+                    assert old_parent == proposed_parent, (
+                        str(routing_tree.segment_for_id(proposed_parent)),
+                        str(routing_tree.segment_for_id(old_parent)),
+                        str(routing_tree.segment_for_id(segment_id)))
+                else:
+                    stitched_stubs.add(idx)
+                    objs_to_attach[segment_id] = id(branch)
 
 
 def attach_from_parents(routing_tree, id_to_idx, parents, visited):
@@ -197,7 +298,7 @@ def attach_from_parents(routing_tree, id_to_idx, parents, visited):
     Returns set of indicies to stitched stubs.
 
     """
-    objs_to_attach = []
+    objs_to_attach = {}
 
     stitched_stubs = set()
     for parent in parents:
@@ -209,7 +310,7 @@ def attach_from_parents(routing_tree, id_to_idx, parents, visited):
             route_branch=parent,
             visited=visited)
 
-    for branch_id, child_id in objs_to_attach:
+    for child_id, branch_id in objs_to_attach.items():
         # The branch_id should not be in the id_to_idx map, because it should
         # be an outstanding stub.
         assert branch_id not in id_to_idx
@@ -228,8 +329,10 @@ def attach_from_parents(routing_tree, id_to_idx, parents, visited):
 
 
 def stitch_segments(device_resources, site_types, segments):
-    routing_tree = RoutingTree(device_resources, site_types, segments)
+    routing_tree = RoutingTree(
+        device_resources, site_types, stubs=segments, sources=[])
     routing_tree.build_connections()
+    routing_tree.reroot()
 
     # Create a id to idx map so that stitching can be deferred when walking
     # trees
@@ -269,3 +372,16 @@ def stitch_segments(device_resources, site_types, segments):
     routing_tree.check_count()
 
     return routing_tree.sources, routing_tree.stubs
+
+
+def flatten_segments(segments):
+    output = []
+
+    for segment in segments:
+        for branch in yield_branches(segment):
+            output.append(branch)
+
+    for segment in output:
+        segment.branches.clear()
+
+    return output
