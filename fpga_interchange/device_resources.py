@@ -45,13 +45,21 @@ class Tile(namedtuple('Tile', 'tile_index tile_name_index tile_type_index')):
 
 
 class Site(
-        namedtuple('Site',
-                   'tile_index tile_name_index site_index site_type_index')):
+        namedtuple(
+            'Site',
+            'tile_index tile_name_index site_index tile_type_site_type_index site_type_index alt_index'
+        )):
     pass
 
 
 class SiteWire(
         namedtuple('SiteWire', 'tile_index site_index site_wire_index')):
+    pass
+
+
+class SitePinNames(
+        namedtuple('SitePinNames',
+                   'tile_name site_name site_type_name pin_name wire_name')):
     pass
 
 
@@ -275,6 +283,7 @@ class Pip():
 
 class SiteType():
     def __init__(self, strs, site_type, site_type_index):
+        self.site_type = strs[site_type.name]
         self.site_type_index = site_type_index
 
         bel_pin_index_to_site_wire_index = {}
@@ -311,7 +320,6 @@ class SiteType():
 
             self.site_pins[site_pin_name] = (site_pin_index, site_pin.belpin,
                                              site_wire_index,
-                                             site_pin.sitewire,
                                              convert_direction(site_pin.dir))
 
         self.site_pips = {}
@@ -332,11 +340,20 @@ class SiteType():
     def site_pin(self, site, device_resources, pin):
         assert site.site_type_index == self.site_type_index
 
-        site_pin_index, bel_pin_index, site_wire_index, wire_str_index, direction = self.site_pins[
+        assert pin in self.site_pins, (self.site_type, pin,
+                                       self.site_pins.keys())
+        site_pin_index, bel_pin_index, site_wire_index, direction = self.site_pins[
             pin]
+
+        site_pin_names = device_resources.get_site_pin(site, site_pin_index)
+        assert self.site_type == site_pin_names.site_type_name, (
+            self.site_type, site_pin_names)
+        assert pin == site_pin_names.pin_name, (pin, site_pin_names)
+
         node = device_resources.node(
             device_resources.strs[site.tile_name_index],
-            device_resources.strs[wire_str_index])
+            site_pin_names.wire_name,
+        )
 
         return SitePin(
             site=site,
@@ -349,8 +366,8 @@ class SiteType():
     def site_pip(self, site, bel, pin):
         assert site.site_type_index == self.site_type_index
 
-        in_bel_pin_index, in_site_wire_index, direction = self.bel_pins[bel,
-                                                                        pin]
+        key = bel, pin
+        in_bel_pin_index, in_site_wire_index, direction = self.bel_pins[key]
         assert direction == Direction.Input
 
         out_pin = self.site_pips[in_bel_pin_index]
@@ -404,27 +421,61 @@ class DeviceResources():
         self.site_types = {}
         self.tile_types = {}
 
-        tile_type_to_idx = {}
+        self.tile_type_to_idx = {}
         for tile_type_idx, tile_type in enumerate(
                 self.device_resource_capnp.tileTypeList):
-            tile_type_to_idx[tile_type.name] = tile_type_idx
+            self.tile_type_to_idx[tile_type.name] = tile_type_idx
+
+        self.site_type_names = []
+        self.site_type_name_to_index = {}
+        for site_type_index, site_type in enumerate(
+                self.device_resource_capnp.siteTypeList):
+            site_type_name = self.strs[site_type.name]
+            assert site_type_name not in self.site_type_name_to_index
+            self.site_type_names.append(site_type_name)
+            self.site_type_name_to_index[site_type_name] = site_type_index
 
         self.tile_name_to_tile = {}
         self.site_name_to_site = {}
         for tile_idx, tile in enumerate(self.device_resource_capnp.tileList):
             tile_name = self.strs[tile.name]
             tile_name_index = self.string_index[tile_name]
+            assert tile_name not in self.tile_name_to_tile
+            tile_type_index = self.tile_type_to_idx[tile.type]
             self.tile_name_to_tile[tile_name] = Tile(
                 tile_index=tile_idx,
                 tile_name_index=tile_name_index,
-                tile_type_index=tile_type_to_idx[tile.type])
+                tile_type_index=tile_type_index)
 
             for site_idx, site in enumerate(tile.sites):
-                self.site_name_to_site[self.strs[site.name]] = Site(
+                site_name = self.strs[site.name]
+                assert site_name not in self.site_name_to_site, site_name
+                self.site_name_to_site[site_name] = {}
+
+                tile_type_site_type_index = site.type
+                site_type_index = self.device_resource_capnp.tileTypeList[
+                    tile_type_index].siteTypes[site.type].primaryType
+
+                site_type_name = self.site_type_names[site_type_index]
+                self.site_name_to_site[site_name][site_type_name] = Site(
                     tile_index=tile_idx,
                     tile_name_index=tile_name_index,
                     site_index=site_idx,
-                    site_type_index=site.type)
+                    tile_type_site_type_index=tile_type_site_type_index,
+                    site_type_index=site_type_index,
+                    alt_index=None)
+
+                for alt_index, alt_site_type_index in enumerate(
+                        self.device_resource_capnp.
+                        siteTypeList[site_type_index].altSiteTypes):
+                    site_type_name = self.site_type_names[alt_site_type_index]
+                    self.site_name_to_site[site_name][site_type_name] = Site(
+                        tile_index=tile_idx,
+                        tile_name_index=tile_name_index,
+                        site_index=site_idx,
+                        tile_type_site_type_index=tile_type_site_type_index,
+                        site_type_index=alt_site_type_index,
+                        alt_index=alt_index)
 
         self.tile_wire_index_to_node_index = {}
 
@@ -456,17 +507,17 @@ class DeviceResources():
 
         return self.tile_types[tile_type_index]
 
-    def bel_pin(self, site_name, bel, pin):
-        site = self.site_name_to_site[site_name]
+    def bel_pin(self, site_name, site_type, bel, pin):
+        site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).bel_pin(site, bel, pin)
 
-    def site_pin(self, site_name, pin):
-        site = self.site_name_to_site[site_name]
+    def site_pin(self, site_name, site_type, pin):
+        site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).site_pin(
             site, self, pin)
 
-    def site_pip(self, site_name, bel, pin):
-        site = self.site_name_to_site[site_name]
+    def site_pip(self, site_name, site_type, bel, pin):
+        site = self.site_name_to_site[site_name][site_type]
         return self.get_site_type(site.site_type_index).site_pip(
             site, bel, pin)
 
@@ -532,3 +583,35 @@ class DeviceResources():
 
         node_index = self.tile_wire_index_to_node_index[key]
         return Node(node_index=node_index)
+
+    def get_site_pin(self, site, site_pin_index):
+        tile = self.device_resource_capnp.tileList[site.tile_index]
+        tile_type_index = self.tile_type_to_idx[tile.type]
+        tile_type = self.device_resource_capnp.tileTypeList[tile_type_index]
+        site_type_in_tile_type = tile_type.siteTypes[site.
+                                                     tile_type_site_type_index]
+        if site.alt_index is None:
+            site_type = self.device_resource_capnp.siteTypeList[
+                site_type_in_tile_type.primaryType]
+            site_type_name = self.strs[site_type.name]
+            pin_name = self.strs[site_type.pins[site_pin_index].name]
+            wire_name = self.strs[site_type_in_tile_type.
+                                  primaryPinsToTileWires[site_pin_index]]
+        else:
+            prim_site_type = self.device_resource_capnp.siteTypeList[
+                site_type_in_tile_type.primaryType]
+            site_type = self.device_resource_capnp.siteTypeList[
+                prim_site_type.altSiteTypes[site.alt_index]]
+            site_type_name = self.strs[site_type.name]
+            pin_name = self.strs[site_type.pins[site_pin_index].name]
+            prim_site_pin_index = site_type_in_tile_type.altPinsToPrimaryPins[
+                site.alt_index].pins[site_pin_index]
+            wire_name = self.strs[site_type_in_tile_type.
+                                  primaryPinsToTileWires[prim_site_pin_index]]
+
+        return SitePinNames(
+            tile_name=self.strs[tile.name],
+            site_name=self.strs[tile.sites[site.site_index].name],
+            site_type_name=site_type_name,
+            pin_name=pin_name,
+            wire_name=wire_name)

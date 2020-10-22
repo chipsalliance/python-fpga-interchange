@@ -44,7 +44,7 @@ def yield_branches(routing_branch):
 
 
 class RoutingTree():
-    def __init__(self, segments, device_resources):
+    def __init__(self, device_resources, site_types, segments):
         self.id_to_segment = {}
         self.id_to_device_resource = {}
 
@@ -57,7 +57,8 @@ class RoutingTree():
 
         for segment_id, segment in self.id_to_segment.items():
             self.id_to_device_resource[
-                segment_id] = segment.get_device_resource(device_resources)
+                segment_id] = segment.get_device_resource(
+                    site_types, device_resources)
 
         self.check_trees()
 
@@ -220,8 +221,8 @@ def attach_from_parents(routing_tree, id_to_idx, parents, visited):
     return stitched_stubs
 
 
-def stitch_segments(device_resources, segments):
-    routing_tree = RoutingTree(segments, device_resources)
+def stitch_segments(device_resources, site_types, segments):
+    routing_tree = RoutingTree(device_resources, site_types, segments)
     routing_tree.build_connections()
 
     # Create a id to idx map so that stitching can be deferred when walking

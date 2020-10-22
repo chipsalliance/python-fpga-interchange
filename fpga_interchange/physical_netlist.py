@@ -143,8 +143,9 @@ class PhysicalBelPin():
 
         descend_branch(obj, self, string_id)
 
-    def get_device_resource(self, device_resources):
-        return device_resources.bel_pin(self.site, self.bel, self.pin)
+    def get_device_resource(self, site_types, device_resources):
+        return device_resources.bel_pin(self.site, site_types[self.site],
+                                        self.bel, self.pin)
 
     def __str__(self):
         return 'PhysicalBelPin({}, {}, {})'.format(
@@ -183,8 +184,9 @@ class PhysicalSitePin():
 
         descend_branch(obj, self, string_id)
 
-    def get_device_resource(self, device_resources):
-        return device_resources.site_pin(self.site, self.pin)
+    def get_device_resource(self, site_types, device_resources):
+        return device_resources.site_pin(self.site, site_types[self.site],
+                                         self.pin)
 
     def __str__(self):
         return 'PhysicalSitePin({}, {})'.format(
@@ -230,7 +232,7 @@ class PhysicalPip():
 
         descend_branch(obj, self, string_id)
 
-    def get_device_resource(self, device_resources):
+    def get_device_resource(self, site_types, device_resources):
         return device_resources.pip(self.tile, self.wire0, self.wire1)
 
     def __str__(self):
@@ -276,8 +278,9 @@ class PhysicalSitePip():
 
         descend_branch(obj, self, string_id)
 
-    def get_device_resource(self, device_resources):
-        return device_resources.site_pip(self.site, self.bel, self.pin)
+    def get_device_resource(self, site_types, device_resources):
+        return device_resources.site_pip(self.site, site_types[self.site],
+                                         self.bel, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePip({}, {}, {})'.format(
@@ -465,7 +468,7 @@ class PhysicalNetlist:
 
     def add_placement(self, placement):
         """ Add physical_netlist.Placement python object to this physical netlist.
-
+site_type, 
         placement (physical_netlist.Placement) - Placement to add.
 
         """
@@ -501,13 +504,15 @@ class PhysicalNetlist:
     def check_trees(self, device_resources):
         for net in self.nets:
             # RoutingTree does a check on the subtrees during construction.
-            _ = RoutingTree(net.sources + net.stubs, device_resources)
+            _ = RoutingTree(device_resources, self.site_instances,
+                            net.sources + net.stubs)
 
     def stitch_segments(self, device_resources):
         for idx, net in enumerate(self.nets):
             segments = net.sources + net.stubs
 
-            sources, stubs = stitch_segments(device_resources, segments)
+            sources, stubs = stitch_segments(device_resources,
+                                             self.site_instances, segments)
 
             self.nets[idx] = PhysicalNet(
                 name=net.name,
