@@ -63,6 +63,9 @@ class CompressionFormat(enum.Enum):
 # Flag indicating that files are gziped on output
 DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
 
+# Set traversal limit to maximum to effectively disable.
+NO_TRAVERSAL_LIMIT = 2**63 - 1
+
 
 def read_capnp_file(capnp_schema,
                     f_in,
@@ -81,17 +84,18 @@ def read_capnp_file(capnp_schema,
         f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
         if is_packed:
             return capnp_schema.from_bytes_packed(
-                f_comp.read(), traversal_limit_in_words=2**63 - 1)
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
         else:
             return capnp_schema.from_bytes(
-                f_comp.read(), traversal_limit_in_words=2**63 - 1)
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
         if is_packed:
             return capnp_schema.read_packed(
-                f_in, traversal_limit_in_words=2**63 - 1)
+                f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
         else:
-            return capnp_schema.read(f_in, traversal_limit_in_words=2**63 - 1)
+            return capnp_schema.read(
+                f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
 
 
 def write_capnp_file(capnp_obj,

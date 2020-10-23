@@ -60,6 +60,8 @@ def yield_branches(routing_branch):
 
     This will yield the input route branch in addition to its children.
 
+    An AssertionError will be raised for a circular route is detected.
+
     """
     objs = set()
 
