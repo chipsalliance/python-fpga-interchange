@@ -11,6 +11,7 @@
 
 import os
 import unittest
+import pprint
 import tempfile
 
 from fpga_interchange.interchange_capnp import Interchange, write_capnp_file, \
@@ -69,6 +70,45 @@ class TestRoundTrip(unittest.TestCase):
 
         self.assertEqual(
             len(phys_netlist.placements), len(read_phys_netlist.placements))
+
+    def test_check_routing_tree_and_stitch_segments(self):
+        phys_netlist = example_physical_netlist()
+
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+
+        with open(
+                os.path.join(os.environ['DEVICE_RESOURCE_PATH'],
+                             phys_netlist.part + '.device'), 'rb') as f:
+            device_resources = interchange.read_device_resources(f)
+
+        phys_netlist.check_physical_nets(device_resources)
+        before_stitch = phys_netlist.get_normalized_tuple_tree(
+            device_resources)
+        phys_netlist.stitch_physical_nets(device_resources)
+        after_stitch = phys_netlist.get_normalized_tuple_tree(device_resources)
+        phys_netlist.stitch_physical_nets(device_resources, flatten=True)
+        after_stitch_from_flat = phys_netlist.get_normalized_tuple_tree(
+            device_resources)
+
+        self.assertEqual(len(before_stitch), len(after_stitch))
+        self.assertEqual(len(before_stitch), len(after_stitch_from_flat))
+
+        bad_nets = set()
+        for net in before_stitch:
+            if before_stitch[net] != after_stitch[net]:
+                bad_nets.add(net)
+                print(net)
+                pprint.pprint(before_stitch[net])
+                pprint.pprint(after_stitch[net])
+
+            if before_stitch[net] != after_stitch_from_flat[net]:
+                bad_nets.add(net)
+                print(net)
+                pprint.pprint(before_stitch[net])
+                pprint.pprint(after_stitch_from_flat[net])
+
+        self.assertEqual(set(), bad_nets)
 
     def test_capnp_modes(self):
         logical_netlist = example_logical_netlist()

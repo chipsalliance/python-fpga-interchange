@@ -11,6 +11,7 @@
 
 import enum
 from collections import namedtuple
+from .route_stitching import RoutingTree, stitch_segments, flatten_segments
 
 
 # Physical cell type enum.
@@ -142,6 +143,20 @@ class PhysicalBelPin():
 
         descend_branch(obj, self, string_id)
 
+    def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
+        return device_resources.bel_pin(self.site, site_types[self.site],
+                                        self.bel, self.pin)
+
+    def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
+        return ('bel_pin', self.site, self.bel, self.pin)
+
     def __str__(self):
         return 'PhysicalBelPin({}, {}, {})'.format(
             repr(self.site),
@@ -178,6 +193,20 @@ class PhysicalSitePin():
         obj.routeSegment.sitePin.pin = string_id(self.pin)
 
         descend_branch(obj, self, string_id)
+
+    def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
+        return device_resources.site_pin(self.site, site_types[self.site],
+                                         self.pin)
+
+    def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
+        return ('site_pin', self.site, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePin({}, {})'.format(
@@ -223,6 +252,19 @@ class PhysicalPip():
 
         descend_branch(obj, self, string_id)
 
+    def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
+        return device_resources.pip(self.tile, self.wire0, self.wire1)
+
+    def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
+        return ('pip', self.tile, self.wire0, self.wire1)
+
     def __str__(self):
         return 'PhysicalPip({}, {}, {}, {})'.format(
             repr(self.tile),
@@ -265,6 +307,20 @@ class PhysicalSitePip():
         obj.routeSegment.sitePIP.pin = string_id(self.pin)
 
         descend_branch(obj, self, string_id)
+
+    def get_device_resource(self, site_types, device_resources):
+        """ Get device resource that corresponds to this class. """
+        return device_resources.site_pip(self.site, site_types[self.site],
+                                         self.bel, self.pin)
+
+    def to_tuple(self):
+        """ Create tuple suitable for sorting this object.
+
+        This tuple is used for sorting against other routing branch objects
+        to generate a canonical routing tree.
+
+        """
+        return ('site_pip', self.site, self.bel, self.pin)
 
     def __str__(self):
         return 'PhysicalSitePip({}, {}, {})'.format(
@@ -485,6 +541,71 @@ class PhysicalNetlist:
             PhysicalNet(
                 name=net_name, type=net_type, sources=sources, stubs=stubs))
 
+    def check_physical_nets(self, device_resources):
+        """ Check physical nets for errors.
+
+        Detects duplicate resources and invalid routing trees.
+
+        """
+        for net in self.nets:
+            # RoutingTree does a check on the subtrees during construction.
+            _ = RoutingTree(
+                device_resources,
+                self.site_instances,
+                sources=net.sources,
+                stubs=net.stubs)
+
+    def stitch_physical_nets(self, device_resources, flatten=False):
+        """ Stitch supplied physical nets into routing trees.
+
+        flatten (bool) - If true, existing routing trees are flattened before
+                         stitching process.  This can be useful for testing,
+                         or if the input routing tree was invalid and needs to
+                         be reconstructed.
+
+        """
+        for idx, net in enumerate(self.nets):
+            segments = net.sources + net.stubs
+            if flatten:
+                segments = flatten_segments(segments)
+
+            sources, stubs = stitch_segments(device_resources,
+                                             self.site_instances, segments)
+
+            self.nets[idx] = PhysicalNet(
+                name=net.name,
+                type=net.type,
+                sources=sources,
+                stubs=stubs,
+            )
+
+    def get_normalized_tuple_tree(self, device_resources):
+        """ Return physical nets in canonical tuple form.
+
+        Returns a dictionary of net names to tuple trees.  Each value of the
+        dictionary is a two tuple or the stubs and sources for the net. Each
+        stub and source is a two tuple of the current segment of the routing
+        tree, and a tuple of children from that segment.
+
+        The method is mostly useful for comparing routing trees for equality,
+        as equivelent routing trees will generate the same tuple tree.
+
+        """
+        output = {}
+
+        for net in self.nets:
+            routing_tree = RoutingTree(
+                device_resources,
+                self.site_instances,
+                sources=net.sources,
+                stubs=net.stubs)
+
+            routing_tree.normalize_tree()
+            assert net.name not in output
+            output[net.name] = routing_tree.get_tuple_tree()
+
+        return output
+
     def set_null_net(self, stubs):
         self.null_net = stubs
 
@@ -546,4 +667,4 @@ def chain_pips(tile, wires):
         segments.append(
             PhysicalPip(tile=tile, wire0=wire0, wire1=wire1, forward=True))
 
-    return (chain_branches(segments), )
+    return tuple(segments)

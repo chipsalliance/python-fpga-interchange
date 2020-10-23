@@ -44,8 +44,12 @@ capnp.remove_import_hook()
 import enum
 import gzip
 import os.path
-from .logical_netlist import check_logical_netlist, LogicalNetlist, Cell, CellInstance, Library, Direction
-from .physical_netlist import PhysicalNetlist, PhysicalCellType, PhysicalNetType, PhysicalBelPin, PhysicalSitePin, PhysicalSitePip, PhysicalPip, PhysicalNet, Placement
+from .logical_netlist import check_logical_netlist, LogicalNetlist, Cell, \
+        CellInstance, Library, Direction
+from .physical_netlist import PhysicalNetlist, PhysicalCellType, \
+        PhysicalNetType, PhysicalBelPin, PhysicalSitePin, PhysicalSitePip, \
+        PhysicalPip, PhysicalNet, Placement
+from .device_resources import DeviceResources
 
 # Flag indicating use of Packed Cap'n Proto Serialization
 IS_PACKED = False
@@ -58,6 +62,9 @@ class CompressionFormat(enum.Enum):
 
 # Flag indicating that files are gziped on output
 DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
+
+# Set traversal limit to maximum to effectively disable.
+NO_TRAVERSAL_LIMIT = 2**63 - 1
 
 
 def read_capnp_file(capnp_schema,
@@ -76,15 +83,19 @@ def read_capnp_file(capnp_schema,
     if compression_format == CompressionFormat.GZIP:
         f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
         if is_packed:
-            return capnp_schema.from_bytes_packed(f_comp.read())
+            return capnp_schema.from_bytes_packed(
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
         else:
-            return capnp_schema.from_bytes(f_comp.read())
+            return capnp_schema.from_bytes(
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
         if is_packed:
-            return capnp_schema.read_packed(f_in)
+            return capnp_schema.read_packed(
+                f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
         else:
-            return capnp_schema.read(f_in)
+            return capnp_schema.read(
+                f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
 
 
 def write_capnp_file(capnp_obj,
@@ -834,3 +845,11 @@ class Interchange():
                                   is_packed=IS_PACKED):
         return read_capnp_file(self.physical_netlist_schema.PhysNetlist, f,
                                compression_format, is_packed)
+
+    def read_device_resources(self,
+                              f,
+                              compression_format=DEFAULT_COMPRESSION_TYPE,
+                              is_packed=IS_PACKED):
+        return DeviceResources(
+            read_capnp_file(self.device_resources_schema.Device, f,
+                            compression_format, is_packed))

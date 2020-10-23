@@ -285,13 +285,13 @@ def example_physical_netlist():
                      PhysicalSitePin('SLICE_X1Y12', 'CLK'),
                      PhysicalBelPin('SLICE_X1Y12', 'CLK', 'CLK'),
                      PhysicalSitePip('SLICE_X1Y12', 'CLKINV', 'CLK'),
-                     PhysicalSitePip('SLICE_X1Y12', 'CLKINV', 'CLK'),
                      PhysicalBelPin('SLICE_X1Y12', 'AFF', 'CK'),
                  ))
     phys_netlist.add_physical_net(
         net_name='clk_buf', sources=[clk_buf_root], stubs=[])
 
     const0 = chain_branches((
+        PhysicalBelPin('SLICE_X1Y12', 'SRUSEDGND', '0'),
         PhysicalSitePip('SLICE_X1Y12', 'SRUSEDMUX', '0'),
         PhysicalBelPin('SLICE_X1Y12', 'AFF', 'SR'),
     ))
@@ -304,6 +304,7 @@ def example_physical_netlist():
         net_type=PhysicalNetType.Gnd)
 
     const1 = chain_branches((
+        PhysicalBelPin('SLICE_X1Y12', 'CEUSEDVCC', '1'),
         PhysicalSitePip('SLICE_X1Y12', 'CEUSEDMUX', '1'),
         PhysicalBelPin('SLICE_X1Y12', 'AFF', 'CE'),
     ))
