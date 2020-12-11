@@ -558,7 +558,7 @@ class DeviceResources():
             tile_name = self.strs[tile.name]
             tile_name_index = self.string_index[tile_name]
             assert tile_name not in self.tile_name_to_tile
-            tile_type_index = self.tile_type_to_idx[tile.type]
+            tile_type_index = tile.type
             self.tile_name_to_tile[tile_name] = Tile(
                 tile_index=tile_idx,
                 tile_name_index=tile_name_index,
@@ -729,7 +729,7 @@ class DeviceResources():
 
         """
         tile = self.device_resource_capnp.tileList[site.tile_index]
-        tile_type_index = self.tile_type_to_idx[tile.type]
+        tile_type_index = tile.type
         tile_type = self.device_resource_capnp.tileTypeList[tile_type_index]
         site_type_in_tile_type = tile_type.siteTypes[site.
                                                      tile_type_site_type_index]
