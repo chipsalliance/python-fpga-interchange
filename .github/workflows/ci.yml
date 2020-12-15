@@ -1,0 +1,43 @@
+name: CI tests
+
+on: [push, pull_request]
+
+jobs:
+
+  Run-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9']
+    steps:
+
+    - uses: actions/checkout@v1
+      with:
+        submodules: recursive
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install
+      run: |
+        pip install --upgrade -r requirements.txt
+
+    - name: Check formatting
+      run: ./.github/workflows/format.sh
+
+    - name: Get and build tools
+      run: |
+        make env
+        git clone -b interchange https://github.com/Xilinx/RapidWright.git $GITHUB_WORKSPACE/env/RapidWright
+        make -C "$GITHUB_WORKSPACE/env/RapidWright" update_jars
+        git clone https://github.com/capnproto/capnproto-java.git $GITHUB_WORKSPACE/env/capnproto-java
+
+    - name: Test
+      run: ./.github/workflows/test.sh
+
+    - name: "License Checks"
+      run: |
+        ./.github/check_license.sh
+        ./.github/check_python_scripts.sh
