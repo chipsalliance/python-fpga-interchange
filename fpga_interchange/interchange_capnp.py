@@ -66,6 +66,7 @@ DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
 # Set traversal limit to maximum to effectively disable.
 NO_TRAVERSAL_LIMIT = 2**63 - 1
 
+NESTING_LIMIT = 256
 
 def read_capnp_file(capnp_schema,
                     f_in,
@@ -84,10 +85,10 @@ def read_capnp_file(capnp_schema,
         f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
         if is_packed:
             return capnp_schema.from_bytes_packed(
-                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT, nesting_limit=NESTING_LIMIT)
         else:
             return capnp_schema.from_bytes(
-                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
+                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT, nesting_limit=NESTING_LIMIT)
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
         if is_packed:
@@ -794,6 +795,9 @@ class Interchange():
             if os.path.exists(path):
                 search_path.append(path)
 
+        self.references_schema = capnp.load(
+            os.path.join(schema_directory, 'References.capnp'),
+            imports=search_path)
         self.logical_netlist_schema = capnp.load(
             os.path.join(schema_directory, 'LogicalNetlist.capnp'),
             imports=search_path)
@@ -845,6 +849,13 @@ class Interchange():
                                   is_packed=IS_PACKED):
         return read_capnp_file(self.physical_netlist_schema.PhysNetlist, f,
                                compression_format, is_packed)
+
+    def read_device_resources_raw(self,
+                              f,
+                              compression_format=DEFAULT_COMPRESSION_TYPE,
+                              is_packed=IS_PACKED):
+        return read_capnp_file(self.device_resources_schema.Device, f,
+                            compression_format, is_packed)
 
     def read_device_resources(self,
                               f,

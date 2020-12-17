@@ -1,3 +1,5 @@
 pytest
+git+https://github.com/capnproto/pycapnp.git
+pyyaml --global-option='--with-libyaml'
 yapf==0.24.0
 -e .
