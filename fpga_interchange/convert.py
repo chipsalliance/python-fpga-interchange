@@ -26,7 +26,7 @@ def main():
     schema_map = {
             'device': schemas.device_resources_schema.Device,
             'logical': schemas.logical_netlist_schema.Netlist,
-            'physical': schemas.logical_netlist_schema.PhysNetlist,
+            'physical': schemas.physical_netlist_schema.PhysNetlist,
             }
 
     for schema_str in SCHEMAS:
@@ -56,11 +56,11 @@ def main():
     if args.output_format == 'capnp':
         with open(args.output, 'wb') as f:
             write_capnp_file(message, f)
-    elif args.input_format == 'json':
+    elif args.output_format == 'json':
         json_data = fpga_interchange.converters.to_yaml(message)
         with open(args.output, 'w') as f:
             json.dump(json_data, f)
-    elif args.input_format == 'yaml':
+    elif args.output_format == 'yaml':
         yaml_data = fpga_interchange.converters.to_yaml(message)
         yaml_string = yaml.dump(yaml_data, Dumper=Dumper)
         with open(args.output, 'w') as f:
