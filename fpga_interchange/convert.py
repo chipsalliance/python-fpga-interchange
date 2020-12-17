@@ -8,6 +8,7 @@ import fpga_interchange.converters
 SCHEMAS = ('device', 'logical', 'physical')
 FORMATS = ('json', 'yaml', 'capnp')
 
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -20,14 +21,13 @@ def main():
 
     args = parser.parse_args()
 
-
     schemas = Interchange(args.schema_dir)
 
     schema_map = {
-            'device': schemas.device_resources_schema.Device,
-            'logical': schemas.logical_netlist_schema.Netlist,
-            'physical': schemas.physical_netlist_schema.PhysNetlist,
-            }
+        'device': schemas.device_resources_schema.Device,
+        'logical': schemas.logical_netlist_schema.Netlist,
+        'physical': schemas.physical_netlist_schema.PhysNetlist,
+    }
 
     for schema_str in SCHEMAS:
         assert schema_str in schema_map
@@ -67,6 +67,7 @@ def main():
             f.write(yaml_string)
     else:
         assert False, 'Invalid output format {}'.format(args.output_format)
+
 
 if __name__ == "__main__":
     main()

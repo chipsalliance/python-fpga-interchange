@@ -1,5 +1,6 @@
 from fpga_interchange.annotations import AnnotationCache
 
+
 def dereference_value(annotation_type, value, root):
     if annotation_type.type == 'root':
         return getattr(root, annotation_type.field)[value]
@@ -17,7 +18,7 @@ class Enumerator():
         index = self.map.get(value, None)
         if index is None:
             self.values.append(value)
-            return len(self.values)-1
+            return len(self.values) - 1
         else:
             return index
 
@@ -33,6 +34,7 @@ def init_implementation(annotation_value):
         return Enumerator()
     else:
         raise NotImplementedError()
+
 
 def to_yaml(struct_reader, root=None, annotation_cache=None):
     if root is None:
@@ -69,7 +71,8 @@ def to_yaml(struct_reader, root=None, annotation_cache=None):
         deference_fun = None
         hide_field = False
         for annotation in field_proto.annotations:
-            _, annotation_value = annotation_cache.get_annotation_value(annotation)
+            _, annotation_value = annotation_cache.get_annotation_value(
+                annotation)
             if annotation_cache.is_reference_annotation(annotation):
                 assert deference_fun is None
                 deference_fun = lambda value: dereference_value(annotation_value, value, root)
@@ -108,23 +111,24 @@ def to_yaml(struct_reader, root=None, annotation_cache=None):
             set_value(value._as_str())
         else:
             assert field_which in [
-                   'bool',
-                   'int8',
-                   'int16',
-                   'int32',
-                   'int64',
-                   'uint8',
-                   'uint16',
-                   'uint32',
-                   'uint64',
-                   'float32',
-                   'float64',
-                   'text',
-                    ], field_which
+                'bool',
+                'int8',
+                'int16',
+                'int32',
+                'int64',
+                'uint8',
+                'uint16',
+                'uint32',
+                'uint64',
+                'float32',
+                'float64',
+                'text',
+            ], field_which
 
             set_value(deference_fun(value))
 
     return out
+
 
 def reference_value(annotation_type, value, root):
     if annotation_type.type == 'root':
@@ -132,6 +136,7 @@ def reference_value(annotation_type, value, root):
     else:
         assert annotation_type.type == 'parent'
         raise NotImplementedError()
+
 
 def from_yaml(message, data, root=None, annotation_cache=None):
     obj = [data, {}]
@@ -161,7 +166,8 @@ def from_yaml(message, data, root=None, annotation_cache=None):
             continue
 
         for annotation in field.proto.annotations:
-            _, annotation_value = annotation_cache.get_annotation_value(annotation)
+            _, annotation_value = annotation_cache.get_annotation_value(
+                annotation)
             if annotation_cache.is_implementation_annotation(annotation):
                 if annotation_value.hide:
                     obj[1][key] = init_implementation(annotation_value)
@@ -192,7 +198,8 @@ def from_yaml(message, data, root=None, annotation_cache=None):
         reference_fun = None
         hide_field = False
         for annotation in field_proto.annotations:
-            _, annotation_value = annotation_cache.get_annotation_value(annotation)
+            _, annotation_value = annotation_cache.get_annotation_value(
+                annotation)
             if annotation_cache.is_reference_annotation(annotation):
                 assert reference_fun is None
                 reference_fun = lambda value: reference_value(annotation_value, value, root)
@@ -211,7 +218,8 @@ def from_yaml(message, data, root=None, annotation_cache=None):
         field_which = field_type.which()
         if field_which == 'struct':
             builder.init(key)
-            from_yaml(getattr(builder, key), field_data, root, annotation_cache)
+            from_yaml(
+                getattr(builder, key), field_data, root, annotation_cache)
         elif field_which == 'list':
             list_builder = builder.init(key, len(field_data))
             list_type = field_type.list.elementType
@@ -230,19 +238,19 @@ def from_yaml(message, data, root=None, annotation_cache=None):
             setattr(builder, key, field_data)
         else:
             assert field_which in [
-                   'bool',
-                   'int8',
-                   'int16',
-                   'int32',
-                   'int64',
-                   'uint8',
-                   'uint16',
-                   'uint32',
-                   'uint64',
-                   'float32',
-                   'float64',
-                   'text',
-                    ], field_which
+                'bool',
+                'int8',
+                'int16',
+                'int32',
+                'int64',
+                'uint8',
+                'uint16',
+                'uint32',
+                'uint64',
+                'float32',
+                'float64',
+                'text',
+            ], field_which
 
             setattr(builder, key, reference_fun(field_data))
 
