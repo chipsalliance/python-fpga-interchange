@@ -161,8 +161,8 @@ class LogicalNetlistBuilder():
 
         self.cell_idx = 0
         self.cell_count = cell_count
-        self.logical_netlist.init("cellList", cell_count)
-        self.cells = self.logical_netlist.cellList
+        self.cell_decls = self.logical_netlist.init("cellDecls", cell_count)
+        self.cells = self.logical_netlist.init("cellList", cell_count)
 
         self.port_idx = 0
         self.port_count = port_count
@@ -176,11 +176,14 @@ class LogicalNetlistBuilder():
 
         self.create_property_map(self.logical_netlist.propMap, property_map)
 
-    def next_cell(self):
+    def next_cell(self, name):
         """ Return next logical_netlist.Cell pycapnp object and it's index. """
         assert self.cell_idx < self.cell_count
+
+        self.cell_decls[self.cell_idx].name = self.string_id(name)
         cell = self.cells[self.cell_idx]
         cell_idx = self.cell_idx
+        cell.index = cell_idx
         self.cell_idx += 1
 
         return cell_idx, cell
@@ -321,11 +324,10 @@ def output_logical_netlist(logical_netlist_schema,
     for library, lib in libraries.items():
         library_id = logical_netlist.string_id(library)
         for cell in lib.cells.values():
-            cell_idx, cell_obj = logical_netlist.next_cell()
             assert cell.name not in cell_name_to_idx
+            cell_idx, cell_obj = logical_netlist.next_cell(cell.name)
             cell_name_to_idx[cell.name] = cell_idx
 
-            cell_obj.name = logical_netlist.string_id(cell.name)
             logical_netlist.create_property_map(cell_obj.propMap,
                                                 cell.property_map)
             cell_obj.view = logical_netlist.string_id(cell.view)
@@ -585,13 +587,14 @@ def to_logical_netlist(netlist_capnp):
         name = strs[cell_instance_capnp.name]
         return name, CellInstance(
             view=strs[cell_instance_capnp.view],
-            cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].
+            cell_name=strs[netlist_capnp.cellDecls[cell_instance_capnp.cell].
                            name],
             property_map=prop_map)
 
     for cell_capnp in netlist_capnp.cellList:
+        cell_decl = netlist_capnp.cellDecls[cell_capnp.index]
         cell = Cell(
-            name=strs[cell_capnp.name],
+            name=strs[cell_decl.name],
             property_map=convert_property_map(cell_capnp.propMap),
         )
         cell.view = strs[cell_capnp.view]

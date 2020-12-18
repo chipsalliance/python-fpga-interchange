@@ -13,7 +13,9 @@ from fpga_interchange.annotations import AnnotationCache
 
 def dereference_value(annotation_type, value, root):
     if annotation_type.type == 'root':
-        return getattr(root, annotation_type.field)[value]
+        return root[1][annotation_type.field][value]
+    elif annotation_type.type == 'rootValue':
+        return getattr(root[0], annotation_type.field)[value]
     else:
         assert annotation_type.type == 'parent'
         raise NotImplementedError()
@@ -47,13 +49,13 @@ def init_implementation(annotation_value):
 
 
 def to_yaml(struct_reader, root=None, annotation_cache=None):
+    out = {}
     if root is None:
-        root = struct_reader
         annotation_cache = AnnotationCache()
+        root = [struct_reader, out, annotation_cache]
 
     schema = struct_reader.schema
 
-    out = {}
 
     fields = set(schema.non_union_fields)
     if schema.union_fields:
@@ -139,9 +141,24 @@ def to_yaml(struct_reader, root=None, annotation_cache=None):
 
     return out
 
+class IndexCache():
+    def __init__(self, data):
+        self.data = data
+        self.caches = {}
+
+    def get_index(self, field, value):
+        if field not in self.caches:
+            self.caches[field] = {}
+            for idx, obj in enumerate(self.data[field]):
+                self.caches[field][id(obj)] = idx
+
+        return self.caches[field][id(value)]
+
 
 def reference_value(annotation_type, value, root):
     if annotation_type.type == 'root':
+        return root[2].get_index(annotation_type.field, value)
+    elif annotation_type.type == 'rootValue':
         return root[1][annotation_type.field].get_index(value)
     else:
         assert annotation_type.type == 'parent'
@@ -149,7 +166,7 @@ def reference_value(annotation_type, value, root):
 
 
 def from_yaml(message, data, root=None, annotation_cache=None):
-    obj = [data, {}]
+    obj = [data, {}, IndexCache(data)]
     if root is None:
         root = obj
         annotation_cache = AnnotationCache()
