@@ -56,7 +56,6 @@ def to_yaml(struct_reader, root=None, annotation_cache=None):
 
     schema = struct_reader.schema
 
-
     fields = set(schema.non_union_fields)
     if schema.union_fields:
         fields.add(struct_reader.which())
@@ -140,6 +139,7 @@ def to_yaml(struct_reader, root=None, annotation_cache=None):
             set_value(deference_fun(value))
 
     return out
+
 
 class IndexCache():
     def __init__(self, data):
