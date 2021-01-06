@@ -37,7 +37,6 @@ def get_annotation_value(annotation, parser=None):
         assert annotation_type.which() == 'struct'
         struct_type_id = annotation_type.struct.typeId
         annotation_struct_type = get_module_from_id(struct_type_id, parser)
-
         return name, annotation.value.struct.as_struct(annotation_struct_type)
     elif which == 'void':
         return name, None
@@ -58,16 +57,17 @@ class AnnotationCache():
         self.annotation_values = {}
         self.annotation_display_names = {}
 
-    def get_annotation_value(self, annotation):
-        if annotation.id not in self.annotation_values:
-            self.annotation_values[annotation.id] = get_annotation_value(
+    def get_annotation_value(self, node_id, field_idx, annotation_idx, annotation):
+        key = (node_id, field_idx, annotation_idx)
+        if key not in self.annotation_values:
+            self.annotation_values[key] = get_annotation_value(
                 annotation, self.parser)
 
-        return self.annotation_values[annotation.id]
+        return self.annotation_values[key]
 
     def is_first_field_display_name(self, annotation, expected_display_name):
         if annotation.id not in self.annotation_display_names:
-            _, annotation_value = self.get_annotation_value(annotation)
+            _, annotation_value = get_annotation_value(annotation, self.parser)
             self.annotation_display_names[
                 annotation.id] = get_first_enum_field_display_name(
                     annotation_value, self.parser)

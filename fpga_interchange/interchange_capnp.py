@@ -176,17 +176,17 @@ class LogicalNetlistBuilder():
 
         self.create_property_map(self.logical_netlist.propMap, property_map)
 
-    def next_cell(self, name):
+    def next_cell(self):
         """ Return next logical_netlist.Cell pycapnp object and it's index. """
         assert self.cell_idx < self.cell_count
 
-        self.cell_decls[self.cell_idx].name = self.string_id(name)
+        cell_decl = self.cell_decls[self.cell_idx]
         cell = self.cells[self.cell_idx]
         cell_idx = self.cell_idx
         cell.index = cell_idx
         self.cell_idx += 1
 
-        return cell_idx, cell
+        return cell_idx, cell, cell_decl
 
     def get_cell(self, cell_idx):
         """ Get logical_netlist.Cell pycapnp object at given index. """
@@ -325,19 +325,22 @@ def output_logical_netlist(logical_netlist_schema,
         library_id = logical_netlist.string_id(library)
         for cell in lib.cells.values():
             assert cell.name not in cell_name_to_idx
-            cell_idx, cell_obj = logical_netlist.next_cell(cell.name)
+            cell_idx, cell_obj, cell_decl = logical_netlist.next_cell()
+
+            cell_decl.name = logical_netlist.string_id(cell.name)
+            cell_decl.view = logical_netlist.string_id(cell.view)
+            cell_decl.lib = library_id
+
             cell_name_to_idx[cell.name] = cell_idx
 
-            logical_netlist.create_property_map(cell_obj.propMap,
+            logical_netlist.create_property_map(cell_decl.propMap,
                                                 cell.property_map)
-            cell_obj.view = logical_netlist.string_id(cell.view)
-            cell_obj.lib = library_id
 
-            cell_obj.init('ports', len(cell.ports))
+            cell_decl.init('ports', len(cell.ports))
             for idx, (port_name, port) in enumerate(cell.ports.items()):
                 port_idx, port_obj = logical_netlist.next_port()
                 ports[cell.name, port_name] = (port_idx, port)
-                cell_obj.ports[idx] = port_idx
+                cell_decl.ports[idx] = port_idx
 
                 port_obj.dir = logical_netlist_schema.Netlist.Direction.__dict__[
                     port.direction.name.lower()]
@@ -595,16 +598,16 @@ def to_logical_netlist(netlist_capnp):
         cell_decl = netlist_capnp.cellDecls[cell_capnp.index]
         cell = Cell(
             name=strs[cell_decl.name],
-            property_map=convert_property_map(cell_capnp.propMap),
+            property_map=convert_property_map(cell_decl.propMap),
         )
-        cell.view = strs[cell_capnp.view]
+        cell.view = strs[cell_decl.view]
 
         for inst in cell_capnp.insts:
             cell_instance_name, cell_instance = convert_cell_instance(
                 netlist_capnp.instList[inst])
             cell.cell_instances[cell_instance_name] = cell_instance
 
-        for port_idx in cell_capnp.ports:
+        for port_idx in cell_decl.ports:
             port = netlist_capnp.portList[port_idx]
             port_name = strs[port.name]
             direction = Direction[first_upper(str(port.dir))]
@@ -656,7 +659,7 @@ def to_logical_netlist(netlist_capnp):
                         port=port_name,
                         idx=idx)
 
-        library = strs[cell_capnp.lib]
+        library = strs[cell_decl.lib]
         if library not in libraries:
             libraries[library] = Library(name=library)
         libraries[library].add_cell(cell)

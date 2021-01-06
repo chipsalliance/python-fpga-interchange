@@ -23,13 +23,13 @@ from example_netlist import example_logical_netlist, example_physical_netlist
 
 class TestConverterRoundTrip(unittest.TestCase):
     def round_trip_json(self, in_message):
-        value = fpga_interchange.converters.to_yaml(in_message)
+        value = fpga_interchange.converters.to_json(in_message)
         json_string = json.dumps(value)
 
         value_out = json.loads(json_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
-        fpga_interchange.converters.from_yaml(message, value_out)
-        value2 = fpga_interchange.converters.to_yaml(message)
+        fpga_interchange.converters.from_json(message, value_out)
+        value2 = fpga_interchange.converters.to_json(message)
         json_string2 = json.dumps(value2)
 
         value2_out = json.loads(json_string2)
@@ -69,7 +69,6 @@ class TestConverterRoundTrip(unittest.TestCase):
         self.round_trip_json(netlist_capnp)
 
     def test_device_json(self):
-        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
@@ -101,7 +100,6 @@ class TestConverterRoundTrip(unittest.TestCase):
         self.round_trip_yaml(netlist_capnp)
 
     def test_device_yaml(self):
-        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
