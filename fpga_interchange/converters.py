@@ -11,8 +11,6 @@
 from fpga_interchange.annotations import AnnotationCache
 
 
-
-
 class Enumerator():
     def __init__(self):
         self.values = []
@@ -39,20 +37,21 @@ def init_implementation(annotation_value):
     else:
         raise NotImplementedError()
 
+
 SCALAR_TYPES = [
-                'bool',
-                'int8',
-                'int16',
-                'int32',
-                'int64',
-                'uint8',
-                'uint16',
-                'uint32',
-                'uint64',
-                'float32',
-                'float64',
-                'text',
-            ]
+    'bool',
+    'int8',
+    'int16',
+    'int32',
+    'int64',
+    'uint8',
+    'uint16',
+    'uint32',
+    'uint64',
+    'float32',
+    'float64',
+    'text',
+]
 
 
 class YamlWriter():
@@ -65,16 +64,19 @@ class YamlWriter():
         if depth == 0:
             return self
         else:
-            return self.parent.get_parent(depth-1)
+            return self.parent.get_parent(depth - 1)
 
-    def dereference_value(self, annotation_type, value, root_writer, parent_writer):
+    def dereference_value(self, annotation_type, value, root_writer,
+                          parent_writer):
         if annotation_type.type == 'root':
             return root_writer.out[annotation_type.field][value]
         elif annotation_type.type == 'rootValue':
-            return getattr(root_writer.struct_reader, annotation_type.field)[value]
+            return getattr(root_writer.struct_reader,
+                           annotation_type.field)[value]
         else:
             assert annotation_type.type == 'parent'
-            return self.get_parent(annotation_type.depth).out[annotation_type.field][value]
+            return self.get_parent(
+                annotation_type.depth).out[annotation_type.field][value]
 
     def set_value(self, key, value):
         self.out[key] = value
@@ -104,7 +106,7 @@ class JsonWriter():
         if depth == 0:
             return self
         else:
-            return self.parent.get_parent(depth-1)
+            return self.parent.get_parent(depth - 1)
 
     def get_object_with_id(self, field, value):
         item = self.out[field][value]
@@ -121,18 +123,21 @@ class JsonWriter():
             assert item['_id'] == item_id, (
                 item['_id'],
                 item_id,
-                )
+            )
 
         return item
 
-    def dereference_value(self, annotation_type, value, root_writer, parent_writer):
+    def dereference_value(self, annotation_type, value, root_writer,
+                          parent_writer):
         if annotation_type.type == 'root':
             return root_writer.get_object_with_id(annotation_type.field, value)
         elif annotation_type.type == 'rootValue':
-            return getattr(root_writer.struct_reader, annotation_type.field)[value]
+            return getattr(root_writer.struct_reader,
+                           annotation_type.field)[value]
         else:
             assert annotation_type.type == 'parent'
-            return self.get_parent(annotation_type.depth).get_object_with_id(annotation_type.field, value)
+            return self.get_parent(annotation_type.depth).get_object_with_id(
+                annotation_type.field, value)
 
     def set_value(self, key, value):
         self.out[key] = value
@@ -150,7 +155,11 @@ class JsonWriter():
         return self.out
 
 
-def to_writer(struct_reader, writer_class, root=None, parent=None, annotation_cache=None):
+def to_writer(struct_reader,
+              writer_class,
+              root=None,
+              parent=None,
+              annotation_cache=None):
     writer = writer_class(struct_reader, parent)
     if root is None:
         root = writer
@@ -207,7 +216,13 @@ def to_writer(struct_reader, writer_class, root=None, parent=None, annotation_ca
 
         field_which = field_type.which()
         if field_which == 'struct':
-            set_value(to_writer(value, writer_class, root=root, parent=writer, annotation_cache=annotation_cache))
+            set_value(
+                to_writer(
+                    value,
+                    writer_class,
+                    root=root,
+                    parent=writer,
+                    annotation_cache=annotation_cache))
         elif field_which == 'list':
             list_type = field_type.list.elementType
             list_which = list_type.which()
@@ -215,7 +230,14 @@ def to_writer(struct_reader, writer_class, root=None, parent=None, annotation_ca
             data = writer.make_list()
             if list_which == 'struct':
                 for elem in value:
-                    writer.append_to_list(data, to_writer(elem, writer_class, root=root, parent=writer, annotation_cache=annotation_cache))
+                    writer.append_to_list(
+                        data,
+                        to_writer(
+                            elem,
+                            writer_class,
+                            root=root,
+                            parent=writer,
+                            annotation_cache=annotation_cache))
             else:
                 for elem in value:
                     writer.append_to_list(data, deference_fun(elem))
@@ -267,19 +289,21 @@ class YamlReader():
         if depth == 0:
             return self
         else:
-            return self.parent.get_parent(depth-1)
+            return self.parent.get_parent(depth - 1)
 
     def get_index(self, field, value):
         return self.index_cache.get_index(field, value)
 
-    def reference_value(self, annotation_type, value, root_reader, parent_reader):
+    def reference_value(self, annotation_type, value, root_reader,
+                        parent_reader):
         if annotation_type.type == 'root':
             return root_reader.get_index(annotation_type.field, value)
         elif annotation_type.type == 'rootValue':
             return root_reader.objects[annotation_type.field].get_index(value)
         else:
             assert annotation_type.type == 'parent'
-            return self.get_parent(annotation_type.depth).get_index(annotation_type.field, value)
+            return self.get_parent(annotation_type.depth).get_index(
+                annotation_type.field, value)
 
 
 class JsonIndexCache():
@@ -308,21 +332,29 @@ class JsonReader():
         if depth == 0:
             return self
         else:
-            return self.parent.get_parent(depth-1)
+            return self.parent.get_parent(depth - 1)
 
     def get_index(self, field, value):
         return self.index_cache.get_index(field, value)
 
-    def reference_value(self, annotation_type, value, root_reader, parent_reader):
+    def reference_value(self, annotation_type, value, root_reader,
+                        parent_reader):
         if annotation_type.type == 'root':
             return root_reader.get_index(annotation_type.field, value)
         elif annotation_type.type == 'rootValue':
             return root_reader.objects[annotation_type.field].get_index(value)
         else:
             assert annotation_type.type == 'parent'
-            return self.get_parent(annotation_type.depth).get_index(annotation_type.field, value)
+            return self.get_parent(annotation_type.depth).get_index(
+                annotation_type.field, value)
 
-def from_reader(message, data, reader_class, root=None, parent=None, annotation_cache=None):
+
+def from_reader(message,
+                data,
+                reader_class,
+                root=None,
+                parent=None,
+                annotation_cache=None):
     reader = reader_class(message, data, parent)
     if root is None:
         root = reader
@@ -442,8 +474,10 @@ def from_reader(message, data, reader_class, root=None, parent=None, annotation_
     for field in defered_fields:
         reader.objects[field].write_message(message, field)
 
+
 def from_yaml(message, data):
     from_reader(message, data, YamlReader)
+
 
 def from_json(message, data):
     from_reader(message, data, JsonReader)

@@ -57,7 +57,8 @@ class AnnotationCache():
         self.annotation_values = {}
         self.annotation_display_names = {}
 
-    def get_annotation_value(self, node_id, field_idx, annotation_idx, annotation):
+    def get_annotation_value(self, node_id, field_idx, annotation_idx,
+                             annotation):
         key = (node_id, field_idx, annotation_idx)
         if key not in self.annotation_values:
             self.annotation_values[key] = get_annotation_value(
