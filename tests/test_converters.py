@@ -33,7 +33,7 @@ class TestConverterRoundTrip(unittest.TestCase):
         value_out = json.loads(json_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
         from_json(message, value_out)
-        self.assertTrue(compare_capnp(self, in_message, message))
+        compare_capnp(self, in_message, message)
 
         value2 = to_json(message)
         json_string2 = json.dumps(value2)
@@ -50,7 +50,7 @@ class TestConverterRoundTrip(unittest.TestCase):
         value_out = yaml.load(yaml_string, Loader=SafeLoader)
         message = get_module_from_id(in_message.schema.node.id).new_message()
         from_yaml(message, value_out)
-        self.assertTrue(compare_capnp(self, in_message, message))
+        compare_capnp(self, in_message, message)
 
         value2 = to_yaml(message)
         yaml_string2 = yaml.dump(value2, sort_keys=False, Dumper=Dumper)
@@ -70,7 +70,7 @@ class TestConverterRoundTrip(unittest.TestCase):
         value_out = ryml.parse(yaml_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
         from_rapidyaml(message, value_out)
-        self.assertTrue(compare_capnp(self, in_message, message))
+        compare_capnp(self, in_message, message)
 
         strings, value2 = to_rapidyaml(message)
         yaml_string2 = ryml.emit(value2)
@@ -99,7 +99,6 @@ class TestConverterRoundTrip(unittest.TestCase):
         self.round_trip_json(netlist_capnp)
 
     def test_device_json(self):
-        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
@@ -137,7 +136,6 @@ class TestConverterRoundTrip(unittest.TestCase):
             schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
         netlist_capnp = logical_netlist.convert_to_capnp(interchange)
 
-        self.round_trip_yaml('log', netlist_capnp)
         self.round_trip_rapidyaml('log', netlist_capnp)
 
     def test_physical_netlist_rapidyaml(self):
@@ -147,11 +145,9 @@ class TestConverterRoundTrip(unittest.TestCase):
             schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
         netlist_capnp = phys_netlist.convert_to_capnp(interchange)
 
-        self.round_trip_yaml('phys', netlist_capnp)
         self.round_trip_rapidyaml('phys', netlist_capnp)
 
     def test_device_rapidyaml(self):
-        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(

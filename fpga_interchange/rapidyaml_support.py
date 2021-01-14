@@ -313,6 +313,25 @@ class RapidYamlReader(BaseReaderWriter):
 
         return self.field_refs[field][target_ref]
 
+    def read_scalar(self, field_which, field_data):
+        if field_which == 'text':
+            return field_data
+        elif field_which == 'bool':
+            if field_data == True:
+                return True
+            elif field_data == False:
+                return False
+            elif field_data == 'true':
+                return True
+            elif field_data == 'false':
+                return False
+            else:
+                assert False, field_data
+        elif field_which == 'float32' and field_which == 'float64':
+            return float(field_data)
+        else:
+            return int(field_data)
+
     def reference_value(self, annotation_type, value, root_reader,
                         parent_reader):
         if annotation_type.type == 'root':

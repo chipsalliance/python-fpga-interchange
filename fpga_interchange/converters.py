@@ -234,7 +234,8 @@ def from_reader(message,
                         schema_node_id=field_proto_data.schema_node_id)
             else:
                 for idx, elem in enumerate(field_data):
-                    list_builder[idx] = reference_fun(elem)
+                    value = reference_fun(elem)
+                    list_builder[idx] = reader.read_scalar(list_which, value)
         elif field_which == 'void':
             assert field_data is None
             setattr(builder, key, None)
@@ -243,7 +244,9 @@ def from_reader(message,
         else:
             assert field_which in SCALAR_TYPES, field_which
 
-            setattr(builder, key, reference_fun(field_data))
+            value = reference_fun(field_data)
+            value = reader.read_scalar(field_which, value)
+            setattr(builder, key, value)
 
     for field in defered_fields:
         reader.objects[field].write_message(message, field)

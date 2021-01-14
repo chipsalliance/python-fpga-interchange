@@ -92,6 +92,9 @@ class JsonReader(BaseReaderWriter):
     def get_index(self, field, value):
         return self.index_cache.get_index(field, value)
 
+    def read_scalar(self, field_which, field_data):
+        return field_data
+
     def reference_value(self, annotation_type, value, root_reader,
                         parent_reader):
         if annotation_type.type == 'root':
