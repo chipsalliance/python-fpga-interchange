@@ -25,8 +25,10 @@ SCALAR_TYPES = [
     'text',
 ]
 
-
-FieldProtoData = namedtuple('FieldProtoData', 'field_proto ref_annotation imp_annotation hide_field field_type field_which list_which schema_node_id')
+FieldProtoData = namedtuple(
+    'FieldProtoData',
+    'field_proto ref_annotation imp_annotation hide_field field_type field_which list_which schema_node_id'
+)
 ReferenceAnnotation = namedtuple('ReferenceAnnotation', 'type field depth')
 
 
@@ -38,10 +40,8 @@ def make_reference_annotation(annotation_value):
     if type == 'parent':
         depth = annotation_value.depth
 
-    return ReferenceAnnotation(
-            type=type,
-            field=field,
-            depth=depth)
+    return ReferenceAnnotation(type=type, field=field, depth=depth)
+
 
 def make_field_proto(annotation_cache, schema_node_id, field_idx, field_proto):
     field_type = field_proto.slot.type
@@ -72,14 +72,14 @@ def make_field_proto(annotation_cache, schema_node_id, field_idx, field_proto):
         schema_node_id = field_type.struct.typeId
 
     return FieldProtoData(
-            field_proto=field_proto,
-            ref_annotation=ref_annotation,
-            imp_annotation=imp_annotation,
-            hide_field=hide_field,
-            field_type=field_type,
-            field_which=field_which,
-            list_which=list_which,
-            schema_node_id=schema_node_id)
+        field_proto=field_proto,
+        ref_annotation=ref_annotation,
+        imp_annotation=imp_annotation,
+        hide_field=hide_field,
+        field_type=field_type,
+        field_which=field_which,
+        list_which=list_which,
+        schema_node_id=schema_node_id)
 
 
 class FieldData():
@@ -97,11 +97,11 @@ class FieldData():
         else:
             assert self.which == 'slot', self.which
             self.field_proto = make_field_proto(
-                    annotation_cache=self.field_cache.annotation_cache,
-                    schema_node_id=self.field_cache.schema_node_id,
-                    field_idx=field_index,
-                    field_proto=field_proto,
-                    )
+                annotation_cache=self.field_cache.annotation_cache,
+                schema_node_id=self.field_cache.schema_node_id,
+                field_idx=field_index,
+                field_proto=field_proto,
+            )
             self.group_protos = None
 
     def get_field_proto(self):
@@ -112,11 +112,11 @@ class FieldData():
         if group_proto is None:
             group_proto = self.field.schema.fields[inner_key].proto
             self.group_protos[inner_key] = make_field_proto(
-                    annotation_cache=self.field_cache.annotation_cache,
-                    schema_node_id=self.field_cache.schema_node_id,
-                    field_idx=self.field_index,
-                    field_proto=group_proto,
-                    )
+                annotation_cache=self.field_cache.annotation_cache,
+                schema_node_id=self.field_cache.schema_node_id,
+                field_idx=self.field_index,
+                field_proto=group_proto,
+            )
 
         return self.group_protos[inner_key]
 

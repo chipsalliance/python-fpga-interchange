@@ -46,7 +46,9 @@ class BaseReaderWriter():
 
     def get_field_value(self, field, value):
         if field not in self.value_cache:
-            self.value_cache[field] = [v for v in getattr(self.struct_reader, field)]
+            self.value_cache[field] = [
+                v for v in getattr(self.struct_reader, field)
+            ]
 
         return self.value_cache[field][value]
 
@@ -58,7 +60,8 @@ class BaseReaderWriter():
 
     def get_field_cache(self, annotation_cache, schema, schema_node_id):
         if schema_node_id not in self.field_cache:
-            self.field_cache[schema_node_id] = FieldCache(annotation_cache, schema)
+            self.field_cache[schema_node_id] = FieldCache(
+                annotation_cache, schema)
         return self.field_cache[schema_node_id]
 
 
@@ -79,7 +82,8 @@ def to_writer(struct_reader,
     if schema_node_id is None:
         schema_node_id = schema.node.id
 
-    field_cache = root.get_field_cache(annotation_cache, schema, schema_node_id)
+    field_cache = root.get_field_cache(annotation_cache, schema,
+                                       schema_node_id)
 
     fields = field_cache.fields(struct_reader)
 
@@ -121,7 +125,7 @@ def to_writer(struct_reader,
                     parent=writer,
                     annotation_cache=annotation_cache,
                     schema_node_id=field_proto_data.schema_node_id,
-                    ))
+                ))
         elif field_which == 'list':
             list_which = field_proto_data.list_which
 
@@ -129,8 +133,7 @@ def to_writer(struct_reader,
             if list_which == 'struct':
                 for elem in value:
                     writer.append_to_list(
-                        data,
-                        list_which,
+                        data, list_which,
                         to_writer(
                             elem,
                             writer_class,
@@ -140,7 +143,8 @@ def to_writer(struct_reader,
                             schema_node_id=field_proto_data.schema_node_id))
             else:
                 for elem in value:
-                    writer.append_to_list(data, list_which, deference_fun(elem))
+                    writer.append_to_list(data, list_which,
+                                          deference_fun(elem))
 
             set_value(field_which, data)
         elif field_which == 'void':
@@ -173,9 +177,11 @@ def from_reader(message,
     if schema_node_id is None:
         schema_node_id = schema.node.id
 
-    field_cache = root.get_field_cache(annotation_cache, schema, schema_node_id)
+    field_cache = root.get_field_cache(annotation_cache, schema,
+                                       schema_node_id)
 
-    fields, defered_fields, union_field = field_cache.get_reader_fields(reader.keys())
+    fields, defered_fields, union_field = field_cache.get_reader_fields(
+        reader.keys())
 
     for key, annotation_value in defered_fields.items():
         reader.objects[key] = init_implementation(annotation_value)

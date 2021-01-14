@@ -12,7 +12,6 @@ from fpga_interchange.converters import BaseReaderWriter, to_writer, from_reader
 import ryml
 from ryml import Tree
 
-
 CHECK_TREE = True
 
 
@@ -31,6 +30,7 @@ def mkvalue(v):
     else:
         return str(v)
 
+
 def set_key_val_ref(tree, mkstr, keyval_id, key, ref):
     assert isinstance(ref, YamlReference)
     # FIXME: Bug in RapidYaml requires setting the value to also be the ref
@@ -38,12 +38,14 @@ def set_key_val_ref(tree, mkstr, keyval_id, key, ref):
     tree.to_keyval(keyval_id, mkstr(key), mkstr('*' + ref.ref))
     tree.set_val_ref(keyval_id, ref.ref)
 
+
 def set_val_ref(tree, mkstr, val_id, ref):
     assert isinstance(ref, YamlReference)
     # FIXME: Bug in RapidYaml requires setting the value to also be the ref
     # string.
     tree.to_val(val_id, mkstr('*' + ref.ref))
     tree.set_val_ref(val_id, ref.ref)
+
 
 class RapidYamlWriter(BaseReaderWriter):
     def __init__(self, struct_reader, parent):
@@ -75,7 +77,9 @@ class RapidYamlWriter(BaseReaderWriter):
 
     def make_reference(self, ref_id):
         if self.tree.is_anchor(ref_id):
-            return YamlReference(self.mkstr(bytes(self.tree.val_anchor(ref_id)).decode('utf-8')))
+            return YamlReference(
+                self.mkstr(
+                    bytes(self.tree.val_anchor(ref_id)).decode('utf-8')))
         else:
             ref = self.mkstr('id{:03d}'.format(self.ref_index))
             self.ref_index += 1
@@ -113,7 +117,8 @@ class RapidYamlWriter(BaseReaderWriter):
         if value_which in SCALAR_TYPES:
             keyval_id = self.tree.append_child(self.id)
             self.field_ids[key] = keyval_id
-            self.tree.to_keyval(keyval_id, self.mkstr(key), self.mkstr(mkvalue(value)))
+            self.tree.to_keyval(keyval_id, self.mkstr(key),
+                                self.mkstr(mkvalue(value)))
         elif value_which == 'list':
             list_id = value
             assert self.tree.parent(list_id) == self.id
@@ -147,7 +152,8 @@ class RapidYamlWriter(BaseReaderWriter):
 
         if value_which in SCALAR_TYPES:
             keyval_id = self.tree.append_child(outer_id)
-            self.tree.to_keyval(keyval_id, self.mkstr(inner_key), self.mkstr(mkvalue(value)))
+            self.tree.to_keyval(keyval_id, self.mkstr(inner_key),
+                                self.mkstr(mkvalue(value)))
         elif value_which == 'list':
             list_id = value
             assert self.tree.parent(list_id) == self.id
@@ -160,10 +166,12 @@ class RapidYamlWriter(BaseReaderWriter):
 
         elif value_which == 'void':
             keyval_id = self.tree.append_child(outer_id)
-            self.tree.to_keyval(keyval_id, self.mkstr(inner_key), self.mkstr('null'))
+            self.tree.to_keyval(keyval_id, self.mkstr(inner_key),
+                                self.mkstr('null'))
         elif value_which == 'enum':
             keyval_id = self.tree.append_child(outer_id)
-            self.tree.to_keyval(keyval_id, self.mkstr(inner_key), self.mkstr(value))
+            self.tree.to_keyval(keyval_id, self.mkstr(inner_key),
+                                self.mkstr(value))
         elif value_which == 'struct':
             assert self.tree.parent(value) == self.nursery_id
             assert self.tree.is_map(value)
@@ -259,7 +267,9 @@ def get_value(tree, field_id):
             out = []
             for value_id in ryml.children(tree, field_id):
                 if tree.is_val_ref(value_id):
-                    out.append(YamlReference(bytes(tree.val_ref(value_id)).decode('utf-8')))
+                    out.append(
+                        YamlReference(
+                            bytes(tree.val_ref(value_id)).decode('utf-8')))
                 else:
                     s = bytes(tree.val(value_id)).decode('utf-8')
                     out.append(decode_value(s))
@@ -354,7 +364,7 @@ class RapidYamlReader(BaseReaderWriter):
         outer_id = self.field_ids[key]
         assert self.tree.num_children(outer_id) == 1
         field_id = self.tree.first_child(outer_id)
-        return {bytes(self.tree.key(field_id)).decode('utf-8'):None}.keys()
+        return {bytes(self.tree.key(field_id)).decode('utf-8'): None}.keys()
 
     def get_inner_field(self, key, inner_key):
         self._init_fields()

@@ -24,7 +24,8 @@ class CompareCapnp():
 
     def get_field_cache(self, schema, schema_node_id):
         if schema_node_id not in self.field_cache:
-            self.field_cache[schema_node_id] = FieldCache(self.annotation_cache, schema)
+            self.field_cache[schema_node_id] = FieldCache(
+                self.annotation_cache, schema)
         return self.field_cache[schema_node_id]
 
     def dereference_value(self, annotation, value1, value2):
@@ -44,7 +45,8 @@ class CompareCapnp():
 
         return value1, value2
 
-    def compare_capnp(self, schema_node_id, message1, message2, field_lists=[]):
+    def compare_capnp(self, schema_node_id, message1, message2,
+                      field_lists=[]):
         field_cache = self.get_field_cache(message1.schema, schema_node_id)
 
         fields1 = field_cache.fields(message1)
@@ -69,7 +71,8 @@ class CompareCapnp():
 
                 inner_key1 = group1.which()
                 inner_key2 = group1.which()
-                self.unittest.assertEqual(inner_key1, inner_key2, msg=str(field_lists))
+                self.unittest.assertEqual(
+                    inner_key1, inner_key2, msg=str(field_lists))
 
                 field_lists.append(inner_key1)
                 value1 = getattr(group1, inner_key1)
@@ -109,8 +112,10 @@ class CompareCapnp():
                 else:
                     for idx, (elem1, elem2) in enumerate(zip(value1, value2)):
                         field_lists[-1] = idx
-                        elem1, elem2 = self.dereference_value(field_proto_data.ref_annotation, elem1, elem2)
-                        self.unittest.assertEqual(elem1, elem2, msg=str(field_lists))
+                        elem1, elem2 = self.dereference_value(
+                            field_proto_data.ref_annotation, elem1, elem2)
+                        self.unittest.assertEqual(
+                            elem1, elem2, msg=str(field_lists))
             elif field_which == 'void':
                 pass
             elif field_which == 'enum':
@@ -118,7 +123,8 @@ class CompareCapnp():
             else:
                 assert field_which in SCALAR_TYPES, field_which
 
-                value1, value2 = self.dereference_value(field_proto_data.ref_annotation, value1, value2)
+                value1, value2 = self.dereference_value(
+                    field_proto_data.ref_annotation, value1, value2)
                 self.unittest.assertEqual(value1, value2, msg=str(field_lists))
 
 
