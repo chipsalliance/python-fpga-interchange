@@ -9,11 +9,12 @@
 #
 # SPDX-License-Identifier: ISC
 import argparse
-import yaml
-from yaml import CSafeLoader as SafeLoader, CDumper as Dumper
 import json
+import ryml
+
 from fpga_interchange.interchange_capnp import Interchange, read_capnp_file, write_capnp_file
-import fpga_interchange.converters
+from fpga_interchange.json_support import to_json, from_json
+from fpga_interchange.rapidyaml_support import to_rapidyaml, from_rapidyaml
 
 SCHEMAS = ('device', 'logical', 'physical')
 FORMATS = ('json', 'yaml', 'capnp')
@@ -52,14 +53,14 @@ def main():
             json_data = json.load(f)
 
         message = schema.new_message()
-        fpga_interchange.converters.from_yaml(message, json_data)
+        from_json(message, json_data)
     elif args.input_format == 'yaml':
         with open(args.input, 'r') as f:
             yaml_string = f.read()
 
-        yaml_data = yaml.load(yaml_string, Loader=SafeLoader)
+        yaml_tree = ryml.parse(yaml_string)
         message = schema.new_message()
-        fpga_interchange.converters.from_yaml(message, json_data)
+        from_rapidyaml(message, yaml_tree)
     else:
         assert False, 'Invalid input format {}'.format(args.input_format)
 
@@ -67,12 +68,12 @@ def main():
         with open(args.output, 'wb') as f:
             write_capnp_file(message, f)
     elif args.output_format == 'json':
-        json_data = fpga_interchange.converters.to_yaml(message)
+        json_data = to_json(message)
         with open(args.output, 'w') as f:
             json.dump(json_data, f)
     elif args.output_format == 'yaml':
-        yaml_data = fpga_interchange.converters.to_yaml(message)
-        yaml_string = yaml.dump(yaml_data, Dumper=Dumper)
+        strings, yaml_tree = to_rapidyaml(message)
+        yaml_string = ryml.emit(yaml_tree)
         with open(args.output, 'w') as f:
             f.write(yaml_string)
     else:
