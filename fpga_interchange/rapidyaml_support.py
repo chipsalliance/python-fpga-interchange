@@ -238,16 +238,11 @@ class YamlIndexCache():
         return self.caches[field][id(value)]
 
 
-def decode_value(s):
-    if s == '~' or s == 'null':
-        return None
-    elif s == 'true':
-        return True
-    elif s == 'false':
-        return False
-    else:
+def handle_value(s):
+    if s is None:
         return s
-
+    else:
+        return bytes(s).decode('utf-8')
 
 def get_value(tree, field_id):
     if tree.is_val_ref(field_id):
@@ -271,12 +266,12 @@ def get_value(tree, field_id):
                         YamlReference(
                             bytes(tree.val_ref(value_id)).decode('utf-8')))
                 else:
-                    s = bytes(tree.val(value_id)).decode('utf-8')
-                    out.append(decode_value(s))
+                    s = handle_value(tree.val(value_id))
+                    out.append(s)
             return out
     else:
-        s = bytes(tree.val(field_id)).decode('utf-8')
-        return decode_value(s)
+        s = handle_value(tree.val(field_id))
+        return s
 
 
 class RapidYamlReader(BaseReaderWriter):
