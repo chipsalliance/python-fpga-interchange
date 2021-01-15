@@ -235,20 +235,6 @@ class RapidYamlWriter(BaseReaderWriter):
             return self.id
 
 
-class YamlIndexCache():
-    def __init__(self, data):
-        self.data = data
-        self.caches = {}
-
-    def get_index(self, field, value):
-        if field not in self.caches:
-            self.caches[field] = {}
-            for idx, obj in enumerate(self.data[field]):
-                self.caches[field][id(obj)] = idx
-
-        return self.caches[field][id(value)]
-
-
 def handle_value(s):
     if s is None:
         return s

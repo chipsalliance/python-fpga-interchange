@@ -37,7 +37,7 @@ class JsonWriter(BaseReaderWriter):
                 item_id,
             )
 
-        return item
+        return {'_id': item_id}
 
     def dereference_value(self, annotation_type, value, root_writer,
                           parent_writer):
@@ -75,7 +75,8 @@ class JsonIndexCache():
         if field not in self.caches:
             self.caches[field] = {}
             for idx, obj in enumerate(self.data[field]):
-                self.caches[field][obj['_id']] = idx
+                if '_id' in obj:
+                    self.caches[field][obj['_id']] = idx
 
         return self.caches[field][value['_id']]
 

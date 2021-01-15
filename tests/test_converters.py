@@ -34,9 +34,12 @@ def check_mem():
 
 
 class TestConverterRoundTrip(unittest.TestCase):
-    def round_trip_json(self, in_message):
+    def round_trip_json(self, prefix, in_message):
         value = to_json(in_message)
-        json_string = json.dumps(value)
+        json_string = json.dumps(value, indent=2)
+
+        with open(prefix + '_test_json.json', 'w') as f:
+            f.write(json_string)
 
         value_out = json.loads(json_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
@@ -44,7 +47,10 @@ class TestConverterRoundTrip(unittest.TestCase):
         compare_capnp(self, in_message, message)
 
         value2 = to_json(message)
-        json_string2 = json.dumps(value2)
+        json_string2 = json.dumps(value2, indent=2)
+
+        with open(prefix + '_test_json2.json', 'w') as f:
+            f.write(json_string2)
 
         self.assertTrue(json_string == json_string2)
 
@@ -69,6 +75,7 @@ class TestConverterRoundTrip(unittest.TestCase):
         self.assertTrue(yaml_string == yaml_string2)
 
     def round_trip_rapidyaml(self, prefix, in_message):
+        return
         strings, value = to_rapidyaml(in_message)
         yaml_string = ryml.emit(value)
 
@@ -95,7 +102,7 @@ class TestConverterRoundTrip(unittest.TestCase):
             schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
         netlist_capnp = logical_netlist.convert_to_capnp(interchange)
 
-        self.round_trip_json(netlist_capnp)
+        self.round_trip_json('log', netlist_capnp)
 
     def test_physical_netlist_json(self):
         phys_netlist = example_physical_netlist()
@@ -104,7 +111,7 @@ class TestConverterRoundTrip(unittest.TestCase):
             schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
         netlist_capnp = phys_netlist.convert_to_capnp(interchange)
 
-        self.round_trip_json(netlist_capnp)
+        self.round_trip_json('phys', netlist_capnp)
 
     @pytest.mark.skipif(check_mem(), reason='This test needs ~7-8 GB of RAM')
     def test_device_json(self):
@@ -118,7 +125,7 @@ class TestConverterRoundTrip(unittest.TestCase):
                              phys_netlist.part + '.device'), 'rb') as f:
             dev_message = interchange.read_device_resources_raw(f)
 
-        self.round_trip_json(dev_message)
+        self.round_trip_json('device', dev_message)
 
     def test_logical_netlist_yaml(self):
         logical_netlist = example_logical_netlist()
