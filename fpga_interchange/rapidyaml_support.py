@@ -67,6 +67,7 @@ class RapidYamlWriter(BaseReaderWriter):
             self.tree.to_map(self.id)
 
         self.field_ids = {}
+        self.list_ids = {}
         self.struct_reader = struct_reader
         self.parent = parent
         self.ref_index = 1
@@ -87,11 +88,20 @@ class RapidYamlWriter(BaseReaderWriter):
             self.tree.set_val_anchor(ref_id, ref)
             return YamlReference(ref)
 
+    def get_list_id(self, field, index):
+        field_id = self.field_ids[field]
+        if field_id not in self.list_ids:
+            l = []
+            for value_id in ryml.children(self.tree, field_id):
+                l.append(value_id)
+            self.list_ids[field_id] = l
+
+        return self.list_ids[field_id][index]
+
     def dereference_value(self, annotation_type, value, root_writer,
                           parent_writer):
         if annotation_type.type == 'root':
-            field_id = root_writer.field_ids[annotation_type.field]
-            ref_id = self.tree.child(field_id, value)
+            ref_id = root_writer.get_list_id(annotation_type.field, value)
             return root_writer.make_reference(ref_id)
 
         elif annotation_type.type == 'rootValue':
@@ -99,11 +109,9 @@ class RapidYamlWriter(BaseReaderWriter):
         else:
             assert annotation_type.type == 'parent'
             parent = self.get_parent(annotation_type.depth)
-            field_id = parent.field_ids[annotation_type.field]
-            ref_id = self.tree.child(field_id, value)
+            ref_id = parent.get_list_id(annotation_type.field, value)
 
-            assert field_id == self.tree.parent(ref_id)
-            assert self.tree.is_seq(field_id)
+            assert ref_id != ryml.NONE
             assert not self.tree.has_key(ref_id)
 
             return root_writer.make_reference(ref_id)
@@ -133,6 +141,7 @@ class RapidYamlWriter(BaseReaderWriter):
             self.field_ids[key] = keyval_id
             self.tree.to_keyval(keyval_id, self.mkstr(key), self.mkstr(value))
         elif value_which == 'struct':
+            assert value != ryml.NONE
             assert self.tree.parent(value) == self.nursery_id
             assert self.tree.is_map(value)
             self.tree.move(value, self.id, self.tree.last_child(self.id))
@@ -156,6 +165,7 @@ class RapidYamlWriter(BaseReaderWriter):
                                 self.mkstr(mkvalue(value)))
         elif value_which == 'list':
             list_id = value
+            assert list_id != ryml.NONE
             assert self.tree.parent(list_id) == self.id
             self.tree.move(list_id, outer_id, ryml.NONE)
             self.tree._set_key(list_id, self.mkstr(inner_key))
@@ -173,6 +183,7 @@ class RapidYamlWriter(BaseReaderWriter):
             self.tree.to_keyval(keyval_id, self.mkstr(inner_key),
                                 self.mkstr(value))
         elif value_which == 'struct':
+            assert value != ryml.NONE
             assert self.tree.parent(value) == self.nursery_id
             assert self.tree.is_map(value)
 
