@@ -1,4 +1,5 @@
 pytest
+psutil
 git+https://github.com/capnproto/pycapnp.git
 ninja
 pyyaml --global-option='--with-libyaml'
