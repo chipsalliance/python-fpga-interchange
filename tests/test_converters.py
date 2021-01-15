@@ -23,7 +23,7 @@ import ryml
 from fpga_interchange.capnp_utils import get_module_from_id
 from fpga_interchange.interchange_capnp import Interchange
 from example_netlist import example_logical_netlist, example_physical_netlist
-import pytest.mark.skipif
+import pytest
 import psutil
 
 
@@ -104,7 +104,7 @@ class TestConverterRoundTrip(unittest.TestCase):
 
         self.round_trip_json(netlist_capnp)
 
-    @pytest.mark.skipif(check_mem())
+    @pytest.mark.skipif(check_mem(), reason='This test needs ~7-8 GB of RAM')
     def test_device_json(self):
         phys_netlist = example_physical_netlist()
 
@@ -154,7 +154,7 @@ class TestConverterRoundTrip(unittest.TestCase):
 
         self.round_trip_rapidyaml('phys', netlist_capnp)
 
-    @pytest.mark.skipif(check_mem())
+    @pytest.mark.skipif(check_mem(), reason='This test needs ~7-8 GB of RAM')
     def test_device_rapidyaml(self):
         phys_netlist = example_physical_netlist()
 
