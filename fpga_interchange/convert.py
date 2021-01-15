@@ -48,6 +48,7 @@ def main():
     if args.input_format == 'capnp':
         with open(args.input, 'rb') as f:
             message = read_capnp_file(schema, f)
+            message = message.as_builder()
     elif args.input_format == 'json':
         with open(args.input, 'r') as f:
             json_data = json.load(f)
@@ -68,10 +69,12 @@ def main():
         with open(args.output, 'wb') as f:
             write_capnp_file(message, f)
     elif args.output_format == 'json':
+        message = message.as_reader()
         json_data = to_json(message)
         with open(args.output, 'w') as f:
             json.dump(json_data, f)
     elif args.output_format == 'yaml':
+        message = message.as_reader()
         strings, yaml_tree = to_rapidyaml(message)
         yaml_string = ryml.emit(yaml_tree)
         with open(args.output, 'w') as f:

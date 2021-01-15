@@ -244,6 +244,7 @@ def handle_value(s):
     else:
         return bytes(s).decode('utf-8')
 
+
 def get_value(tree, field_id):
     if tree.is_val_ref(field_id):
         return YamlReference(bytes(tree.val_ref(field_id)).decode('utf-8'))
