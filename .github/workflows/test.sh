@@ -14,4 +14,8 @@ export INTERCHANGE_SCHEMA_PATH="$GITHUB_WORKSPACE/env/RapidWright/interchange"
 export DEVICE_RESOURCE_PATH="$GITHUB_WORKSPACE/env"
 
 make test-py
+RESULT=$?
+if [ $RESULT -ne 0 ]; then
+    exit $RESULT
+fi
 test $(git status --porcelain | wc -l) -eq 0 || { git diff; false; }
