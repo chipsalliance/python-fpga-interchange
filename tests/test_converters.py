@@ -28,7 +28,9 @@ import psutil
 
 
 def check_mem():
-    return psutil.virtual_memory().total < 7 * 1024 * 1024
+    vmem = psutil.virtual_memory()
+    print(vmem)
+    return vmem.total < (6.5 * 1024 * 1024)
 
 
 class TestConverterRoundTrip(unittest.TestCase):
