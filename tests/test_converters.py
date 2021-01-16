@@ -30,7 +30,7 @@ import psutil
 def check_mem():
     vmem = psutil.virtual_memory()
     print(vmem)
-    return vmem.total < (6.5 * 1024 * 1024)
+    return vmem.total < (8 * 1024 * 1024 * 1024)
 
 
 class TestConverterRoundTrip(unittest.TestCase):
@@ -75,7 +75,6 @@ class TestConverterRoundTrip(unittest.TestCase):
         self.assertTrue(yaml_string == yaml_string2)
 
     def round_trip_rapidyaml(self, prefix, in_message):
-        return
         strings, value = to_rapidyaml(in_message)
         yaml_string = ryml.emit(value)
 
