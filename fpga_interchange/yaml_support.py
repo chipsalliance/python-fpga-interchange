@@ -8,12 +8,14 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
-from fpga_interchange.converters import BaseReaderWriter, to_writer, from_reader
+""" Implements YAML text format support using pyyaml library. """
+from fpga_interchange.converters import AbstractWriter, AbstractReader, \
+        to_writer, from_reader
 
 
-class YamlWriter(BaseReaderWriter):
+class YamlWriter(AbstractWriter):
     def __init__(self, struct_reader, parent):
-        super().__init__()
+        super().__init__(struct_reader, parent)
         self.out = {}
         self.struct_reader = struct_reader
         self.parent = parent
@@ -59,12 +61,10 @@ class YamlIndexCache():
         return self.caches[field][id(value)]
 
 
-class YamlReader(BaseReaderWriter):
-    def __init__(self, message, data, parent):
-        super().__init__()
-        self.message = message
+class YamlReader(AbstractReader):
+    def __init__(self, data, parent):
+        super().__init__(data, parent)
         self.data = data
-        self.objects = {}
         self.index_cache = YamlIndexCache(self.data)
         self.parent = parent
 
@@ -79,7 +79,8 @@ class YamlReader(BaseReaderWriter):
         if annotation_type.type == 'root':
             return root_reader.get_index(annotation_type.field, value)
         elif annotation_type.type == 'rootValue':
-            return root_reader.objects[annotation_type.field].get_index(value)
+            return root_reader.get_object(
+                annotation_type.field).get_index(value)
         else:
             assert annotation_type.type == 'parent'
             return self.get_parent(annotation_type.depth).get_index(
@@ -99,8 +100,10 @@ class YamlReader(BaseReaderWriter):
 
 
 def to_yaml(struct_reader):
+    """ Converts struct_reader to dict tree suitable for use with pyyaml,dump """
     return to_writer(struct_reader, YamlWriter)
 
 
 def from_yaml(message, data):
+    """ Converts data from pyyaml.load to FPGA interchange message. """
     from_reader(message, data, YamlReader)

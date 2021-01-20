@@ -8,7 +8,9 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
-from fpga_interchange.converters import BaseReaderWriter, to_writer, from_reader, SCALAR_TYPES
+""" Implements YAML text format support using RapidYaml library. """
+from fpga_interchange.converters import AbstractWriter, AbstractReader, \
+        to_writer, from_reader, SCALAR_TYPES
 import ryml
 from ryml import Tree
 
@@ -47,9 +49,9 @@ def set_val_ref(tree, mkstr, val_id, ref):
     tree.set_val_ref(val_id, ref.ref)
 
 
-class RapidYamlWriter(BaseReaderWriter):
+class RapidYamlWriter(AbstractWriter):
     def __init__(self, struct_reader, parent):
-        super().__init__()
+        super().__init__(struct_reader, parent)
 
         if parent is None:
             self.tree = Tree()
@@ -272,9 +274,9 @@ def get_value(tree, field_id):
         return s
 
 
-class RapidYamlReader(BaseReaderWriter):
-    def __init__(self, message, data, parent):
-        super().__init__()
+class RapidYamlReader(AbstractReader):
+    def __init__(self, data, parent):
+        super().__init__(data, parent)
 
         self.parent = parent
         if self.parent is None:
@@ -286,9 +288,6 @@ class RapidYamlReader(BaseReaderWriter):
 
         self.field_ids = {}
         self.field_refs = {}
-        self.objects = {}
-
-        self.message = message
 
     def _init_fields(self):
         if len(self.field_ids) > 0:
@@ -341,7 +340,8 @@ class RapidYamlReader(BaseReaderWriter):
             assert isinstance(value, YamlReference)
             return root_reader.find_ref_index(annotation_type.field, value.ref)
         elif annotation_type.type == 'rootValue':
-            return root_reader.objects[annotation_type.field].get_index(value)
+            return root_reader.get_object(
+                annotation_type.field).get_index(value)
         else:
             assert annotation_type.type == 'parent'
             assert isinstance(value, YamlReference)
@@ -375,8 +375,19 @@ class RapidYamlReader(BaseReaderWriter):
 
 
 def to_rapidyaml(struct_reader):
+    """ Converts struct_reader to ryml.Tree object.
+
+    Because ryml.Tree doesn't hold string values, this function returns
+    two objects.  The first is the list of all strings in the ryml.Tree.
+    This objects lifetime must exceed the ryml.Tree's lifetime.
+
+    Returns:
+        - List of strings used in ryml.Tree
+        - ryml.Tree object.
+    """
     return to_writer(struct_reader, RapidYamlWriter)
 
 
 def from_rapidyaml(message, data):
+    """ Converts ryml.Tree object to a FPGA interchange message. """
     from_reader(message, data, RapidYamlReader)

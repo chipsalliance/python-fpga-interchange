@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 
 import os
+import io
 import unittest
 import json
 import yaml
@@ -22,6 +23,8 @@ from fpga_interchange.compare import compare_capnp
 import ryml
 from fpga_interchange.capnp_utils import get_module_from_id
 from fpga_interchange.interchange_capnp import Interchange
+from fpga_interchange.convert import read_format, write_format, get_schema, \
+        FORMATS
 from example_netlist import example_logical_netlist, example_physical_netlist
 import pytest
 import psutil
@@ -183,3 +186,74 @@ class TestConverterRoundTrip(unittest.TestCase):
             dev_message = interchange.read_device_resources_raw(f)
 
         self.round_trip_rapidyaml('device', dev_message)
+
+    def assertSameSchema(self, schema_a, schema_b):
+        self.assertEqual(type(schema_a), type(schema_b))
+        self.assertEqual(schema_a.schema.node.id, schema_b.schema.node.id)
+
+    def test_get_schemas(self):
+        schema_dir = os.environ['INTERCHANGE_SCHEMA_PATH']
+
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+
+        self.assertSameSchema(interchange.device_resources_schema.Device,
+                              get_schema(schema_dir, 'device'))
+
+        self.assertSameSchema(interchange.device_resources_schema.Device,
+                              get_schema(schema_dir, 'device', 'Device'))
+
+        self.assertSameSchema(
+            interchange.device_resources_schema.Device.SiteType,
+            get_schema(schema_dir, 'device', 'Device.SiteType'))
+
+        self.assertSameSchema(interchange.logical_netlist_schema.Netlist,
+                              get_schema(schema_dir, 'logical'))
+
+        self.assertSameSchema(interchange.logical_netlist_schema.Netlist,
+                              get_schema(schema_dir, 'logical', 'Netlist'))
+
+        self.assertSameSchema(interchange.physical_netlist_schema.PhysNetlist,
+                              get_schema(schema_dir, 'physical'))
+
+        self.assertSameSchema(
+            interchange.physical_netlist_schema.PhysNetlist,
+            get_schema(schema_dir, 'physical', 'PhysNetlist'))
+
+    def round_read_write_message(self, schema, message):
+        schema_dir = os.environ['INTERCHANGE_SCHEMA_PATH']
+
+        schema = get_schema(schema_dir, schema)
+
+        for format1 in FORMATS:
+            f = io.BytesIO()
+            write_format(message, format1, f)
+            f.seek(0)
+            message_out = read_format(schema, format1, f)
+            compare_capnp(self, message, message_out)
+
+            for format2 in FORMATS:
+                f2 = io.BytesIO()
+                write_format(message_out, format2, f2)
+                f2.seek(0)
+                message_out2 = read_format(schema, format2, f2)
+                compare_capnp(self, message, message_out2)
+                compare_capnp(self, message_out, message_out2)
+
+    def test_logical_netlist_convert(self):
+        logical_netlist = example_logical_netlist()
+
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+        netlist_capnp = logical_netlist.convert_to_capnp(interchange)
+
+        self.round_read_write_message('logical', netlist_capnp)
+
+    def test_physical_netlist_convert(self):
+        phys_netlist = example_physical_netlist()
+
+        interchange = Interchange(
+            schema_directory=os.environ['INTERCHANGE_SCHEMA_PATH'])
+        netlist_capnp = phys_netlist.convert_to_capnp(interchange)
+
+        self.round_read_write_message('physical', netlist_capnp)

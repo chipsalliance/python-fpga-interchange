@@ -8,6 +8,7 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+""" Implements a way to compare two FPGA interchange capnp messages. """
 from fpga_interchange.annotations import AnnotationCache
 from fpga_interchange.field_cache import FieldCache, SCALAR_TYPES
 
@@ -23,12 +24,18 @@ class CompareCapnp():
         self.value_cache2 = {}
 
     def get_field_cache(self, schema, schema_node_id):
+        """ Return the field cache for the specified schema. """
         if schema_node_id not in self.field_cache:
             self.field_cache[schema_node_id] = FieldCache(
                 self.annotation_cache, schema)
         return self.field_cache[schema_node_id]
 
     def dereference_value(self, annotation, value1, value2):
+        """ Dereference values as needed.
+
+        Only values annotated with a 'rootValue' reference are affected.
+        Otherwise returns original inputs.
+        """
         if annotation is None:
             return value1, value2
 
@@ -47,6 +54,14 @@ class CompareCapnp():
 
     def compare_capnp(self, schema_node_id, message1, message2,
                       field_lists=[]):
+        """ Compare two capnp structs.
+
+        schema_node_id (int) - Schema node id for both message1 and message2.
+        message1, message2 - Messages to be compared.
+        field_lists - List of fields already dereferenced.  Useful for
+            determine where compare failures occurs.
+
+        """
         field_cache = self.get_field_cache(message1.schema, schema_node_id)
 
         fields1 = field_cache.fields(message1)
@@ -129,6 +144,17 @@ class CompareCapnp():
 
 
 def compare_capnp(unittest, message1, message2):
+    """ Compares two FPGA interchange capnp message.
+
+    unittest (unittest object): unittest self argument.
+        Used to invoke self.assertEqual, etc.
+
+    message1, message2 (capnp messages): Messages to compare.
+
+    Note that 'rootValue' elements will be compared by value, rather than by
+    index.  This is because 'rootValue' elements are backed by non-stable
+    value arrays.
+    """
     schema_node_id = message1.schema.node.id
 
     unittest.assertEqual(schema_node_id, message2.schema.node.id)

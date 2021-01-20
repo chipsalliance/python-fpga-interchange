@@ -8,17 +8,18 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
-from fpga_interchange.converters import BaseReaderWriter, to_writer, from_reader
+""" Implements JSON text format support. """
+from fpga_interchange.converters import AbstractWriter, AbstractReader, \
+        to_writer, from_reader
 
 
-class JsonWriter(BaseReaderWriter):
+class JsonWriter(AbstractWriter):
     def __init__(self, struct_reader, parent):
-        super().__init__()
+        super().__init__(struct_reader, parent)
         self.out = {}
         self.struct_reader = struct_reader
         self.next_id = 0
         self.obj_id_cache = {}
-        self.parent = parent
 
     def get_object_with_id(self, field, value):
         item = self.out[field][value]
@@ -81,12 +82,10 @@ class JsonIndexCache():
         return self.caches[field][value['_id']]
 
 
-class JsonReader(BaseReaderWriter):
-    def __init__(self, message, data, parent):
-        super().__init__()
-        self.message = message
+class JsonReader(AbstractReader):
+    def __init__(self, data, parent):
+        super().__init__(data, parent)
         self.data = data
-        self.objects = {}
         self.index_cache = JsonIndexCache(self.data)
         self.parent = parent
 
@@ -101,7 +100,8 @@ class JsonReader(BaseReaderWriter):
         if annotation_type.type == 'root':
             return root_reader.get_index(annotation_type.field, value)
         elif annotation_type.type == 'rootValue':
-            return root_reader.objects[annotation_type.field].get_index(value)
+            return root_reader.get_object(
+                annotation_type.field).get_index(value)
         else:
             assert annotation_type.type == 'parent'
             return self.get_parent(annotation_type.depth).get_index(
@@ -121,8 +121,10 @@ class JsonReader(BaseReaderWriter):
 
 
 def to_json(struct_reader):
+    """ Converts struct_reader to dict tree suitable for use with json,dump """
     return to_writer(struct_reader, JsonWriter)
 
 
 def from_json(message, data):
+    """ Converts data from json.load to FPGA interchange message. """
     from_reader(message, data, JsonReader)

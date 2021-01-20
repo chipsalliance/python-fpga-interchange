@@ -8,8 +8,16 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+""" Provides a FieldCache which caches data about a capnp struct field.
+
+Because capnp structs are constant, and parsing the dynamic capnp data is
+a non-trival operation, the FieldCache converts commonly accessed fields into
+namedtuple's to avoid overhead.
+
+"""
 from collections import namedtuple
 
+# List of scalar capnp types.
 SCALAR_TYPES = [
     'bool',
     'int8',
@@ -33,6 +41,8 @@ ReferenceAnnotation = namedtuple('ReferenceAnnotation', 'type field depth')
 
 
 def make_reference_annotation(annotation_value):
+    """ Convert a reference annotation capnp message to a ReferenceAnnotation.
+    """
     type = annotation_value.type
     field = annotation_value.field
     depth = None
@@ -44,6 +54,7 @@ def make_reference_annotation(annotation_value):
 
 
 def make_field_proto(annotation_cache, schema_node_id, field_idx, field_proto):
+    """ Convert a field proto message into a FieldProtoData object. """
     field_type = field_proto.slot.type
     field_which = field_type.which()
 
@@ -83,6 +94,13 @@ def make_field_proto(annotation_cache, schema_node_id, field_idx, field_proto):
 
 
 class FieldData():
+    """ Object to cache data about a field.
+
+    Note: This cannot be a simple flat object in the event where the field
+    is a union group.
+
+    """
+
     def __init__(self, field_cache, field_index, field):
         self.field_cache = field_cache
         self.field_index = field_index
@@ -105,9 +123,11 @@ class FieldData():
             self.group_protos = None
 
     def get_field_proto(self):
+        """ Return field proto data when which == 'slot'. """
         return self.field_proto
 
     def get_group_proto(self, inner_key):
+        """ Return group field proto data when which == 'group'. """
         group_proto = self.group_protos.get(inner_key, None)
         if group_proto is None:
             group_proto = self.field.schema.fields[inner_key].proto
@@ -122,6 +142,8 @@ class FieldData():
 
 
 class FieldCache():
+    """ Provides field data caching for a specific message schema. """
+
     def __init__(self, annotation_cache, schema):
         self.annotation_cache = annotation_cache
         self.schema = schema
@@ -136,6 +158,7 @@ class FieldCache():
             self.fields_list.append(FieldData(self, idx, field))
 
     def fields(self, struct_reader):
+        """ Return list of fields in specified message reader. """
         if self.has_union_fields:
             fields = set(self.base_fields)
             fields.add(struct_reader.which())
@@ -144,6 +167,17 @@ class FieldCache():
             return self.base_fields
 
     def get_reader_fields(self, input_fields):
+        """ Return information to build message from list of input_fields.
+
+
+        Returns:
+            fields - List of all fields in output.
+            defered_fields - Map of fields to defer and their implemenation
+                annotation.
+            union_field - Which field (if any) is a union field that needs
+                special handling.
+
+        """
         fields = set(self.base_fields)
         defered_fields = {}
 
