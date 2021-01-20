@@ -26,10 +26,12 @@ from example_netlist import example_logical_netlist, example_physical_netlist
 import pytest
 import psutil
 
+# Set to true to have round_trip_X write files to disk for inspection.
+OUTPUT_FILES = False
+
 
 def check_mem():
     vmem = psutil.virtual_memory()
-    print(vmem)
     return vmem.total < (8 * 1024 * 1024 * 1024)
 
 
@@ -38,8 +40,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         value = to_json(in_message)
         json_string = json.dumps(value, indent=2)
 
-        with open(prefix + '_test_json.json', 'w') as f:
-            f.write(json_string)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_json.json', 'w') as f:
+                f.write(json_string)
 
         value_out = json.loads(json_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
@@ -49,8 +52,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         value2 = to_json(message)
         json_string2 = json.dumps(value2, indent=2)
 
-        with open(prefix + '_test_json2.json', 'w') as f:
-            f.write(json_string2)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_json2.json', 'w') as f:
+                f.write(json_string2)
 
         self.assertTrue(json_string == json_string2)
 
@@ -58,8 +62,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         value = to_yaml(in_message)
         yaml_string = yaml.dump(value, sort_keys=False, Dumper=Dumper)
 
-        with open(prefix + '_test_yaml.yaml', 'w') as f:
-            f.write(yaml_string)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_yaml.yaml', 'w') as f:
+                f.write(yaml_string)
 
         value_out = yaml.load(yaml_string, Loader=SafeLoader)
         message = get_module_from_id(in_message.schema.node.id).new_message()
@@ -69,8 +74,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         value2 = to_yaml(message)
         yaml_string2 = yaml.dump(value2, sort_keys=False, Dumper=Dumper)
 
-        with open(prefix + '_test_yaml2.yaml', 'w') as f:
-            f.write(yaml_string2)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_yaml2.yaml', 'w') as f:
+                f.write(yaml_string2)
 
         self.assertTrue(yaml_string == yaml_string2)
 
@@ -78,8 +84,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         strings, value = to_rapidyaml(in_message)
         yaml_string = ryml.emit(value)
 
-        with open(prefix + '_test_rapidyaml.yaml', 'w') as f:
-            f.write(yaml_string)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_rapidyaml.yaml', 'w') as f:
+                f.write(yaml_string)
 
         value_out = ryml.parse(yaml_string)
         message = get_module_from_id(in_message.schema.node.id).new_message()
@@ -89,8 +96,9 @@ class TestConverterRoundTrip(unittest.TestCase):
         strings, value2 = to_rapidyaml(message)
         yaml_string2 = ryml.emit(value2)
 
-        with open(prefix + '_test_rapidyaml2.yaml', 'w') as f:
-            f.write(yaml_string2)
+        if OUTPUT_FILES:
+            with open(prefix + '_test_rapidyaml2.yaml', 'w') as f:
+                f.write(yaml_string2)
 
         self.assertTrue(yaml_string == yaml_string2)
 
