@@ -68,6 +68,15 @@ NO_TRAVERSAL_LIMIT = 2**63 - 1
 
 NESTING_LIMIT = 256
 
+# Level 6 is much faster than level 9, but still has a reasonable compression
+# level.
+#
+# From man page:
+#  The default compression level is -6 (that is, biased towards high
+#  compression at expense of speed).
+#
+DEFAULT_COMPRESSION = 6
+
 
 def read_capnp_file(capnp_schema,
                     f_in,
@@ -118,7 +127,9 @@ def write_capnp_file(capnp_obj,
 
     """
     if compression_format == CompressionFormat.GZIP:
-        with gzip.GzipFile(fileobj=f_out, mode='wb') as f:
+        with gzip.GzipFile(
+                fileobj=f_out, mode='wb',
+                compresslevel=DEFAULT_COMPRESSION) as f:
             if is_packed:
                 f.write(capnp_obj.to_bytes_packed())
             else:
