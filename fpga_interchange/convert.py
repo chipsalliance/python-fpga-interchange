@@ -48,7 +48,7 @@ def read_format_to_message(message, input_format, in_f):
         yaml_string = in_f.read().decode('utf-8')
         yaml_tree = ryml.parse(yaml_string)
         from_rapidyaml(message, yaml_tree)
-    elif input_format == 'json':
+    elif input_format == 'pyyaml':
         yaml_string = in_f.read().decode('utf-8')
         yaml_data = yaml.load(yaml_string, Loader=SafeLoader)
         from_yaml(message, yaml_data)
