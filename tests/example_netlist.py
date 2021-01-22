@@ -328,10 +328,10 @@ def main():
         description=
         "Create an example netlist, suitable for use with Vivado 2019.2")
 
-    parser.add_argument('--schema_dir')
-    parser.add_argument('--logical_netlist')
-    parser.add_argument('--physical_netlist')
-    parser.add_argument('--xdc')
+    parser.add_argument('--schema_dir', required=True)
+    parser.add_argument('--logical_netlist', required=True)
+    parser.add_argument('--physical_netlist', required=True)
+    parser.add_argument('--xdc', required=True)
 
     args = parser.parse_args()
 

@@ -123,6 +123,9 @@ class Cell():
 
         self.cell_pin_net_lookup = {}
 
+    def is_leaf(self):
+        return len(self.cell_instances) == 0
+
     def add_port(self, name, direction, property_map={}):
         """ Add bit port to this cell
 
@@ -250,6 +253,18 @@ class Library():
         self.cells[cell.name] = cell
 
 
+def yield_leaf_cells(master_cell_list, inst_name, cell_inst):
+    cell = master_cell_list[cell_inst.cell_name]
+
+    if cell.is_leaf():
+        yield inst_name, cell_inst
+    else:
+        for inst_name, cell_inst in cell.cell_instances.items():
+            for leaf_cell in yield_leaf_cells(master_cell_list, inst_name,
+                                              cell_inst):
+                yield leaf_cell
+
+
 class LogicalNetlist(
         namedtuple(
             'LogicalNetlist',
@@ -295,6 +310,23 @@ class LogicalNetlist(
             top_instance=self.top_instance,
             top_instance_name=self.top_instance_name,
             property_map=self.property_map)
+
+    def get_master_cell_list(self):
+        master_cell_list = {}
+
+        for lib in self.libraries.values():
+            for cell in lib.cells.values():
+                assert cell.name not in master_cell_list
+                master_cell_list[cell.name] = cell
+
+        return master_cell_list
+
+    def yield_leaf_cells(self):
+        master_cell_list = self.get_master_cell_list()
+
+        for leaf_cell in yield_leaf_cells(
+                master_cell_list, self.top_instance_name, self.top_instance):
+            yield leaf_cell
 
 
 def check_logical_netlist(libraries):

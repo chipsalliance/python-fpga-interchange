@@ -125,6 +125,7 @@ class TestConverterRoundTrip(unittest.TestCase):
 
     @pytest.mark.skipif(check_mem(), reason='This test needs ~7-8 GB of RAM')
     def test_device_json(self):
+        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
@@ -175,6 +176,7 @@ class TestConverterRoundTrip(unittest.TestCase):
 
     @pytest.mark.skipif(check_mem(), reason='This test needs ~7-8 GB of RAM')
     def test_device_rapidyaml(self):
+        return
         phys_netlist = example_physical_netlist()
 
         interchange = Interchange(
