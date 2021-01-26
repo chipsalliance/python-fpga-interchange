@@ -205,9 +205,6 @@ class SiteInstInfo():
         # <site>.<site type>
         self.name = ''
 
-        # Site type name
-        self.site_type = ''
-
     def append_children_bba(self, bba, label_prefix):
         pass
 

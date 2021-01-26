@@ -9,7 +9,9 @@
 #
 # SPDX-License-Identifier: ISC
 from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
-        TileWireInfo, BelPort, PipInfo
+        TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
+        TileWireRef
+
 from fpga_interchange.nextpnr import PortType
 from enum import Enum
 from collections import namedtuple
@@ -357,8 +359,98 @@ def populate_chip_info(device, chip_info):
 
     chip_info = ChipInfo()
 
+    tile_wire_to_wire_in_tile_index = []
+    num_tile_wires = []
+
     for tile_type_index, tile_type in enumerate(device.device_resource_capnp.tileTypeList):
         flattened_tile_type = FlattenedTileType(device, tile_type_index, tile_type)
-        chip_info.tile_types.append(flattened_tile_type.create_tile_type_info())
+
+        tile_type_info = flattened_tile_type.create_tile_type_info()
+        chip_info.tile_types.append(tile_type_info)
+
+        # Create map of tile wires to wire in tile id.
+        per_tile_map = {}
+        for idx, wire in enumerate(tile_type_info.wire_data):
+            if wire.site != -1:
+                # Only care about tile wires!
+                break
+
+            assert wire.name not in per_tile_map
+            per_tile_map[wire.name] = idx
+
+        tile_wire_to_wire_in_tile_index.append(per_tile_map)
+        num_tile_wires.append(max(per_tile_map.values()))
+
+    tiles = {}
+    tile_name_to_tile_index = {}
+
+    for tile_index, tile in enumerate(device.device_resource_capnp.tileList):
+        tile_info = TileInstInfo()
+
+        tile_info.name = device.strs[tile.name]
+        tile_info.type = tile.type
+        tile_info.tile_wire_to_node = list([-1 for _ in range(num_tile_wires[tile.type])])
+
+        tile_type = device.device_resource_capnp.tileTypeList[tile.type]
+
+        for site_type_in_tile_type, site in enumerate(tile_type.siteTypes, tile.sites):
+            site_name = device.strs[site.name]
+
+            site_info = SiteInstInfo()
+            site_type = device.device_resource_capnp.siteTypeList[site_type_in_tile_type.primaryType]
+            site_type_name = device.strs[site_type.name]
+            site_info.name = '{}.{}'.format(site_name, site_type_name)
+            site_info.site_type = site_type_name
+
+            tile_info.sites.append(len(chip_info.sites))
+            chip_info.sites.append(site_info)
+
+        assert len(tile_info.sites) == chip_info.tile_types[tile.type].number_sites
+
+        # (x, y) = (col, row)
+        tiles[(tile.col, tile.row)] = (tile_index, tile_info)
+
+    # Compute dimensions of grid
+    xs, ys = zip(*tiles.keys())
+    width = max(xs)
+    height = max(ys)
+
+    # Add tile instances to chip_info in row major order (per arch.h).
+    for y in range(height):
+        for x in range(width):
+            key = x, y
+
+            _, tile_info = tiles[key]
+            tile_name_to_tile_index[tile_info.name] = len(chip_info.tiles)
+            chip_info.tiles.append(tile_info)
+
+    # Output nodes
+    for node in device.device_resource_capnp.nodes:
+        # Skip nodes with only 1 wire!
+        if len(node.wires) == 1:
+            continue
+
+        node_info = NodeInfo()
+        node_index = len(chip_info.nodes)
+        chip_info.nodes.append(node_info)
+
+        for wire in node.wires:
+            tile_name = device.strs[wire.tile]
+            wire_name = device.strs[wire.wire]
+
+            tile_index = tile_name_to_tile_index[tile_name]
+            tile_info = chip_info.tiles[tile_index]
+
+            # Make reference from tile to node.
+            wire_in_tile_id = tile_wire_to_wire_in_tile_index[tile_info.type][wire_name]
+            assert tile_info.tile_wire_to_node[wire_in_tile_id] == -1
+            tile_info.tile_wire_to_node[wire_in_tile_id] = node_index
+
+            # Make reference from node to tile.
+            tile_wire = TileWireRef()
+            tile_wire.tile = tile_index
+            tile_wire.index = wire_in_tile_id
+
+            node_info.append(tile_wire)
 
     return chip_info
