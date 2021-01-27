@@ -43,8 +43,11 @@ class BbaWriter():
         else:
             print('ref {} {}'.format(ref, comment), file=self.f)
 
-    def str(self, s, comment):
-        print('str |{}| {}'.format(s, comment), file=self.f)
+    def str(self, s, comment=None):
+        if comment is None:
+            print('str |{}|'.format(s), file=self.f)
+        else:
+            print('str |{}| {}'.format(s, comment), file=self.f)
 
     def str_id(self, s):
         index = self.const_ids.get_index(s)

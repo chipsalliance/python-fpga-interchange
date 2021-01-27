@@ -147,12 +147,12 @@ class PipInfo():
         pass
 
     def append_bba(self, bba, label_prefix):
-        self.u32(self.src_index)
-        self.u32(self.dst_index)
-        self.u16(self.site)
-        self.u16(self.site_variant)
-        self.u16(self.bel)
-        self.u16(self.extra_data)
+        bba.u32(self.src_index)
+        bba.u32(self.dst_index)
+        bba.u16(self.site)
+        bba.u16(self.site_variant)
+        bba.u16(self.bel)
+        bba.u16(self.extra_data)
 
 
 class TileTypeInfo():
@@ -173,7 +173,7 @@ class TileTypeInfo():
         self.wire_data = []
 
         # Array of PipInfo
-        self.pip_info = []
+        self.pip_data = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -196,8 +196,8 @@ class TileTypeInfo():
         bba.u32(self.number_sites)
 
         for field in self.children_fields:
-            self.u32(len(getattr(self, field)))
-            self.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+            bba.ref(self.field_label(label_prefix, field))
 
 class SiteInstInfo():
     def __init__(self):
@@ -205,12 +205,15 @@ class SiteInstInfo():
         # <site>.<site type>
         self.name = ''
 
+        # Site type name
+        self.site_type = ''
+
     def append_children_bba(self, bba, label_prefix):
         pass
 
     def append_bba(self, bba, label_prefix):
         bba.str(self.name)
-        bba.std_id(self.site_type)
+        bba.str_id(self.site_type)
 
 class TileInstInfo():
     def __init__(self):

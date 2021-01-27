@@ -29,7 +29,7 @@ def main():
     const_ids = Enumerator()
 
     with open(args.device, 'rb') as f:
-        device = interchange.read_device_resource(f)
+        device = interchange.read_device_resources(f)
 
     chip_info = populate_chip_info(device)
 
@@ -39,7 +39,6 @@ def main():
         bba.pre("NEXTPNR_NAMESPACE_BEGIN")
         bba.post("NEXTPNR_NAMESPACE_END")
         bba.push("push chipdb_blob")
-        bba.println("offset32");
 
         root_prefix = 'chip_info'
         bba.ref(root_prefix, root_prefix)
