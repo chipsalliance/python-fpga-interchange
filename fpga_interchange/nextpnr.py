@@ -51,7 +51,9 @@ class BbaWriter():
 
     def str_id(self, s):
         index = self.const_ids.get_index(s)
-        self.u32(index)
+
+        # 0 is a reserved constant id, so get_index(s) -> 0 is the ID_xxx = 1.
+        self.u32(index+1)
 
     def pre(self, s):
         print("pre {}".format(s), file=self.f)

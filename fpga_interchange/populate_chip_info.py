@@ -365,7 +365,7 @@ class FlattenedTileType():
 def populate_chip_info(device):
     chip_info = ChipInfo()
     chip_info.name = device.device_resource_capnp.name
-    chip_info.generate = 'python-fpga-interchange v0.x'
+    chip_info.generator = 'python-fpga-interchange v0.x'
     chip_info.version = 1
 
     tile_wire_to_wire_in_tile_index = []
@@ -452,12 +452,16 @@ def populate_chip_info(device):
             chip_info.tiles.append(tile_info)
 
     # Output nodes
-    for node in device.device_resource_capnp.nodes:
+    for idx, node in enumerate(device.device_resource_capnp.nodes):
         # Skip nodes with only 1 wire!
         if len(node.wires) == 1:
             continue
 
         node_info = NodeInfo()
+
+        # FIXME: Replace with actual node name?
+        node_info.name = 'node{}'.format(idx)
+
         node_index = len(chip_info.nodes)
         chip_info.nodes.append(node_info)
 

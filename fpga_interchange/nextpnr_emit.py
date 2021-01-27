@@ -38,7 +38,7 @@ def main():
         bba.pre("#include \"nextpnr.h\"")
         bba.pre("NEXTPNR_NAMESPACE_BEGIN")
         bba.post("NEXTPNR_NAMESPACE_END")
-        bba.push("push chipdb_blob")
+        bba.push("chipdb_blob")
 
         root_prefix = 'chip_info'
         bba.ref(root_prefix, root_prefix)
