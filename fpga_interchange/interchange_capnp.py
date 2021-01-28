@@ -66,6 +66,8 @@ DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
 # Set traversal limit to maximum to effectively disable.
 NO_TRAVERSAL_LIMIT = 2**63 - 1
 
+NESTING_LIMIT = 256
+
 
 def read_capnp_file(capnp_schema,
                     f_in,
@@ -84,10 +86,14 @@ def read_capnp_file(capnp_schema,
         f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
         if is_packed:
             return capnp_schema.from_bytes_packed(
-                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
+                f_comp.read(),
+                traversal_limit_in_words=NO_TRAVERSAL_LIMIT,
+                nesting_limit=NESTING_LIMIT)
         else:
             return capnp_schema.from_bytes(
-                f_comp.read(), traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
+                f_comp.read(),
+                traversal_limit_in_words=NO_TRAVERSAL_LIMIT,
+                nesting_limit=NESTING_LIMIT)
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
         if is_packed:
@@ -155,8 +161,8 @@ class LogicalNetlistBuilder():
 
         self.cell_idx = 0
         self.cell_count = cell_count
-        self.logical_netlist.init("cellList", cell_count)
-        self.cells = self.logical_netlist.cellList
+        self.cell_decls = self.logical_netlist.init("cellDecls", cell_count)
+        self.cells = self.logical_netlist.init("cellList", cell_count)
 
         self.port_idx = 0
         self.port_count = port_count
@@ -173,11 +179,14 @@ class LogicalNetlistBuilder():
     def next_cell(self):
         """ Return next logical_netlist.Cell pycapnp object and it's index. """
         assert self.cell_idx < self.cell_count
+
+        cell_decl = self.cell_decls[self.cell_idx]
         cell = self.cells[self.cell_idx]
         cell_idx = self.cell_idx
+        cell.index = cell_idx
         self.cell_idx += 1
 
-        return cell_idx, cell
+        return cell_idx, cell, cell_decl
 
     def get_cell(self, cell_idx):
         """ Get logical_netlist.Cell pycapnp object at given index. """
@@ -315,21 +324,23 @@ def output_logical_netlist(logical_netlist_schema,
     for library, lib in libraries.items():
         library_id = logical_netlist.string_id(library)
         for cell in lib.cells.values():
-            cell_idx, cell_obj = logical_netlist.next_cell()
             assert cell.name not in cell_name_to_idx
+            cell_idx, cell_obj, cell_decl = logical_netlist.next_cell()
+
+            cell_decl.name = logical_netlist.string_id(cell.name)
+            cell_decl.view = logical_netlist.string_id(cell.view)
+            cell_decl.lib = library_id
+
             cell_name_to_idx[cell.name] = cell_idx
 
-            cell_obj.name = logical_netlist.string_id(cell.name)
-            logical_netlist.create_property_map(cell_obj.propMap,
+            logical_netlist.create_property_map(cell_decl.propMap,
                                                 cell.property_map)
-            cell_obj.view = logical_netlist.string_id(cell.view)
-            cell_obj.lib = library_id
 
-            cell_obj.init('ports', len(cell.ports))
+            cell_decl.init('ports', len(cell.ports))
             for idx, (port_name, port) in enumerate(cell.ports.items()):
                 port_idx, port_obj = logical_netlist.next_port()
                 ports[cell.name, port_name] = (port_idx, port)
-                cell_obj.ports[idx] = port_idx
+                cell_decl.ports[idx] = port_idx
 
                 port_obj.dir = logical_netlist_schema.Netlist.Direction.__dict__[
                     port.direction.name.lower()]
@@ -579,23 +590,24 @@ def to_logical_netlist(netlist_capnp):
         name = strs[cell_instance_capnp.name]
         return name, CellInstance(
             view=strs[cell_instance_capnp.view],
-            cell_name=strs[netlist_capnp.cellList[cell_instance_capnp.cell].
+            cell_name=strs[netlist_capnp.cellDecls[cell_instance_capnp.cell].
                            name],
             property_map=prop_map)
 
     for cell_capnp in netlist_capnp.cellList:
+        cell_decl = netlist_capnp.cellDecls[cell_capnp.index]
         cell = Cell(
-            name=strs[cell_capnp.name],
-            property_map=convert_property_map(cell_capnp.propMap),
+            name=strs[cell_decl.name],
+            property_map=convert_property_map(cell_decl.propMap),
         )
-        cell.view = strs[cell_capnp.view]
+        cell.view = strs[cell_decl.view]
 
         for inst in cell_capnp.insts:
             cell_instance_name, cell_instance = convert_cell_instance(
                 netlist_capnp.instList[inst])
             cell.cell_instances[cell_instance_name] = cell_instance
 
-        for port_idx in cell_capnp.ports:
+        for port_idx in cell_decl.ports:
             port = netlist_capnp.portList[port_idx]
             port_name = strs[port.name]
             direction = Direction[first_upper(str(port.dir))]
@@ -647,7 +659,7 @@ def to_logical_netlist(netlist_capnp):
                         port=port_name,
                         idx=idx)
 
-        library = strs[cell_capnp.lib]
+        library = strs[cell_decl.lib]
         if library not in libraries:
             libraries[library] = Library(name=library)
         libraries[library].add_cell(cell)
@@ -794,6 +806,9 @@ class Interchange():
             if os.path.exists(path):
                 search_path.append(path)
 
+        self.references_schema = capnp.load(
+            os.path.join(schema_directory, 'References.capnp'),
+            imports=search_path)
         self.logical_netlist_schema = capnp.load(
             os.path.join(schema_directory, 'LogicalNetlist.capnp'),
             imports=search_path)
@@ -844,6 +859,13 @@ class Interchange():
                                   compression_format=DEFAULT_COMPRESSION_TYPE,
                                   is_packed=IS_PACKED):
         return read_capnp_file(self.physical_netlist_schema.PhysNetlist, f,
+                               compression_format, is_packed)
+
+    def read_device_resources_raw(self,
+                                  f,
+                                  compression_format=DEFAULT_COMPRESSION_TYPE,
+                                  is_packed=IS_PACKED):
+        return read_capnp_file(self.device_resources_schema.Device, f,
                                compression_format, is_packed)
 
     def read_device_resources(self,

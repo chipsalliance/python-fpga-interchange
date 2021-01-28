@@ -1,3 +1,8 @@
 pytest
+psutil
+git+https://github.com/capnproto/pycapnp.git
+ninja
+pyyaml --global-option='--with-libyaml'
 yapf==0.24.0
+git+https://github.com/litghost/rapidyaml.git@fixup_python_packaging#egg=rapidyaml&subdirectory=api/python
 -e .

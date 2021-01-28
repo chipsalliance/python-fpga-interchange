@@ -7,3 +7,5 @@ src
 dist
 env
 *.swp
+*.swo
+*.yaml
