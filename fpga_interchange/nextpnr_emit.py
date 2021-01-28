@@ -49,5 +49,6 @@ def main():
         for s in const_ids.values:
             print('X({})'.format(s), file=f)
 
+
 if __name__ == "__main__":
     main()

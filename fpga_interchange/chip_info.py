@@ -9,6 +9,7 @@
 #
 # SPDX-License-Identifier: ISC
 
+
 class BelInfo():
     str_id_fields = ['ports']
     int_fields = ['types', 'wires']
@@ -36,7 +37,8 @@ class BelInfo():
         self.bel_category = 0
 
     def field_label(self, label_prefix, field):
-        prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name, field)
+        prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name,
+                                          field)
         return prefix
 
     def append_children_bba(self, bba, label_prefix):
@@ -104,7 +106,8 @@ class TileWireInfo():
 
     def field_label(self, label_prefix, field):
         if self.site != -1:
-            prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name, field)
+            prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site,
+                                              self.name, field)
         else:
             prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
 
@@ -195,7 +198,8 @@ class TileTypeInfo():
     def append_children_bba(self, bba, label_prefix):
         label = label_prefix
 
-        for field, field_type in zip(self.children_fields, self.children_types):
+        for field, field_type in zip(self.children_fields,
+                                     self.children_types):
             prefix = self.field_label(label, field)
             for value in getattr(self, field):
                 value.append_children_bba(bba, prefix)
@@ -212,6 +216,7 @@ class TileTypeInfo():
             bba.u32(len(getattr(self, field)))
             bba.ref(self.field_label(label_prefix, field))
 
+
 class SiteInstInfo():
     def __init__(self):
         # Site instance name
@@ -227,6 +232,7 @@ class SiteInstInfo():
     def append_bba(self, bba, label_prefix):
         bba.str(self.name)
         bba.str_id(self.site_type)
+
 
 class TileInstInfo():
     def __init__(self):
@@ -311,9 +317,11 @@ class ChipInfo():
     def append_bba(self, bba, label_prefix):
         label = label_prefix
 
-
         children_fields = ['tile_types', 'sites', 'tiles', 'nodes']
-        children_types = ['TileTypeInfoPOD', 'SiteInstInfoPOD', 'TileInstInfoPOD', 'NodeInfoPOD']
+        children_types = [
+            'TileTypeInfoPOD', 'SiteInstInfoPOD', 'TileInstInfoPOD',
+            'NodeInfoPOD'
+        ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
             for value in getattr(self, field):
