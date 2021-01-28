@@ -22,6 +22,8 @@ class BbaWriter():
         self.f = f
         self.const_ids = const_ids
 
+        self.labels = set()
+
     def println(self, s):
         print(s, file=self.f)
 
@@ -35,6 +37,8 @@ class BbaWriter():
         print('u32 {}'.format(value), file=self.f)
 
     def label(self, label, label_type):
+        assert label not in self.labels, label
+        self.labels.add(label)
         print('label {} {}'.format(label, label_type), file=self.f)
 
     def ref(self, ref, comment=None):

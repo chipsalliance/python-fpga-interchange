@@ -39,12 +39,12 @@ def direction_to_type(direction):
 BelPin = namedtuple('BelPin', 'port type wire')
 
 class FlattenedBel():
-    def __init__(self, name, type, site_index, bel_index, is_routing):
+    def __init__(self, name, type, site_index, bel_index, bel_category):
         self.name = name
         self.type = type
         self.site_index = site_index
         self.bel_index = bel_index
-        self.is_routing = is_routing
+        self.bel_category = bel_category
         self.ports = []
 
     def add_port(self, device, bel_pin, wire_index):
@@ -185,12 +185,20 @@ class FlattenedTileType():
 
         # Add BELs
         for bel_idx, bel in enumerate(site_type.bels):
+            if bel.category == 'logic':
+                bel_category = 0
+            elif bel.category == 'routing':
+                bel_category = 1
+            else:
+                assert bel.category == 'sitePort', bel.category
+                bel_category = 2
+
             flat_bel = FlattenedBel(
                     name=device.strs[bel.name],
                     type=device.strs[bel.type],
                     site_index=site_index,
                     bel_index=bel_idx,
-                    is_routing=bel.category=='routing' or bel.category=='sitePort')
+                    bel_category=bel_category)
             bel_index = len(self.bels)
             bel_to_bel_index[bel_idx] = bel_index
             self.bels.append(flat_bel)
@@ -199,10 +207,11 @@ class FlattenedTileType():
                 assert pin not in bel_pin_index_to_bel_index
                 bel_pin_index_to_bel_index[pin] = bel_idx, pin_idx
 
-                if flat_bel is not None:
-                    wire_idx = bel_pin_to_site_wire_index.get(pin, -1)
-                    flat_bel.add_port(device, site_type.belPins[pin], wire_idx)
-                    self.wires[wire_idx].bel_pins.append((bel_index, pin_idx))
+                bel_pin = site_type.belPins[pin]
+                wire_idx = bel_pin_to_site_wire_index.get(pin, -1)
+                flat_bel.add_port(device, bel_pin, wire_idx)
+                if wire_idx != -1:
+                    self.wires[wire_idx].bel_pins.append((bel_index, device.strs[bel_pin.name]))
 
         # Add site pips
         for idx, site_pip in enumerate(site_type.sitePIPs):
@@ -302,7 +311,7 @@ class FlattenedTileType():
 
             bel_info.site = bel.site_index
             bel_info.site_variant = self.sites[bel.site_index].site_variant
-            bel_info.is_routing = bel.is_routing
+            bel_info.bel_category = bel.bel_category
 
             tile_type.bel_data.append(bel_info)
 

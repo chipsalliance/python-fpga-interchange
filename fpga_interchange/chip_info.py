@@ -10,7 +10,8 @@
 # SPDX-License-Identifier: ISC
 
 class BelInfo():
-    int_fields = ['ports', 'types', 'wires']
+    str_id_fields = ['ports']
+    int_fields = ['types', 'wires']
 
     def __init__(self):
         # BEL name, str
@@ -31,16 +32,21 @@ class BelInfo():
         # -1 if site is a primary type, otherwise index into altSiteTypes.
         self.site_variant = 0
 
-        # Is this a routing BEL?
-        self.is_routing = False
+        # What type of BEL is this?
+        self.bel_category = 0
 
     def field_label(self, label_prefix, field):
-        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name, field)
         return prefix
 
     def append_children_bba(self, bba, label_prefix):
         assert len(self.ports) == len(self.types)
         assert len(self.ports) == len(self.wires)
+
+        for field in self.str_id_fields:
+            bba.label(self.field_label(label_prefix, field), 'str_id')
+            for value in getattr(self, field):
+                bba.str_id(value)
 
         for field in self.int_fields:
             bba.label(self.field_label(label_prefix, field), 'int32_t')
@@ -51,12 +57,16 @@ class BelInfo():
         bba.str_id(self.name)
         bba.str_id(self.type)
         bba.u32(len(self.ports))
+
+        for field in self.str_id_fields:
+            bba.ref(self.field_label(label_prefix, field))
+
         for field in self.int_fields:
             bba.ref(self.field_label(label_prefix, field))
 
         bba.u16(self.site)
         bba.u16(self.site_variant)
-        bba.u16(self.is_routing)
+        bba.u16(self.bel_category)
         bba.u16(0)
 
 
@@ -64,15 +74,14 @@ class BelPort():
     def __init__(self):
         # Index into tile_type.bel_data
         self.bel_index = 0
-        # Index into tile_type.bel_data[bel_index].ports/types/wires
-        self.port = 0
+        self.port = ''
 
     def append_children_bba(self, bba, label_prefix):
         pass
 
     def append_bba(self, bba, label_prefix):
         bba.u32(self.bel_index)
-        bba.u32(self.port)
+        bba.str_id(self.port)
 
 
 class TileWireInfo():
@@ -94,7 +103,11 @@ class TileWireInfo():
         self.site_variant = 0
 
     def field_label(self, label_prefix, field):
-        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        if self.site != -1:
+            prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name, field)
+        else:
+            prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+
         return prefix
 
     def append_children_bba(self, bba, label_prefix):
@@ -117,7 +130,7 @@ class TileWireInfo():
         bba.str_id(self.name)
 
         for field in ['pips_uphill', 'pips_downhill', 'bel_pins']:
-            bba.u32(len(self.pips_uphill))
+            bba.u32(len(getattr(self, field)))
             bba.ref(self.field_label(label_prefix, field))
 
         bba.u16(self.site)
