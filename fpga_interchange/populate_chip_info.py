@@ -426,7 +426,8 @@ class CellBelMapper():
         self.max_cell_index = max(self.cell_names.values())
 
         # Make sure cell names are a compact range.
-        assert (self.max_cell_index - self.min_cell_index + 1) == len(self.cell_names)
+        assert (self.max_cell_index - self.min_cell_index + 1) == len(
+            self.cell_names)
 
         # Remap cell_names as offset from min_cell_index.
         for cell_name in self.cell_names.keys():
@@ -460,7 +461,8 @@ class CellBelMapper():
         self.bels = set()
         for site_type in device.device_resource_capnp.siteTypeList:
             for bel in site_type.bels:
-                self.bels.add((device.strs[site_type.name], device.strs[bel.name]))
+                self.bels.add((device.strs[site_type.name],
+                               device.strs[bel.name]))
 
     def make_bel_bucket(self, bel_bucket_name, cell_names):
         assert bel_bucket_name not in self.bel_buckets
@@ -488,14 +490,16 @@ class CellBelMapper():
         self.bel_buckets.add(bel_bucket_name)
 
         for cell in cells_in_bucket:
-            assert cell not in self.cell_to_bel_buckets, (bel_bucket_name, cell)
+            assert cell not in self.cell_to_bel_buckets, (bel_bucket_name,
+                                                          cell)
             self.cell_to_bel_buckets[cell] = bel_bucket_name
 
         for bel in bels_in_bucket:
             self.bel_to_bel_buckets[bel] = bel_bucket_name
 
     def handle_remaining(self):
-        remaining_cells = set(self.cell_names.keys()) - set(self.cell_to_bel_buckets.keys())
+        remaining_cells = set(self.cell_names.keys()) - set(
+            self.cell_to_bel_buckets.keys())
 
         for cell in sorted(remaining_cells):
             self.make_bel_bucket(cell, [cell])
@@ -514,7 +518,7 @@ class CellBelMapper():
         return self.cells_in_order
 
     def get_cell_constids(self):
-        return range(self.min_cell_index, self.max_cell_index+1)
+        return range(self.min_cell_index, self.max_cell_index + 1)
 
     def get_cell_index(self, cell_name):
         return self.cell_names[cell_name]
@@ -537,20 +541,20 @@ class CellBelMapper():
 
 # TODO: Read BEL_BUCKET_SEEDS from input (e.g. device or input file).
 BEL_BUCKET_SEEDS = (
-        ('FLIP_FLOPS', ('FDRE',)),
-        ('LUTS', ('LUT1',)),
-        ('BRAMS', ('RAMB18E1', 'RAMB36E1', 'FIFO18E1', 'FIFO36E1')),
-        ('BUFG', ('BUFG', 'BUFGCTRL')),
-        ('BUFH', ('BUFH', 'BUFHCE')),
-        ('BUFMR', ('BUFMR',)),
-        ('BUFR', ('BUFR',)),
-        ('IBUFs', ('IBUF', 'IBUFDS_IBUFDISABLE_INT')),
-        ('OBUFs', ('OBUF', 'OBUFTDS')),
-        ('MMCM', ('MMCME2_ADV',)),
-        ('PLL', ('PLLE2_BASE',)),
-        ('PULLs', ('PULLDOWN',)),
-        ('CARRY', ('MUXCY', 'XORCY', 'CARRY4')),
-        )
+    ('FLIP_FLOPS', ('FDRE', )),
+    ('LUTS', ('LUT1', )),
+    ('BRAMS', ('RAMB18E1', 'RAMB36E1', 'FIFO18E1', 'FIFO36E1')),
+    ('BUFG', ('BUFG', 'BUFGCTRL')),
+    ('BUFH', ('BUFH', 'BUFHCE')),
+    ('BUFMR', ('BUFMR', )),
+    ('BUFR', ('BUFR', )),
+    ('IBUFs', ('IBUF', 'IBUFDS_IBUFDISABLE_INT')),
+    ('OBUFs', ('OBUF', 'OBUFTDS')),
+    ('MMCM', ('MMCME2_ADV', )),
+    ('PLL', ('PLLE2_BASE', )),
+    ('PULLs', ('PULLDOWN', )),
+    ('CARRY', ('MUXCY', 'XORCY', 'CARRY4')),
+)
 
 
 def populate_chip_info(device, constids):
@@ -570,13 +574,19 @@ def populate_chip_info(device, constids):
 
     print('')
     print('Cell -> BEL bucket:')
-    for cell in sorted(cell_bel_mapper.get_cells(), key=lambda cell: (cell_bel_mapper.cell_to_bel_bucket(cell), cell)):
-        print(' - {} => {}'.format(cell, cell_bel_mapper.cell_to_bel_bucket(cell)))
+    for cell in sorted(
+            cell_bel_mapper.get_cells(),
+            key=lambda cell: (cell_bel_mapper.cell_to_bel_bucket(cell), cell)):
+        print(' - {} => {}'.format(cell,
+                                   cell_bel_mapper.cell_to_bel_bucket(cell)))
 
     print('')
     print('BEL -> BEL bucket:')
-    for site_type, bel in sorted(cell_bel_mapper.get_bels(), key=lambda key: (cell_bel_mapper.bel_to_bel_bucket(*key), *key)):
-        print(' - {}/{} => {}'.format(site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
+    for site_type, bel in sorted(
+            cell_bel_mapper.get_bels(),
+            key=lambda key: (cell_bel_mapper.bel_to_bel_bucket(*key), *key)):
+        print(' - {}/{} => {}'.format(
+            site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
 
     chip_info = ChipInfo()
     chip_info.name = device.device_resource_capnp.name
@@ -585,7 +595,8 @@ def populate_chip_info(device, constids):
 
     # Emit cells in const ID order to build cell map.
     for cell_name in cell_bel_mapper.get_cells():
-        chip_info.cell_map.add_cell(cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
+        chip_info.cell_map.add_cell(
+            cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
 
     for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
         chip_info.bel_buckets.append(bel_bucket)
@@ -598,7 +609,8 @@ def populate_chip_info(device, constids):
         flattened_tile_type = FlattenedTileType(device, tile_type_index,
                                                 tile_type)
 
-        tile_type_info = flattened_tile_type.create_tile_type_info(cell_bel_mapper)
+        tile_type_info = flattened_tile_type.create_tile_type_info(
+            cell_bel_mapper)
         chip_info.tile_types.append(tile_type_info)
 
         # Create map of tile wires to wire in tile id.

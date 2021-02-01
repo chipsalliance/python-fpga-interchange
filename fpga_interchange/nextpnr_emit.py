@@ -26,7 +26,6 @@ def main():
     args = parser.parse_args()
     interchange = Interchange(args.schema_dir)
 
-
     with open(args.device, 'rb') as f:
         device = interchange.read_device_resources(f)
 
