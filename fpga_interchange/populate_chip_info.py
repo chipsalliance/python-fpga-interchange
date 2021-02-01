@@ -80,7 +80,7 @@ class FlattenedPip(
 class FlattenedSite(
         namedtuple(
             'FlattenedSite',
-            'site_in_type_index site_type_index site_type site_variant bel_to_bel_index bel_pin_to_site_wire_index bel_pin_index_to_bel_index'
+            'site_in_type_index site_type_index site_type site_type_name site_variant bel_to_bel_index bel_pin_to_site_wire_index bel_pin_index_to_bel_index'
         )):
     pass
 
@@ -188,6 +188,7 @@ class FlattenedTileType():
                 site_in_type_index=site_in_type_index,
                 site_type_index=site_type_index,
                 site_type=site_type,
+                site_type_name=device.strs[site_type.name],
                 site_variant=site_variant,
                 bel_to_bel_index=bel_to_bel_index,
                 bel_pin_to_site_wire_index=bel_pin_to_site_wire_index,
@@ -313,7 +314,7 @@ class FlattenedTileType():
 
         self.add_pip_common(flat_pip)
 
-    def create_tile_type_info(self):
+    def create_tile_type_info(self, cell_bel_mapper):
         tile_type = TileTypeInfo()
         tile_type.name = self.tile_type_name
         tile_type.number_sites = len(self.sites)
@@ -331,6 +332,20 @@ class FlattenedTileType():
             bel_info.site = bel.site_index
             bel_info.site_variant = self.sites[bel.site_index].site_variant
             bel_info.bel_category = bel.bel_category
+
+            site_type = self.sites[bel.site_index].site_type_name
+
+            bel_key = (site_type, bel.name)
+            bel_info.bel_bucket = cell_bel_mapper.bel_to_bel_bucket(*bel_key)
+
+            bel_info.valid_cells = [0 for _ in cell_bel_mapper.get_cells()]
+            # Pad to align with 32-bit
+            while len(bel_info.valid_cells) % 4 != 0:
+                bel_info.valid_cells.append(0)
+
+            for idx, cell in enumerate(cell_bel_mapper.get_cells()):
+                if bel in cell_bel_mapper.bels_for_cell(cell):
+                    bel_info.valid_cells[idx] = 1
 
             tile_type.bel_data.append(bel_info)
 
@@ -393,11 +408,187 @@ class FlattenedTileType():
         return tile_type
 
 
-def populate_chip_info(device):
+class CellBelMapper():
+    def __init__(self, device, constids):
+        # Emit cell names so that they are compact list.
+        self.cells_in_order = []
+        self.cell_names = {}
+        self.bel_buckets = set()
+        self.cell_to_bel_buckets = {}
+        self.bel_to_bel_buckets = {}
+
+        for cell_bel_map in device.device_resource_capnp.cellBelMap:
+            cell_name = device.strs[cell_bel_map.cell]
+            self.cells_in_order.append(cell_name)
+            self.cell_names[cell_name] = constids.get_index(cell_name)
+
+        self.min_cell_index = min(self.cell_names.values())
+        self.max_cell_index = max(self.cell_names.values())
+
+        # Make sure cell names are a compact range.
+        assert (self.max_cell_index - self.min_cell_index + 1) == len(self.cell_names)
+
+        # Remap cell_names as offset from min_cell_index.
+        for cell_name in self.cell_names.keys():
+            cell_index = self.cell_names[cell_name] - self.min_cell_index
+            self.cell_names[cell_name] = cell_index
+            assert self.cells_in_order[cell_index] == cell_name
+
+        self.cell_to_bel_map = {}
+
+        for cell_bel_map in device.device_resource_capnp.cellBelMap:
+            cell_name = device.strs[cell_bel_map.cell]
+            assert cell_name in self.cell_names
+
+            bels = set()
+
+            for pins in cell_bel_map.commonPins:
+                for site_types_and_bels in pins.siteTypes:
+                    site_type = device.strs[site_types_and_bels.siteType]
+                    for bel_str_id in site_types_and_bels.bels:
+                        bel = device.strs[bel_str_id]
+                        bels.add((site_type, bel))
+
+            for pins in cell_bel_map.parameterPins:
+                for site_types_and_bels in pins.parametersSiteTypes:
+                    bel = device.strs[site_types_and_bels.bel]
+                    site_type = device.strs[site_types_and_bels.siteType]
+                    bels.add((site_type, bel))
+
+            self.cell_to_bel_map[cell_name] = bels
+
+        self.bels = set()
+        for site_type in device.device_resource_capnp.siteTypeList:
+            for bel in site_type.bels:
+                self.bels.add((device.strs[site_type.name], device.strs[bel.name]))
+
+    def make_bel_bucket(self, bel_bucket_name, cell_names):
+        assert bel_bucket_name not in self.bel_buckets
+
+        bels_in_bucket = set()
+        cells_in_bucket = set(cell_names)
+
+        while True:
+            pre_loop_counts = (len(bels_in_bucket), len(cells_in_bucket))
+
+            for cell_name in cells_in_bucket:
+                bels_in_bucket |= self.cell_to_bel_map[cell_name]
+
+            for bel in bels_in_bucket:
+                for cell, bels in self.cell_to_bel_map.items():
+                    if bel in bels:
+                        cells_in_bucket.add(cell)
+
+            post_loop_counts = (len(bels_in_bucket), len(cells_in_bucket))
+
+            if pre_loop_counts == post_loop_counts:
+                break
+
+        assert bel_bucket_name not in self.bel_buckets
+        self.bel_buckets.add(bel_bucket_name)
+
+        for cell in cells_in_bucket:
+            assert cell not in self.cell_to_bel_buckets, (bel_bucket_name, cell)
+            self.cell_to_bel_buckets[cell] = bel_bucket_name
+
+        for bel in bels_in_bucket:
+            self.bel_to_bel_buckets[bel] = bel_bucket_name
+
+    def handle_remaining(self):
+        remaining_cells = set(self.cell_names.keys()) - set(self.cell_to_bel_buckets.keys())
+
+        for cell in sorted(remaining_cells):
+            self.make_bel_bucket(cell, [cell])
+
+        remaining_bels = set(self.bels)
+        for bels in self.cell_to_bel_map.values():
+            remaining_bels -= bels
+
+        bel_bucket_name = 'UNPLACABLE_BELS'
+        assert bel_bucket_name not in self.bel_buckets
+        self.bel_buckets.add(bel_bucket_name)
+        for site_type, bel in remaining_bels:
+            self.bel_to_bel_buckets[site_type, bel] = bel_bucket_name
+
+    def get_cells(self):
+        return self.cells_in_order
+
+    def get_cell_constids(self):
+        return range(self.min_cell_index, self.max_cell_index+1)
+
+    def get_cell_index(self, cell_name):
+        return self.cell_names[cell_name]
+
+    def get_bel_buckets(self):
+        return self.bel_buckets
+
+    def cell_to_bel_bucket(self, cell_name):
+        return self.cell_to_bel_buckets[cell_name]
+
+    def get_bels(self):
+        return self.bel_to_bel_buckets.keys()
+
+    def bel_to_bel_bucket(self, site_type, bel):
+        return self.bel_to_bel_buckets[(site_type, bel)]
+
+    def bels_for_cell(self, cell):
+        return self.cell_to_bel_map[cell]
+
+
+# TODO: Read BEL_BUCKET_SEEDS from input (e.g. device or input file).
+BEL_BUCKET_SEEDS = (
+        ('FLIP_FLOPS', ('FDRE',)),
+        ('LUTS', ('LUT1',)),
+        ('BRAMS', ('RAMB18E1', 'RAMB36E1', 'FIFO18E1', 'FIFO36E1')),
+        ('BUFG', ('BUFG', 'BUFGCTRL')),
+        ('BUFH', ('BUFH', 'BUFHCE')),
+        ('BUFMR', ('BUFMR',)),
+        ('BUFR', ('BUFR',)),
+        ('IBUFs', ('IBUF', 'IBUFDS_IBUFDISABLE_INT')),
+        ('OBUFs', ('OBUF', 'OBUFTDS')),
+        ('MMCM', ('MMCME2_ADV',)),
+        ('PLL', ('PLLE2_BASE',)),
+        ('PULLs', ('PULLDOWN',)),
+        ('CARRY', ('MUXCY', 'XORCY', 'CARRY4')),
+        )
+
+
+def populate_chip_info(device, constids):
+    assert len(constids.values) == 0
+
+    cell_bel_mapper = CellBelMapper(device, constids)
+
+    # Make the BEL buckets.
+    for bel_bucket, cells in BEL_BUCKET_SEEDS:
+        cell_bel_mapper.make_bel_bucket(bel_bucket, cells)
+
+    cell_bel_mapper.handle_remaining()
+
+    print('BEL buckets:')
+    for bel_bucket in cell_bel_mapper.get_bel_buckets():
+        print(' - {}'.format(bel_bucket))
+
+    print('')
+    print('Cell -> BEL bucket:')
+    for cell in sorted(cell_bel_mapper.get_cells(), key=lambda cell: (cell_bel_mapper.cell_to_bel_bucket(cell), cell)):
+        print(' - {} => {}'.format(cell, cell_bel_mapper.cell_to_bel_bucket(cell)))
+
+    print('')
+    print('BEL -> BEL bucket:')
+    for site_type, bel in sorted(cell_bel_mapper.get_bels(), key=lambda key: (cell_bel_mapper.bel_to_bel_bucket(*key), *key)):
+        print(' - {}/{} => {}'.format(site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
+
     chip_info = ChipInfo()
     chip_info.name = device.device_resource_capnp.name
     chip_info.generator = 'python-fpga-interchange v0.x'
     chip_info.version = 1
+
+    # Emit cells in const ID order to build cell map.
+    for cell_name in cell_bel_mapper.get_cells():
+        chip_info.cell_map.add_cell(cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
+
+    for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
+        chip_info.bel_buckets.append(bel_bucket)
 
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
@@ -407,7 +598,7 @@ def populate_chip_info(device):
         flattened_tile_type = FlattenedTileType(device, tile_type_index,
                                                 tile_type)
 
-        tile_type_info = flattened_tile_type.create_tile_type_info()
+        tile_type_info = flattened_tile_type.create_tile_type_info(cell_bel_mapper)
         chip_info.tile_types.append(tile_type_info)
 
         # Create map of tile wires to wire in tile id.
@@ -527,5 +718,7 @@ def populate_chip_info(device):
             tile_wire.index = wire_in_tile_id
 
             node_info.tile_wires.append(tile_wire)
+
+    #import pdb; pdb.set_trace()
 
     return chip_info

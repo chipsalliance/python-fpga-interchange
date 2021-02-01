@@ -23,6 +23,7 @@ class BbaWriter():
         self.const_ids = const_ids
 
         self.labels = set()
+        self.refs = set()
 
     def println(self, s):
         print(s, file=self.f)
@@ -42,6 +43,7 @@ class BbaWriter():
         print('label {} {}'.format(label, label_type), file=self.f)
 
     def ref(self, ref, comment=None):
+        self.refs.add(ref)
         if comment is None:
             print('ref {}'.format(ref), file=self.f)
         else:
@@ -70,3 +72,8 @@ class BbaWriter():
 
     def pop(self):
         print("pop", file=self.f)
+
+    def check_labels(self):
+        refs_and_labels = self.refs & self.labels
+        assert len(refs_and_labels) == len(self.refs)
+        assert len(refs_and_labels) == len(self.labels)

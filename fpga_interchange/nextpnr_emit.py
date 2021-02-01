@@ -26,12 +26,12 @@ def main():
     args = parser.parse_args()
     interchange = Interchange(args.schema_dir)
 
-    const_ids = Enumerator()
 
     with open(args.device, 'rb') as f:
         device = interchange.read_device_resources(f)
 
-    chip_info = populate_chip_info(device)
+    const_ids = Enumerator()
+    chip_info = populate_chip_info(device, const_ids)
 
     with open(os.path.join(args.output_dir, 'chipdb.bba'), 'w') as f:
         bba = BbaWriter(f, const_ids)
@@ -44,6 +44,8 @@ def main():
         bba.ref(root_prefix, root_prefix)
         chip_info.append_bba(bba, root_prefix)
         bba.pop()
+
+    bba.check_labels()
 
     with open(os.path.join(args.output_dir, 'constids.inc'), 'w') as f:
         for s in const_ids.values:
