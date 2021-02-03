@@ -538,6 +538,7 @@ class CellBelMapper():
     def bels_for_cell(self, cell):
         return self.cell_to_bel_map[cell]
 
+DEBUG_BEL_BUCKETS = False
 
 # TODO: Read BEL_BUCKET_SEEDS from input (e.g. device or input file).
 BEL_BUCKET_SEEDS = (
@@ -557,17 +558,7 @@ BEL_BUCKET_SEEDS = (
 )
 
 
-def populate_chip_info(device, constids):
-    assert len(constids.values) == 0
-
-    cell_bel_mapper = CellBelMapper(device, constids)
-
-    # Make the BEL buckets.
-    for bel_bucket, cells in BEL_BUCKET_SEEDS:
-        cell_bel_mapper.make_bel_bucket(bel_bucket, cells)
-
-    cell_bel_mapper.handle_remaining()
-
+def print_bel_buckets(cell_bel_mapper):
     print('BEL buckets:')
     for bel_bucket in cell_bel_mapper.get_bel_buckets():
         print(' - {}'.format(bel_bucket))
@@ -587,6 +578,19 @@ def populate_chip_info(device, constids):
             key=lambda key: (cell_bel_mapper.bel_to_bel_bucket(*key), *key)):
         print(' - {}/{} => {}'.format(
             site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
+
+def populate_chip_info(device, constids):
+    assert len(constids.values) == 0
+
+    cell_bel_mapper = CellBelMapper(device, constids)
+
+    # Make the BEL buckets.
+    for bel_bucket, cells in BEL_BUCKET_SEEDS:
+        cell_bel_mapper.make_bel_bucket(bel_bucket, cells)
+
+    cell_bel_mapper.handle_remaining()
+    if DEBUG_BEL_BUCKETS:
+        print_bel_buckets(cell_bel_mapper)
 
     chip_info = ChipInfo()
     chip_info.name = device.device_resource_capnp.name
