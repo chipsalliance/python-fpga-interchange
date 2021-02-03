@@ -538,6 +538,7 @@ class CellBelMapper():
     def bels_for_cell(self, cell):
         return self.cell_to_bel_map[cell]
 
+
 DEBUG_BEL_BUCKETS = False
 
 # TODO: Read BEL_BUCKET_SEEDS from input (e.g. device or input file).
@@ -578,6 +579,7 @@ def print_bel_buckets(cell_bel_mapper):
             key=lambda key: (cell_bel_mapper.bel_to_bel_bucket(*key), *key)):
         print(' - {}/{} => {}'.format(
             site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
+
 
 def populate_chip_info(device, constids):
     assert len(constids.values) == 0
