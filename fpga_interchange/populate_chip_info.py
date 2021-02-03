@@ -8,13 +8,15 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+from enum import Enum
+from collections import namedtuple
+
 from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin
-
+from fpga_interchange.constraints.model import Tag, Placement, ImpliesConstraint
+from fpga_interchange.constraint_generator import ConstraintGenerator
 from fpga_interchange.nextpnr import PortType
-from enum import Enum
-from collections import namedtuple
 
 
 class FlattenedWireType(Enum):
@@ -49,6 +51,8 @@ class FlattenedBel():
         self.bel_index = bel_index
         self.bel_category = bel_category
         self.ports = []
+
+        self.valid_cells = set()
 
     def add_port(self, device, bel_pin, wire_index):
         self.ports.append(
@@ -86,12 +90,15 @@ class FlattenedSite(
 
 
 class FlattenedTileType():
-    def __init__(self, device, tile_type_index, tile_type):
+    def __init__(self, device, tile_type_index, tile_type, cell_bel_mapper,
+                 constraints):
         self.tile_type_name = device.strs[tile_type.name]
         self.tile_type = tile_type
+        self.constraint_prototype = None
 
         self.sites = []
         self.bels = []
+        self.bel_index_remap = {}
         self.wires = []
 
         self.pips = []
@@ -127,14 +134,97 @@ class FlattenedTileType():
 
             self.add_site_type(device, site_type_in_tile_type,
                                site_in_type_index, site_type_index,
-                               site_variant)
+                               site_variant, cell_bel_mapper)
 
             for site_variant, (alt_site_type_index, _) in enumerate(
                     zip(primary_site_type.altSiteTypes,
                         site_type_in_tile_type.altPinsToPrimaryPins)):
                 self.add_site_type(device, site_type_in_tile_type,
                                    site_in_type_index, alt_site_type_index,
-                                   site_variant, primary_site_type)
+                                   site_variant, cell_bel_mapper,
+                                   primary_site_type)
+        self.remap_bel_indicies()
+        self.generate_constraints(constraints)
+
+    def generate_constraints(self, constraints):
+        tile_constraints = constraints.add_constraint_prototype(
+            self.tile_type_name)
+        self.constraint_prototype = constraints.get_prototype_index(
+            self.tile_type_name)
+
+        tags_for_tile_type = {}
+        available_placements = []
+
+        sites_in_tile_type = {}
+        for site_index, site in enumerate(self.sites):
+            if site.site_in_type_index not in sites_in_tile_type:
+                sites_in_tile_type[site.site_in_type_index] = []
+
+            sites_in_tile_type[site.site_in_type_index].append(site_index)
+
+        # Create tag to ensure that each site in the tile only has 1 type.
+        for site, possible_sites in sites_in_tile_type.items():
+            site_types = []
+            for site_index in possible_sites:
+                site_types.append(self.sites[site_index].site_type_name)
+
+            # Make sure there are no duplicate site types!
+            assert len(site_types) == len(set(site_types))
+
+            tag_prefix = 'type_of_site{:03d}'.format(site)
+            assert tag_prefix not in tags_for_tile_type
+            tags_for_tile_type[tag_prefix] = Tag(
+                name='TypeOfSite{}'.format(site),
+                states=site_types,
+                default=site_types[0],
+                matchers=[])
+            tile_constraints.add_tag(tag_prefix,
+                                     tags_for_tile_type[tag_prefix])
+
+        for bel_index, bel in enumerate(self.bels):
+            bel_index = self.bel_index_remap[bel_index]
+
+            site = self.sites[bel.site_index]
+            placement = Placement(
+                tile=self.tile_type_name,
+                site='site{}_{}'.format(site.site_in_type_index,
+                                        site.site_type_name),
+                tile_type=self.tile_type_name,
+                site_type=site.site_type_name,
+                bel=bel.name)
+            available_placements.append(placement)
+
+            for tag_prefix, tag in constraints.model.yield_tags_at_placement(
+                    placement):
+                if tag_prefix in tags_for_tile_type:
+                    assert tags_for_tile_type[tag_prefix] is tag
+                    continue
+                else:
+                    tags_for_tile_type[tag_prefix] = tag
+                    tile_constraints.add_tag(tag_prefix,
+                                             tags_for_tile_type[tag_prefix])
+
+            for cell_type in bel.valid_cells:
+                # When any valid cell type is placed here, make sure that
+                # the corrisponding TypeOfSite tag is implied.
+                tile_constraints.add_cell_placement_constraint(
+                    cell_type=cell_type,
+                    bel_index=bel_index,
+                    tag='type_of_site{:03d}'.format(
+                        self.sites[bel.site_index].site_in_type_index),
+                    constraint=ImpliesConstraint(
+                        tag=None,
+                        state=site.site_type_name,
+                        matchers=None,
+                        port=None))
+
+                for tag, constraint in constraints.model.yield_constraints_for_cell_type_at_placement(
+                        cell_type, placement):
+                    tile_constraints.add_cell_placement_constraint(
+                        cell_type=cell_type,
+                        bel_index=bel_index,
+                        tag=tag,
+                        constraint=constraint)
 
     def add_wire(self, wire):
         wire_index = len(self.wires)
@@ -169,6 +259,7 @@ class FlattenedTileType():
                       site_in_type_index,
                       site_type_index,
                       site_variant,
+                      cell_bel_mapper,
                       primary_site_type=None):
         if site_variant == -1:
             assert primary_site_type is None
@@ -182,13 +273,14 @@ class FlattenedTileType():
         bel_pin_index_to_bel_index = {}
 
         site_type = device.device_resource_capnp.siteTypeList[site_type_index]
+        site_type_name = device.strs[site_type.name]
 
         self.sites.append(
             FlattenedSite(
                 site_in_type_index=site_in_type_index,
                 site_type_index=site_type_index,
                 site_type=site_type,
-                site_type_name=device.strs[site_type.name],
+                site_type_name=site_type_name,
                 site_variant=site_variant,
                 bel_to_bel_index=bel_to_bel_index,
                 bel_pin_to_site_wire_index=bel_pin_to_site_wire_index,
@@ -227,6 +319,11 @@ class FlattenedTileType():
             bel_index = len(self.bels)
             bel_to_bel_index[bel_idx] = bel_index
             self.bels.append(flat_bel)
+
+            bel_key = site_type_name, flat_bel.name
+            for cell in cell_bel_mapper.get_cells():
+                if bel_key in cell_bel_mapper.bels_for_cell(cell):
+                    flat_bel.valid_cells.add(cell)
 
             for pin_idx, pin in enumerate(bel.pins):
                 assert pin not in bel_pin_index_to_bel_index
@@ -314,12 +411,23 @@ class FlattenedTileType():
 
         self.add_pip_common(flat_pip)
 
+    def remap_bel_indicies(self):
+        # Put logic BELs first before routing and site ports.
+        self.bel_index_remap = {}
+        for output_bel_idx, (bel_idx, _) in enumerate(
+                sorted(
+                    enumerate(self.bels),
+                    key=lambda value: (value[1].bel_category, value[0]))):
+            self.bel_index_remap[bel_idx] = output_bel_idx
+
     def create_tile_type_info(self, cell_bel_mapper):
         tile_type = TileTypeInfo()
         tile_type.name = self.tile_type_name
+        tile_type.constraint_prototype = self.constraint_prototype
         tile_type.number_sites = len(self.sites)
 
-        for bel in self.bels:
+        for bel_index in range(len(self.bels)):
+            bel = self.bels[self.bel_index_remap[bel_index]]
             bel_info = BelInfo()
             bel_info.name = bel.name
             bel_info.type = bel.type
@@ -353,7 +461,7 @@ class FlattenedTileType():
 
             for (bel_index, port) in wire.bel_pins:
                 bel_port = BelPort()
-                bel_port.bel_index = bel_index
+                bel_port.bel_index = self.bel_index_remap[bel_index]
                 bel_port.port = port
 
                 wire_info.bel_pins.append(bel_port)
@@ -385,14 +493,16 @@ class FlattenedTileType():
                     site_pip = site_type.sitePIPs[pip.pip_index]
                     bel_idx, pin_idx = site.bel_pin_index_to_bel_index[
                         site_pip.inpin]
-                    pip_info.bel = site.bel_to_bel_index[bel_idx]
+                    pip_info.bel = self.bel_index_remap[
+                        site.bel_to_bel_index[bel_idx]]
                     pip_info.extra_data = pin_idx
                 else:
                     assert pip.type == FlattenedPipType.SITE_PIN
                     site_pin = site_type.pins[pip.pip_index]
                     bel_idx, pin_idx = site.bel_pin_index_to_bel_index[
                         site_pin.belpin]
-                    pip_info.bel = site.bel_to_bel_index[bel_idx]
+                    pip_info.bel = self.bel_index_remap[
+                        site.bel_to_bel_index[bel_idx]]
                     pip_info.extra_data = pin_idx
             else:
                 assert pip.type == FlattenedPipType.TILE_PIP
@@ -578,6 +688,8 @@ class CellBelMapper():
         return self.cell_to_bel_map[cell]
 
 
+DEBUG_BUCKETS = False
+
 DEBUG_BEL_BUCKETS = False
 
 
@@ -660,10 +772,12 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
 
+    constraints = ConstraintGenerator(device.get_constraints())
+
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
-        flattened_tile_type = FlattenedTileType(device, tile_type_index,
-                                                tile_type)
+        flattened_tile_type = FlattenedTileType(
+            device, tile_type_index, tile_type, cell_bel_mapper, constraints)
 
         tile_type_info = flattened_tile_type.create_tile_type_info(
             cell_bel_mapper)
@@ -789,4 +903,4 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
 
     #import pdb; pdb.set_trace()
 
-    return chip_info
+    return chip_info, constraints

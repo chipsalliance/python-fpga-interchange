@@ -218,6 +218,9 @@ class TileTypeInfo():
         # Tile type name
         self.name = ''
 
+        # Constraint prototype index
+        self.constraint_prototype = 0
+
         # Number of sites
         self.number_sites = 0
 
@@ -252,6 +255,7 @@ class TileTypeInfo():
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
+        bba.u32(self.constraint_prototype)
         bba.u32(self.number_sites)
 
         for field in self.children_fields:
