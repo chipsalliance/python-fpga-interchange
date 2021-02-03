@@ -1,0 +1,400 @@
+tags:
+- tag: BRAM_MODE
+  tileTypes:
+  - BRAM_L
+  - BRAM_B
+  description: "Is RAMB36 in use?"
+  default: 2xRAMB18
+  states:
+  - state: 2xRAMB18
+    description: "BRAM tile is fractured into two RAMB18 sites."
+  - state: RAMB36
+    description: "BRAM tile is fused into one RAMB36 site."
+- tag: RESET_TYPE
+  description: "Are the resets synchronous or asynchronous?"
+  default: ASYNC
+  siteTypes:
+  - SLICEL
+  - SLICEM
+  states:
+  - state: SYNC
+    description: "Resets are synchronous"
+  - state: ASYNC
+    description: "Resets are asynchronous"
+- tag: FF_MODE
+  description: "Are the FF BELs latches or FFs?"
+  default: FF
+  siteTypes:
+  - SLICEL
+  - SLICEM
+  states:
+  - state: FF
+    description: "FF BELs are FF"
+  - state: LATCH
+    description: "FF BELs are latches"
+- tag: DLUT_STATE
+  siteTypes: [SLICEM]
+  description: "State of the D[56]LUT BEL"
+  default: LUT
+  states:
+  - state: LUT
+    description: "The D5LUT/D6LUT BEL is operating as a LUT"
+  - state: RAM32
+    description: "RAM32 type BELs can be placed at D5LUT and D6LUT"
+  - state: RAM64
+    description: "RAM64 type BELs can be placed at D6LUT"
+  - state: SRL16
+    description: "SRL16 type BELs can be placed at D5LUT and D6LUT"
+  - state: SRL32
+    description: "SRL32 type BELs can be placed at D6LUT"
+- tag: CLUT_STATE
+  siteTypes: [SLICEM]
+  description: "State of the C[56]LUT BEL"
+  default: LUT
+  states:
+  - state: LUT
+    description: "The C5LUT/C6LUT BEL is operating as a LUT"
+  - state: RAM32
+    description: "RAM32 type BELs can be placed at C5LUT and C6LUT"
+  - state: RAM64
+    description: "RAM64 type BELs can be placed at C6LUT"
+  - state: SRL16
+    description: "SRL16 type BELs can be placed at C5LUT and C6LUT"
+  - state: SRL32
+    description: "SRL32 type BELs can be placed at C6LUT"
+- tag: BLUT_STATE
+  siteTypes: [SLICEM]
+  description: "State of the B[56]LUT BEL"
+  default: LUT
+  states:
+  - state: LUT
+    description: "The B5LUT/B6LUT BEL is operating as a LUT"
+  - state: RAM32
+    description: "RAM32 type BELs can be placed at B5LUT and B6LUT"
+  - state: RAM64
+    description: "RAM64 type BELs can be placed at B6LUT"
+  - state: SRL16
+    description: "SRL16 type BELs can be placed at B5LUT and B6LUT"
+  - state: SRL32
+    description: "SRL32 type BELs can be placed at B6LUT"
+- tag: ALUT_STATE
+  siteTypes: [SLICEM]
+  description: "State of the A[56]LUT BEL"
+  default: LUT
+  states:
+  - state: LUT
+    description: "The A5LUT/A6LUT BEL is operating as a LUT"
+  - state: RAM32
+    description: "RAM32 type BELs can be placed at A5LUT and A6LUT"
+  - state: RAM64
+    description: "RAM64 type BELs can be placed at A6LUT"
+  - state: SRL16
+    description: "SRL16 type BELs can be placed at A5LUT and A6LUT"
+  - state: SRL32
+    description: "SRL32 type BELs can be placed at A6LUT"
+routedTags: []
+cellConstraints:
+- cell: RAMB18E1
+  locations:
+   - siteTypes:
+      - RAMB18E1
+     bel:
+       name: RAMB18E1
+     implies:
+       - tag: BRAM_MODE
+         state: 2xRAMB18
+- cell: FIFO18E1
+  locations:
+    - siteTypes:
+       - FIFO18E1
+      bel:
+        name: FIFO18E1
+      implies:
+        - tag: BRAM_MODE
+          state: 2xRAMB18
+- cell: RAMB36E1
+  locations:
+   - siteTypes:
+      - RAMB36E1
+     bel:
+       name: RAMB36E1
+     implies:
+       - tag: BRAM_MODE
+         state: RAMB36
+- cell: FIFO36E1
+  locations:
+    - siteTypes:
+       - FIFO36E1
+      bel:
+        name: FIFO36E1
+      implies:
+        - tag: BRAM_MODE
+          state: RAMB36
+- cells:
+  - FDRE
+  - FDSE
+  locations:
+    - siteTypes:
+       - SLICEL
+       - SLICEM
+      bel: { anyBel: null }
+      implies:
+        - { tag: RESET_TYPE, state: SYNC }
+        - { tag: FF_MODE, state: FF }
+- cells:
+  - FDPE
+  - FDCE
+  locations:
+    - siteTypes:
+       - SLICEL
+       - SLICEM
+      bel: { anyBel: null }
+      implies:
+        - { tag: RESET_TYPE, state: ASYNC }
+        - { tag: FF_MODE, state: FF }
+- cells:
+  - LDPE
+  - LDCE
+  locations:
+    - siteTypes:
+        - SLICEL
+        - SLICEM
+      bel: { anyBel: null }
+      implies:
+        - { tag: FF_MODE, state: FF }
+- cells:
+  - RAMD32
+  - RAMD64E
+  - RAMS32
+  - RAMS64E
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+        - A5LUT
+        - A6LUT
+        - B5LUT
+        - B6LUT
+        - C5LUT
+        - C6LUT
+      requires:
+      - tag: DLUT_STATE
+        states:
+          - RAM32
+          - RAM64
+- cells:
+  - RAMD32
+  - RAMS32
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - D5LUT
+          - D6LUT
+      implies:
+      - { tag: DLUT_STATE, state: RAM32 }
+- cells:
+  - RAMD64E
+  - RAMS64E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: D6LUT}
+      implies:
+      - { tag: DLUT_STATE, state: RAM64 }
+- cells:
+  - SRL16E
+  - SRLC16E
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - D5LUT
+          - D6LUT
+      implies:
+      - { tag: DLUT_STATE, state: SRL16 }
+- cells:
+  - SRLC32E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: D6LUT}
+      implies:
+      - { tag: DLUT_STATE, state: SRL32 }
+- cells:
+  - LUT1
+  - LUT2
+  - LUT3
+  - LUT4
+  - LUT5
+  - LUT6
+  - INV
+  - BUF
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - D5LUT
+          - D6LUT
+      implies:
+      - { tag: DLUT_STATE, state: LUT }
+- cells:
+  - RAMD32
+  - RAMS32
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - C5LUT
+          - C6LUT
+      implies:
+      - { tag: CLUT_STATE, state: RAM32 }
+- cells:
+  - RAMD64E
+  - RAMS64E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: C6LUT}
+      implies:
+      - { tag: CLUT_STATE, state: RAM64 }
+- cells:
+  - SRL16E
+  - SRLC16E
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - C5LUT
+          - C6LUT
+      implies:
+      - { tag: CLUT_STATE, state: SRL16 }
+- cells:
+  - SRLC32E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: C6LUT}
+      implies:
+      - { tag: CLUT_STATE, state: SRL32 }
+- cells:
+  - LUT1
+  - LUT2
+  - LUT3
+  - LUT4
+  - LUT5
+  - LUT6
+  - INV
+  - BUF
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - C5LUT
+          - C6LUT
+      implies:
+      - { tag: CLUT_STATE, state: LUT }
+- cells:
+  - RAMD32
+  - RAMS32
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - B5LUT
+          - B6LUT
+      implies:
+      - { tag: BLUT_STATE, state: RAM32 }
+- cells:
+  - RAMD64E
+  - RAMS64E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: B6LUT}
+      implies:
+      - { tag: BLUT_STATE, state: RAM64 }
+- cells:
+  - SRL16E
+  - SRLC16E
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - B5LUT
+          - B6LUT
+      implies:
+      - { tag: BLUT_STATE, state: SRL16 }
+- cells:
+  - SRLC32E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: B6LUT}
+      implies:
+      - { tag: BLUT_STATE, state: SRL32 }
+- cells:
+  - LUT1
+  - LUT2
+  - LUT3
+  - LUT4
+  - LUT5
+  - LUT6
+  - INV
+  - BUF
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - B5LUT
+          - B6LUT
+      implies:
+      - { tag: BLUT_STATE, state: LUT }
+- cells:
+  - RAMD32
+  - RAMS32
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - A5LUT
+          - A6LUT
+      implies:
+      - { tag: ALUT_STATE, state: RAM32 }
+- cells:
+  - RAMD64E
+  - RAMS64E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: A6LUT}
+      implies:
+      - { tag: ALUT_STATE, state: RAM64 }
+- cells:
+  - SRL16E
+  - SRLC16E
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - A5LUT
+          - A6LUT
+      implies:
+      - { tag: ALUT_STATE, state: SRL16 }
+- cells:
+  - SRLC32E
+  locations:
+    - siteTypes: [SLICEM]
+      bel: {name: A6LUT}
+      implies:
+      - { tag: ALUT_STATE, state: SRL32 }
+- cells:
+  - LUT1
+  - LUT2
+  - LUT3
+  - LUT4
+  - LUT5
+  - LUT6
+  - INV
+  - BUF
+  locations:
+    - siteTypes: [SLICEM]
+      bel:
+        bels:
+          - A5LUT
+          - A6LUT
+      implies:
+      - { tag: ALUT_STATE, state: LUT }

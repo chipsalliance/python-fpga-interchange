@@ -17,13 +17,16 @@ formats, and selecting subsets of the schemas where possible.
 import argparse
 import json
 import ryml
+import yaml
+from yaml import CSafeLoader as SafeLoader, CDumper as Dumper
 
 from fpga_interchange.interchange_capnp import Interchange, read_capnp_file, write_capnp_file
 from fpga_interchange.json_support import to_json, from_json
 from fpga_interchange.rapidyaml_support import to_rapidyaml, from_rapidyaml
+from fpga_interchange.yaml_support import to_yaml, from_yaml
 
 SCHEMAS = ('device', 'logical', 'physical')
-FORMATS = ('json', 'yaml', 'capnp')
+FORMATS = ('json', 'yaml', 'capnp', 'pyyaml')
 
 
 def follow_path(schema_root, path):
@@ -34,6 +37,23 @@ def follow_path(schema_root, path):
         schema = getattr(schema, leaf)
 
     return schema
+
+
+def read_format_to_message(message, input_format, in_f):
+    if input_format == 'json':
+        json_string = in_f.read().decode('utf-8')
+        json_data = json.loads(json_string)
+        from_json(message, json_data)
+    elif input_format == 'yaml':
+        yaml_string = in_f.read().decode('utf-8')
+        yaml_tree = ryml.parse(yaml_string)
+        from_rapidyaml(message, yaml_tree)
+    elif input_format == 'pyyaml':
+        yaml_string = in_f.read().decode('utf-8')
+        yaml_data = yaml.load(yaml_string, Loader=SafeLoader)
+        from_yaml(message, yaml_data)
+    else:
+        assert False, 'Invalid input format {}'.format(input_format)
 
 
 def read_format(schema, input_format, in_f):
@@ -49,16 +69,9 @@ def read_format(schema, input_format, in_f):
     if input_format == 'capnp':
         message = read_capnp_file(schema, in_f)
         message = message.as_builder()
-    elif input_format == 'json':
-        json_string = in_f.read().decode('utf-8')
-        json_data = json.loads(json_string)
+    elif input_format in ['json', 'yaml', 'pyyaml']:
         message = schema.new_message()
-        from_json(message, json_data)
-    elif input_format == 'yaml':
-        yaml_string = in_f.read().decode('utf-8')
-        yaml_tree = ryml.parse(yaml_string)
-        message = schema.new_message()
-        from_rapidyaml(message, yaml_tree)
+        read_format_to_message(message, input_format, in_f)
     else:
         assert False, 'Invalid input format {}'.format(input_format)
 
@@ -78,12 +91,17 @@ def write_format(message, output_format, out_f):
     elif output_format == 'json':
         message = message.as_reader()
         json_data = to_json(message)
-        json_string = json.dumps(json_data)
+        json_string = json.dumps(json_data, indent=2)
         out_f.write(json_string.encode('utf-8'))
     elif output_format == 'yaml':
         message = message.as_reader()
         strings, yaml_tree = to_rapidyaml(message)
         yaml_string = ryml.emit(yaml_tree)
+        out_f.write(yaml_string.encode('utf-8'))
+    elif output_format == 'pyyaml':
+        message = message.as_reader()
+        yaml_data = to_yaml(message)
+        yaml_string = yaml.dump(yaml_data, sort_keys=False, Dumper=Dumper)
         out_f.write(yaml_string.encode('utf-8'))
     else:
         assert False, 'Invalid output format {}'.format(output_format)

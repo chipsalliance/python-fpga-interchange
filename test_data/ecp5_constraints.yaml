@@ -1,0 +1,198 @@
+tags:
+- tag: LSR0.SRMODE
+  siteTypes: [PLC2]
+  description: "Is LSR0 a synchronous or asynchronous signal?"
+  default: SYNC
+  states:
+  - state: SYNC
+    description: "Resets are synchronous"
+  - state: ASYNC
+    description: "Resets are asynchronous"
+- tag: LSR1.SRMODE
+  siteTypes: [PLC2]
+  description: "Is LSR1 a synchronous or asynchronous signal?"
+  default: SYNC
+  states:
+  - state: SYNC
+    description: "Resets are synchronous"
+  - state: ASYNC
+    description: "Resets are asynchronous"
+
+routedTags:
+- routedTag: MUXLSR0.SRMODE
+  routingBel: MUXLSR0
+  belPins:
+  - pin: LSR0
+    tag: LSR0.SRMODE
+  - pin: LSR1
+    tag: LSR1.SRMODE
+- routedTag: MUXLSR1.SRMODE
+  routingBel: MUXLSR1
+  belPins:
+  - pin: LSR0
+    tag: LSR0.SRMODE
+  - pin: LSR1
+    tag: LSR1.SRMODE
+- routedTag: MUXLSR2.SRMODE
+  routingBel: MUXLSR2
+  belPins:
+  - pin: LSR0
+    tag: LSR0.SRMODE
+  - pin: LSR1
+    tag: LSR1.SRMODE
+- routedTag: MUXLSR3.SRMODE
+  routingBel: MUXLSR3
+  belPins:
+  - pin: LSR0
+    tag: LSR0.SRMODE
+  - pin: LSR1
+    tag: LSR1.SRMODE
+cellConstraints:
+# FF0
+- cell: FDRE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF0 }
+    requires:
+    - routedTag:
+        tag: MUXLSR0.SRMODE
+        port: R
+      states: [SYNC]
+- cell: FDSE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF0 }
+    requires:
+    - routedTag:
+        tag: MUXLSR0.SRMODE
+        port: S
+      states: [SYNC]
+- cell: FDPE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF0 }
+    requires:
+    - routedTag:
+        tag: MUXLSR0.SRMODE
+        port: PRE
+      states: [ASYNC]
+- cell: FDCE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF0 }
+    requires:
+    - routedTag:
+        tag: MUXLSR0.SRMODE
+        port: CLR
+      states: [ASYNC]
+# FF1
+- cell: FDRE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF1 }
+    requires:
+    - routedTag:
+        tag: MUXLSR1.SRMODE
+        port: R
+      states: [SYNC]
+- cell: FDSE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF1 }
+    requires:
+    - routedTag:
+        tag: MUXLSR1.SRMODE
+        port: S
+      states: [SYNC]
+- cell: FDPE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF1 }
+    requires:
+    - routedTag:
+        tag: MUXLSR1.SRMODE
+        port: PRE
+      states: [ASYNC]
+- cell: FDCE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF1 }
+    requires:
+    - routedTag:
+        tag: MUXLSR1.SRMODE
+        port: CLR
+      states: [ASYNC]
+# FF2
+- cell: FDRE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF2 }
+    requires:
+    - routedTag:
+        tag: MUXLSR2.SRMODE
+        port: R
+      states: [SYNC]
+- cell: FDSE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF2 }
+    requires:
+    - routedTag:
+        tag: MUXLSR2.SRMODE
+        port: S
+      states: [SYNC]
+- cell: FDPE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF2 }
+    requires:
+    - routedTag:
+        tag: MUXLSR2.SRMODE
+        port: PRE
+      states: [ASYNC]
+- cell: FDCE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF2 }
+    requires:
+    - routedTag:
+        tag: MUXLSR2.SRMODE
+        port: CLR
+      states: [ASYNC]
+# FF3
+- cell: FDRE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF3 }
+    requires:
+    - routedTag:
+        tag: MUXLSR3.SRMODE
+        port: R
+      states: [SYNC]
+- cell: FDSE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF3 }
+    requires:
+    - routedTag:
+        tag: MUXLSR3.SRMODE
+        port: S
+      states: [SYNC]
+- cell: FDPE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF3 }
+    requires:
+    - routedTag:
+        tag: MUXLSR3.SRMODE
+        port: PRE
+      states: [ASYNC]
+- cell: FDCE
+  locations:
+  - siteTypes: [PLC2]
+    bel: { name: FF3 }
+    requires:
+    - routedTag:
+        tag: MUXLSR3.SRMODE
+        port: CLR
+      states: [ASYNC]

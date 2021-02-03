@@ -11,6 +11,7 @@
 
 from collections import namedtuple
 from .logical_netlist import Direction
+from fpga_interchange.constraints.model import Constraints
 
 
 def first_upper(s):
@@ -44,14 +45,18 @@ def can_be_connected(a_direction, b_direction):
         return b_direction == Direction.Input, (a_direction, b_direction)
 
 
-class Tile(namedtuple('Tile', 'tile_index tile_name_index tile_type_index')):
+class Tile(
+        namedtuple(
+            'Tile',
+            'tile_index tile_name_index tile_type_index tile_type site_names')
+):
     pass
 
 
 class Site(
         namedtuple(
             'Site',
-            'tile_index tile_name_index site_index tile_type_site_type_index site_type_index alt_index'
+            'tile_index tile_name_index site_index tile_type_site_type_index site_type_index alt_index site_type_name'
         )):
     pass
 
@@ -165,6 +170,21 @@ class BelPin():
             return 1
         else:
             assert False, self.direction
+
+
+class Bel():
+    def __init__(self, site_type, strs, bel):
+        self.site_type = site_type
+        self.name = strs[bel.name]
+        self.type = strs[bel.type]
+        self.bel_pins = [bel_pin for bel_pin in bel.pins]
+
+    def get_pins(self, site):
+        for bel_pin in self.bel_pins:
+            bel_name, bel_pin_name = self.site_type.bel_pin_index[bel_pin]
+            assert bel_name == self.name
+
+            yield self.site_type.bel_pin(site, bel_name, bel_pin_name)
 
 
 class SitePin():
@@ -363,6 +383,7 @@ class SiteType():
                 bel_pin_index_to_site_wire_index[
                     bel_pin_index] = site_wire_index
 
+        self.bel_pin_index = []
         self.bel_pins = {}
         for bel_pin_index, bel_pin in enumerate(site_type.belPins):
             bel_name = strs[bel_pin.bel]
@@ -377,6 +398,7 @@ class SiteType():
             key = (bel_name, bel_pin_name)
             assert key not in self.bel_pins
             self.bel_pins[key] = bel_pin_index, site_wire_index, direction
+            self.bel_pin_index.append(key)
 
         self.bel_pin_to_site_pins = {}
         self.site_pins = {}
@@ -402,6 +424,10 @@ class SiteType():
         for site_pip in site_type.sitePIPs:
             out_bel_pin = site_type.belPins[site_pip.outpin]
             self.site_pips[site_pip.inpin] = strs[out_bel_pin.name]
+
+        self.bels = []
+        for bel in site_type.bels:
+            self.bels.append(Bel(self, strs, bel))
 
     def bel_pin(self, site, bel, pin):
         """ Return BelPin device resource for BEL pin in site.
@@ -524,6 +550,63 @@ class TileType():
         return self.wire_id_to_pip[wire_id0, wire_id1]
 
 
+class CellBelMapping():
+    def __init__(self, strs, mapping):
+        self.cell = strs[mapping.cell]
+        self.site_types_and_bels = set()
+        self.common_pins = {}
+        self.parameter_pins = {}
+
+        for common_pins in mapping.commonPins:
+            pin_map = {}
+
+            for pin in common_pins.pins:
+                bel_pin = strs[pin.belPin]
+                assert bel_pin not in pin_map
+
+                pin_map[bel_pin] = strs[pin.cellPin]
+
+            for site_type_and_bels in common_pins.siteTypes:
+                site_type = strs[site_type_and_bels.siteType]
+
+                for bel_idx in site_type_and_bels.bels:
+                    bel = strs[bel_idx]
+
+                    self.site_types_and_bels.add((site_type, bel))
+
+                    self.common_pins[site_type, bel] = pin_map
+
+        for parameter_pins in mapping.parameterPins:
+            pin_map = {}
+
+            for pin in parameter_pins.pins:
+                bel_pin = strs[pin.belPin]
+                assert bel_pin not in pin_map
+
+                pin_map[bel_pin] = strs[pin.cellPin]
+
+            for parameter_site_type_and_bel in parameter_pins.parametersSiteTypes:
+                site_type = strs[parameter_site_type_and_bel.siteType]
+                bel = strs[parameter_site_type_and_bel.bel]
+
+                self.site_types_and_bels.add((site_type, bel))
+
+                parameter = parameter_site_type_and_bel.parameter
+                key = strs[parameter.key]
+
+                parameter_which = parameter.which()
+                if parameter_which == 'textValue':
+                    value = strs[parameter.textValue]
+                elif parameter_which == 'intValue':
+                    value = parameter.intValue
+                elif parameter_which == 'boolValue':
+                    value = parameter.boolValue
+                else:
+                    assert False, parameter_which
+
+                self.parameter_pins[site_type, bel, key, value] = pin_map
+
+
 class DeviceResources():
     """ Object for getting specific a device resource from DeviceResources capnp. """
 
@@ -537,11 +620,6 @@ class DeviceResources():
 
         self.site_types = {}
         self.tile_types = {}
-
-        self.tile_type_to_idx = {}
-        for tile_type_idx, tile_type in enumerate(
-                self.device_resource_capnp.tileTypeList):
-            self.tile_type_to_idx[tile_type.name] = tile_type_idx
 
         self.site_type_names = []
         self.site_type_name_to_index = {}
@@ -559,13 +637,21 @@ class DeviceResources():
             tile_name_index = self.string_index[tile_name]
             assert tile_name not in self.tile_name_to_tile
             tile_type_index = tile.type
+
+            tile_type = self.device_resource_capnp.tileTypeList[
+                tile_type_index]
+
+            site_names = []
             self.tile_name_to_tile[tile_name] = Tile(
                 tile_index=tile_idx,
                 tile_name_index=tile_name_index,
-                tile_type_index=tile_type_index)
+                tile_type_index=tile_type_index,
+                tile_type=self.strs[tile_type.name],
+                site_names=site_names)
 
             for site_idx, site in enumerate(tile.sites):
                 site_name = self.strs[site.name]
+                site_names.append(site_name)
                 assert site_name not in self.site_name_to_site, site_name
                 self.site_name_to_site[site_name] = {}
 
@@ -580,7 +666,8 @@ class DeviceResources():
                     site_index=site_idx,
                     tile_type_site_type_index=tile_type_site_type_index,
                     site_type_index=site_type_index,
-                    alt_index=None)
+                    alt_index=None,
+                    site_type_name=site_type_name)
 
                 for alt_index, alt_site_type_index in enumerate(
                         self.device_resource_capnp.
@@ -592,7 +679,8 @@ class DeviceResources():
                         site_index=site_idx,
                         tile_type_site_type_index=tile_type_site_type_index,
                         site_type_index=alt_site_type_index,
-                        alt_index=alt_index)
+                        alt_index=alt_index,
+                        site_type_name=site_type_name)
 
         self.tile_wire_index_to_node_index = None
 
@@ -765,3 +853,24 @@ class DeviceResources():
             site_type_name=site_type_name,
             pin_name=pin_name,
             wire_name=wire_name)
+
+    def get_constraints(self):
+        constraints = Constraints()
+        constraints.read_constraints(self.device_resource_capnp.constraints)
+
+        return constraints
+
+    def yield_cell_bel_mappings(self):
+        for cell_bel_mapping in self.device_resource_capnp.cellBelMap:
+            yield CellBelMapping(self.strs, cell_bel_mapping)
+
+    def yield_bels(self):
+        for tile_name, tile in self.tile_name_to_tile.items():
+            for site_name in tile.site_names:
+                for site_type, site in self.site_name_to_site[site_name].items(
+                ):
+                    site_type = self.get_site_type(site.site_type_index)
+
+                    for bel in site_type.bels:
+                        yield tile_name, site_name, tile.tile_type, \
+                                site.site_type_name, bel.name
