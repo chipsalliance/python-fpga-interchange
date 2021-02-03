@@ -32,13 +32,21 @@ class Enumerator():
         self.values = []
         self.map = {}
 
+    def add(self, value):
+        assert value not in self.map
+        self.get_index(value)
+
+    def get(self, index):
+        return self.values[index]
+
     def get_index(self, value):
         index = self.map.get(value, None)
         if index is None:
             self.values.append(value)
-            return len(self.values) - 1
-        else:
-            return index
+            index = len(self.values) - 1
+            self.map[value] = index
+
+        return index
 
     def write_message(self, message, field):
         list_builder = message.init(field, len(self.values))
