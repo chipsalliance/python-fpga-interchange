@@ -377,7 +377,7 @@ class SiteType():
         self.site_type = strs[site_type.name]
         self.site_type_index = site_type_index
 
-        bel_pin_index_to_site_wire_index = {}
+        self.bel_pin_index_to_site_wire_index = {}
         for site_wire_index, site_wire in enumerate(site_type.siteWires):
             for bel_pin_index in site_wire.pins:
                 bel_pin_index_to_site_wire_index[
@@ -873,4 +873,4 @@ class DeviceResources():
 
                     for bel in site_type.bels:
                         yield tile_name, site_name, tile.tile_type, \
-                                site.site_type_name, bel.name
+                            site.site_type_name, bel.name
