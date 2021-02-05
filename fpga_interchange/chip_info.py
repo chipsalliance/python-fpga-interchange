@@ -404,3 +404,7 @@ class ChipInfo():
         bba.u32(len(self.bel_buckets))
 
         bba.ref('{}.cell_map'.format(label))
+        bba.ref(self.strings_label(label))
+
+    def strings_label(self, label_prefix):
+        return '{}.constids'.format(label_prefix)
