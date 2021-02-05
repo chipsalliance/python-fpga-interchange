@@ -42,11 +42,20 @@ def main():
         root_prefix = 'chip_info'
         bba.ref(root_prefix, root_prefix)
         chip_info.append_bba(bba, root_prefix)
+
+        bba.label(chip_info.strings_label(root_prefix), 'strings_slice')
+        bba.ref('strings_data')
+        bba.u32(len(const_ids.values))
+
+        bba.label('strings_data', 'strings')
+        for s in const_ids.values:
+            bba.str(s)
+
         bba.pop()
 
     bba.check_labels()
 
-    with open(os.path.join(args.output_dir, 'constids.inc'), 'w') as f:
+    with open(os.path.join(args.output_dir, 'constids.txt'), 'w') as f:
         for s in const_ids.values:
             print('X({})'.format(s), file=f)
 
