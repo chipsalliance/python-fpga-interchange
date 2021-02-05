@@ -6,6 +6,7 @@ INTERCHANGE_PATH := $(RAPIDWRIGHT_PATH)/interchange
 PART := xc7a35tcpg236-1
 CONSTRAINTS := test_data/series7_constraints.yaml
 LUTS := test_data/series7_luts.yaml
+BEL_BUCKET_SEEDS := test_data/series7_bel_buckets.yaml
 
 .DELETE_ON_ERROR:
 .PHONY: all
@@ -54,6 +55,7 @@ $(NEXTPNR_PATH)/fpga_interchange/chipdb.bba: $(PART)_constraints_luts.device
 	/usr/bin/time -v python3 -mfpga_interchange.nextpnr_emit \
 		--schema_dir $(INTERCHANGE_PATH) \
 		--output_dir $(NEXTPNR_PATH)/fpga_interchange/ \
+		--bel_bucket_seeds $(BEL_BUCKET_SEEDS) \
 		--device $(PART)_constraints_luts.device
 
 clean:

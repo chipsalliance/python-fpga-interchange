@@ -1,0 +1,49 @@
+buckets:
+- bucket: FLIP_FLOPS
+  cells:
+   - FDRE
+- bucket: LUTS
+  cells:
+   - LUT1
+- bucket: BRAMS
+  cells:
+   - RAMB18E1
+   - RAMB36E1
+   - FIFO18E1
+   - FIFO36E1
+- bucket: BUFG
+  cells:
+   - BUFG
+   - BUFGCTRL
+- bucket: BUFH
+  cells:
+   - BUFH
+   - BUFHCE
+- bucket: BUFMR
+  cells:
+   - BUFMR
+- bucket: BUFR
+  cells:
+   - BUFR
+- bucket: IBUFs
+  cells:
+   - IBUF
+   - IBUFDS_IBUFDISABLE_INT
+- bucket: OBUFs
+  cells:
+   - OBUF
+   - OBUFTDS
+- bucket: MMCM
+  cells:
+   - MMCME2_ADV
+- bucket: PLL
+  cells:
+   - PLLE2_BASE
+- bucket: PULLs
+  cells:
+   - PULLDOWN
+- bucket: CARRY
+  cells:
+   - MUXCY
+   - XORCY
+   - CARRY4

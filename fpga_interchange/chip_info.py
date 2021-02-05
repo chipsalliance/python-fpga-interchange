@@ -38,8 +38,8 @@ class BelInfo():
         # What type of BEL is this?
         self.bel_category = 0
 
-        # Bool array (length number of cells).
-        self.valid_cells = []
+        # Index into CellMapPOD::cell_bel_pin_map
+        self.pin_map = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name,
@@ -60,9 +60,9 @@ class BelInfo():
             for value in getattr(self, field):
                 bba.u32(value)
 
-        bba.label(self.field_label(label_prefix, 'valid_cells'), 'int8_t')
-        for value in self.valid_cells:
-            bba.u8(value)
+        bba.label(self.field_label(label_prefix, 'pin_map'), 'int32_t')
+        for value in self.pin_map:
+            bba.u32(value)
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
@@ -81,7 +81,7 @@ class BelInfo():
         bba.u16(self.bel_category)
         bba.u16(0)
 
-        bba.ref(self.field_label(label_prefix, 'valid_cells'))
+        bba.ref(self.field_label(label_prefix, 'pin_map'))
 
 
 class BelPort():
@@ -312,12 +312,85 @@ class NodeInfo():
         bba.u32(len(self.tile_wires))
 
 
+class CellBelPin():
+    def __init__(self, cell_pin, bel_pin):
+        self.cell_pin = cell_pin
+        self.bel_pin = bel_pin
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_pin)
+        bba.str_id(self.bel_pin)
+
+
+class ParameterPins():
+    def __init__(self):
+        self.key = ''
+        self.value = ''
+        self.pins = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}.{}'.format(label_prefix, self.key, self.value,
+                                      field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        for pin in self.pins:
+            pin.append_children_bba(bba, self.field_label(
+                label_prefix, 'pins'))
+
+        bba.label(self.field_label(label_prefix, 'pins'), 'CellBelPinPOD')
+        for pin in self.pins:
+            pin.append_bba(bba, self.field_label(label_prefix, 'pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.key)
+        bba.str_id(self.value)
+        bba.ref(self.field_label(label_prefix, 'pins'))
+        bba.u32(len(self.pins))
+
+
+class CellBelMap():
+    fields = ['common_pins', 'parameter_pins']
+    field_types = ['CellBelPinPOD', 'ParameterPinsPOD']
+
+    def __init__(self, cell, site_type, bel):
+        self.key = '_'.join((cell, site_type, bel))
+        self.common_pins = []
+        self.parameter_pins = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.key, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        for field in self.fields:
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba(self, bba, label_prefix):
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class CellMap():
-    fields = ['cell_names', 'cell_bel_buckets']
+    int_fields = ['cell_names', 'cell_bel_buckets']
+    fields = ['cell_bel_pin_map']
+    field_types = ['CellBelMapPOD']
 
     def __init__(self):
         self.cell_names = []
         self.cell_bel_buckets = []
+        self.cell_bel_pin_map = []
 
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
@@ -330,17 +403,31 @@ class CellMap():
     def append_children_bba(self, bba, label_prefix):
         assert len(self.cell_names) == len(self.cell_bel_buckets)
 
-        for field in self.fields:
+        for field in self.int_fields:
             bba.label(self.field_label(label_prefix, field), 'uint32_t')
             for s in getattr(self, field):
                 bba.str_id(s)
 
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
     def append_bba(self, bba, label_prefix):
         assert len(self.cell_names) == len(self.cell_bel_buckets)
 
-        for field in self.fields:
+        for field in self.int_fields:
             bba.ref(self.field_label(label_prefix, field))
             bba.u32(len(self.cell_names))
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
 
 
 class ChipInfo():

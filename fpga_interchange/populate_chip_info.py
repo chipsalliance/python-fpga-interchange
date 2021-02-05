@@ -10,7 +10,7 @@
 # SPDX-License-Identifier: ISC
 from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
-        TileWireRef
+        TileWireRef, CellBelMap, ParameterPins, CellBelPin
 
 from fpga_interchange.nextpnr import PortType
 from enum import Enum
@@ -338,14 +338,10 @@ class FlattenedTileType():
             bel_key = (site_type, bel.name)
             bel_info.bel_bucket = cell_bel_mapper.bel_to_bel_bucket(*bel_key)
 
-            bel_info.valid_cells = [0 for _ in cell_bel_mapper.get_cells()]
-            # Pad to align with 32-bit
-            while len(bel_info.valid_cells) % 4 != 0:
-                bel_info.valid_cells.append(0)
-
+            bel_info.pin_map = [-1 for _ in cell_bel_mapper.get_cells()]
             for idx, cell in enumerate(cell_bel_mapper.get_cells()):
-                if bel in cell_bel_mapper.bels_for_cell(cell):
-                    bel_info.valid_cells[idx] = 1
+                bel_info.pin_map[idx] = cell_bel_mapper.get_cell_bel_map_index(
+                    cell, site_type, bel.name)
 
             tile_type.bel_data.append(bel_info)
 
@@ -415,6 +411,9 @@ class CellBelMapper():
         self.cell_names = {}
         self.bel_buckets = set()
         self.cell_to_bel_buckets = {}
+        self.cell_to_bel_common_pins = {}
+        self.cell_to_bel_parameter_pins = {}
+        self.cell_site_bel_index = {}
         self.bel_to_bel_buckets = {}
 
         for cell_bel_map in device.device_resource_capnp.cellBelMap:
@@ -443,18 +442,54 @@ class CellBelMapper():
 
             bels = set()
 
-            for pins in cell_bel_map.commonPins:
-                for site_types_and_bels in pins.siteTypes:
+            pins = []
+            for common_pin in cell_bel_map.commonPins:
+                for pin in common_pin.pins:
+                    pins.append((device.strs[pin.cellPin],
+                                 device.strs[pin.belPin]))
+
+                for site_types_and_bels in common_pin.siteTypes:
                     site_type = device.strs[site_types_and_bels.siteType]
                     for bel_str_id in site_types_and_bels.bels:
                         bel = device.strs[bel_str_id]
                         bels.add((site_type, bel))
 
-            for pins in cell_bel_map.parameterPins:
-                for site_types_and_bels in pins.parametersSiteTypes:
-                    bel = device.strs[site_types_and_bels.bel]
-                    site_type = device.strs[site_types_and_bels.siteType]
+                        key = (cell_name, site_type, bel)
+                        assert key not in self.cell_to_bel_common_pins
+                        self.cell_to_bel_common_pins[key] = pins
+
+                        if key not in self.cell_site_bel_index:
+                            index = len(self.cell_site_bel_index)
+                            self.cell_site_bel_index[key] = index
+
+            for parameter_pin in cell_bel_map.parameterPins:
+                pins = []
+                for pin in parameter_pin.pins:
+                    pins.append((device.strs[pin.cellPin],
+                                 device.strs[pin.belPin]))
+
+                for parameter in parameter_pin.parametersSiteTypes:
+                    param_key = device.strs[parameter.parameter.key]
+                    which = parameter.parameter.which()
+                    assert which == 'textValue'
+                    param_value = device.strs[parameter.parameter.textValue]
+
+                    bel = device.strs[parameter.bel]
+                    site_type = device.strs[parameter.siteType]
                     bels.add((site_type, bel))
+
+                    key = cell_name, site_type, bel
+                    if key not in self.cell_to_bel_parameter_pins:
+                        self.cell_to_bel_parameter_pins[key] = {}
+
+                    assert (param_key, param_value
+                            ) not in self.cell_to_bel_parameter_pins[key]
+                    self.cell_to_bel_parameter_pins[key][(param_key,
+                                                          param_value)] = pins
+
+                    if key not in self.cell_site_bel_index:
+                        index = len(self.cell_site_bel_index)
+                        self.cell_site_bel_index[key] = index
 
             self.cell_to_bel_map[cell_name] = bels
 
@@ -463,6 +498,10 @@ class CellBelMapper():
             for bel in site_type.bels:
                 self.bels.add((device.strs[site_type.name],
                                device.strs[bel.name]))
+
+    def get_cell_bel_map_index(self, cell, site_type, bel):
+        key = cell, site_type, bel
+        return self.cell_site_bel_index.get(key, -1)
 
     def make_bel_bucket(self, bel_bucket_name, cell_names):
         assert bel_bucket_name not in self.bel_buckets
@@ -541,23 +580,6 @@ class CellBelMapper():
 
 DEBUG_BEL_BUCKETS = False
 
-# TODO: Read BEL_BUCKET_SEEDS from input (e.g. device or input file).
-BEL_BUCKET_SEEDS = (
-    ('FLIP_FLOPS', ('FDRE', )),
-    ('LUTS', ('LUT1', )),
-    ('BRAMS', ('RAMB18E1', 'RAMB36E1', 'FIFO18E1', 'FIFO36E1')),
-    ('BUFG', ('BUFG', 'BUFGCTRL')),
-    ('BUFH', ('BUFH', 'BUFHCE')),
-    ('BUFMR', ('BUFMR', )),
-    ('BUFR', ('BUFR', )),
-    ('IBUFs', ('IBUF', 'IBUFDS_IBUFDISABLE_INT')),
-    ('OBUFs', ('OBUF', 'OBUFTDS')),
-    ('MMCM', ('MMCME2_ADV', )),
-    ('PLL', ('PLLE2_BASE', )),
-    ('PULLs', ('PULLDOWN', )),
-    ('CARRY', ('MUXCY', 'XORCY', 'CARRY4')),
-)
-
 
 def print_bel_buckets(cell_bel_mapper):
     print('BEL buckets:')
@@ -581,13 +603,15 @@ def print_bel_buckets(cell_bel_mapper):
             site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
 
 
-def populate_chip_info(device, constids):
+def populate_chip_info(device, constids, bel_bucket_seeds):
     assert len(constids.values) == 0
 
     cell_bel_mapper = CellBelMapper(device, constids)
 
     # Make the BEL buckets.
-    for bel_bucket, cells in BEL_BUCKET_SEEDS:
+    for bucket in bel_bucket_seeds:
+        bel_bucket = bucket['bucket']
+        cells = bucket['cells']
         cell_bel_mapper.make_bel_bucket(bel_bucket, cells)
 
     cell_bel_mapper.handle_remaining()
@@ -603,6 +627,32 @@ def populate_chip_info(device, constids):
     for cell_name in cell_bel_mapper.get_cells():
         chip_info.cell_map.add_cell(
             cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
+
+    # Emit cell bel pin map.
+    for key, idx in sorted(
+            cell_bel_mapper.cell_site_bel_index.items(),
+            key=lambda item: item[1]):
+        (cell, site_type, bel) = key
+        cell_bel_map = CellBelMap(cell, site_type, bel)
+        chip_info.cell_map.cell_bel_pin_map.append(cell_bel_map)
+
+        if key in cell_bel_mapper.cell_to_bel_common_pins:
+            for (cell_pin,
+                 bel_pin) in cell_bel_mapper.cell_to_bel_common_pins[key]:
+                cell_bel_map.common_pins.append(CellBelPin(cell_pin, bel_pin))
+
+        if key in cell_bel_mapper.cell_to_bel_parameter_pins:
+            for (
+                    param_key, param_value
+            ), pins in cell_bel_mapper.cell_to_bel_parameter_pins[key].items():
+                parameter = ParameterPins()
+                parameter.key = param_key
+                parameter.value = param_value
+                for (cell_pin, bel_pin) in pins:
+                    cell_bel_map.parameter_pins.append(
+                        CellBelPin(cell_pin, bel_pin))
+
+                cell_bel_map.parameter_pins.append(parameter)
 
     for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
         chip_info.bel_buckets.append(bel_bucket)
