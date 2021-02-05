@@ -145,8 +145,8 @@ class TileWireInfo():
         bba.str_id(self.name)
 
         for field in ['pips_uphill', 'pips_downhill', 'bel_pins']:
-            bba.u32(len(getattr(self, field)))
             bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
 
         bba.u16(self.site)
         bba.u16(self.site_variant)
@@ -225,8 +225,8 @@ class TileTypeInfo():
         bba.u32(self.number_sites)
 
         for field in self.children_fields:
-            bba.u32(len(getattr(self, field)))
             bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
 
 
 class SiteInstInfo():
@@ -279,8 +279,8 @@ class TileInstInfo():
         bba.str(self.name)
         bba.u32(self.type)
         bba.ref(self.sites_label(label_prefix))
-        bba.u32(len(self.tile_wire_to_node))
         bba.ref(self.tile_wire_to_node_label(label_prefix))
+        bba.u32(len(self.tile_wire_to_node))
 
 
 class TileWireRef():
@@ -308,8 +308,8 @@ class NodeInfo():
             tile_wire.append_bba(bba, label)
 
     def append_bba(self, bba, label_prefix):
-        bba.u32(len(self.tile_wires))
         bba.ref(self.tile_wires_label(label_prefix))
+        bba.u32(len(self.tile_wires))
 
 
 class CellMap():
@@ -337,10 +337,10 @@ class CellMap():
 
     def append_bba(self, bba, label_prefix):
         assert len(self.cell_names) == len(self.cell_bel_buckets)
-        bba.u32(len(self.cell_names))
 
         for field in self.fields:
             bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(self.cell_names))
 
 
 class ChipInfo():
@@ -397,10 +397,10 @@ class ChipInfo():
         bba.u32(self.height)
 
         for field in children_fields:
-            bba.u32(len(getattr(self, field)))
             bba.ref('{}.{}'.format(label, field))
+            bba.u32(len(getattr(self, field)))
 
-        bba.u32(len(self.bel_buckets))
         bba.ref('{}.bel_buckets'.format(label))
+        bba.u32(len(self.bel_buckets))
 
         bba.ref('{}.cell_map'.format(label))
