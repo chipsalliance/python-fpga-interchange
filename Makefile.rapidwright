@@ -1,0 +1,62 @@
+
+NEXTPNR_PATH := $(shell echo ~/cat_x/nextpnr/)
+RAPIDWRIGHT_PATH := $(shell echo ~/cat_x/RapidWright)
+INTERCHANGE_PATH := $(RAPIDWRIGHT_PATH)/interchange
+
+PART := xc7a35tcpg236-1
+CONSTRAINTS := test_data/series7_constraints.yaml
+LUTS := test_data/series7_luts.yaml
+
+.DELETE_ON_ERROR:
+.PHONY: all
+
+all: $(NEXTPNR_PATH)/fpga_interchange/chipdb.bba
+
+rapidwright.force:
+	touch rapidwright.force
+
+rapidwright.update: rapidwright.force
+	# FIXME: Remove patch of api-lib once RapidWright 2020.2.1 is released.
+	cd $(RAPIDWRIGHT_PATH) && \
+		make update_jars && \
+		wget https://github.com/Xilinx/RapidWright/releases/download/v2020.2.1-beta/rapidwright-api-lib-2020.2.1_update1.jar && \
+		mv rapidwright-api-lib-2020.2.1_update1.jar jars/rapidwright-api-lib-2020.2.0.jar && \
+		make
+	touch rapidwright.update
+
+$(PART).device: rapidwright.update
+	RAPIDWRIGHT_PATH=$(RAPIDWRIGHT_PATH) /usr/bin/time -v \
+		$(RAPIDWRIGHT_PATH)/scripts/invoke_rapidwright.sh \
+		com.xilinx.rapidwright.interchange.DeviceResourcesExample \
+		$(PART)
+
+$(PART)_constraints.device: $(PART).device
+	/usr/bin/time -v python3 -mfpga_interchange.patch \
+		--schema_dir $(INTERCHANGE_PATH) \
+		--schema device \
+		--patch_path constraints \
+		--patch_format yaml \
+		$(PART).device \
+		$(CONSTRAINTS) \
+		$(PART)_constraints.device
+
+$(PART)_constraints_luts.device: $(PART)_constraints.device
+	/usr/bin/time -v python3 -mfpga_interchange.patch \
+		--schema_dir $(INTERCHANGE_PATH) \
+		--schema device \
+		--patch_path lutDefinitions \
+		--patch_format yaml \
+		$(PART)_constraints.device \
+		$(LUTS) \
+		$(PART)_constraints_luts.device
+
+$(NEXTPNR_PATH)/fpga_interchange/chipdb.bba: $(PART)_constraints_luts.device
+	/usr/bin/time -v python3 -mfpga_interchange.nextpnr_emit \
+		--schema_dir $(INTERCHANGE_PATH) \
+		--output_dir $(NEXTPNR_PATH)/fpga_interchange/ \
+		--device $(PART)_constraints_luts.device
+
+clean:
+	rm -f rapidwright.force
+	rm -f $(PART)*.device
+	rm -f $(NEXTPNR_PATH)/fpga_interchange/chipdb.bba

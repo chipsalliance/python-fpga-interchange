@@ -2,7 +2,7 @@ tags:
 - tag: BRAM_MODE
   tileTypes:
   - BRAM_L
-  - BRAM_B
+  - BRAM_R
   description: "Is RAMB36 in use?"
   default: 2xRAMB18
   states:
