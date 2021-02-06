@@ -8,6 +8,11 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+from enum import Enum
+
+class ConstraintType(Enum):
+    TAG_IMPLIES = 0
+    TAG_REQUIRES = 1
 
 
 class BelInfo():
@@ -183,9 +188,31 @@ class PipInfo():
         bba.u16(self.extra_data)
 
 
+class ConstraintTag():
+    def __init__(self):
+        self.tag_prefix = ''
+        self.default_state = ''
+        self.states = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.tag_prefix, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'states'), 'constids')
+        for s in self.states:
+            bba.str_id(s)
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.tag_prefix)
+        bba.str_id(self.default_state)
+        bba.ref(self.field_label(label_prefix, 'states'))
+        bba.u32(len(self.states))
+
+
 class TileTypeInfo():
-    children_fields = ['bel_data', 'wire_data', 'pip_data']
-    children_types = ['BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD']
+    children_fields = ['bel_data', 'wire_data', 'pip_data', 'tags']
+    children_types = ['BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD']
 
     def __init__(self):
         # Tile type name
@@ -202,6 +229,9 @@ class TileTypeInfo():
 
         # Array of PipInfo
         self.pip_data = []
+
+        # Array of ConstraintTag
+        self.tags = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -352,14 +382,37 @@ class ParameterPins():
         bba.u32(len(self.pins))
 
 
+class CellConstraintPOD():
+    def __init__(self):
+        self.tag = None
+        self.constraint_type = None
+        self.states = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.tag, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'states'), 'int32_t')
+        for s in self.states:
+            bba.str_id(s)
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.tag)
+        bba.u32(self.constraint_type.value)
+        bba.ref(self.field_label(label_prefix, 'states'))
+        bba.u32(len(self.states))
+
+
 class CellBelMap():
-    fields = ['common_pins', 'parameter_pins']
-    field_types = ['CellBelPinPOD', 'ParameterPinsPOD']
+    fields = ['common_pins', 'parameter_pins', 'constraints']
+    field_types = ['CellBelPinPOD', 'ParameterPinsPOD', 'CellConstraintPOD']
 
     def __init__(self, cell, site_type, bel):
         self.key = '_'.join((cell, site_type, bel))
         self.common_pins = []
         self.parameter_pins = []
+        self.constraints = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.key, field)
