@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 
+
 class ConstraintType(Enum):
     TAG_IMPLIES = 0
     TAG_REQUIRES = 1
@@ -212,7 +213,9 @@ class ConstraintTag():
 
 class TileTypeInfo():
     children_fields = ['bel_data', 'wire_data', 'pip_data', 'tags']
-    children_types = ['BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD']
+    children_types = [
+        'BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD'
+    ]
 
     def __init__(self):
         # Tile type name

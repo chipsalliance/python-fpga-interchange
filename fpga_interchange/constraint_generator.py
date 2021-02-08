@@ -112,8 +112,8 @@ class ConstraintPrototype():
         assert tag_prefix not in self.tags
         self.tags[tag_prefix] = tag
 
-    def add_cell_placement_constraint(self, cell_type, site_index, site_type, bel, tag,
-                                      constraint):
+    def add_cell_placement_constraint(self, cell_type, site_index, site_type,
+                                      bel, tag, constraint):
         """ Add a constraint that is applied when a cell is placed.
 
         The way to read this function:

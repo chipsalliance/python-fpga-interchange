@@ -101,7 +101,8 @@ def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
     flat_tag_indicies = {}
     flat_tag_state_indicies = {}
 
-    for idx, (tag_prefix, tag_data) in enumerate(sorted(tile_constraints.tags.items())):
+    for idx, (tag_prefix, tag_data) in enumerate(
+            sorted(tile_constraints.tags.items())):
         flat_tag_indicies[tag_prefix] = idx
         flat_tag_state_indicies[tag_prefix] = {}
 
@@ -115,8 +116,10 @@ def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
 
         tile_type.tags.append(tag)
 
-    for (cell_type, site_index, site_type, bel), constraints in tile_constraints.bel_cell_constraints.items():
-        idx = cell_bel_mapper.get_cell_bel_map_index(cell_type, tile_type.name, site_index, site_type, bel)
+    for (cell_type, site_index, site_type,
+         bel), constraints in tile_constraints.bel_cell_constraints.items():
+        idx = cell_bel_mapper.get_cell_bel_map_index(
+            cell_type, tile_type.name, site_index, site_type, bel)
 
         outs = []
         for tag_prefix, constraint in constraints:
@@ -125,11 +128,13 @@ def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
 
             if isinstance(constraint, ImpliesConstraint):
                 out.constraint_type = ConstraintType.TAG_IMPLIES
-                out.states.append(flat_tag_state_indicies[tag_prefix][constraint.state])
+                out.states.append(
+                    flat_tag_state_indicies[tag_prefix][constraint.state])
             elif isinstance(constraint, RequiresConstraint):
                 out.constraint_type = ConstraintType.TAG_REQUIRES
                 for state in constraint.states:
-                    out.states.append(flat_tag_state_indicies[tag_prefix][state])
+                    out.states.append(
+                        flat_tag_state_indicies[tag_prefix][state])
             else:
                 assert False, type(constraint)
 
@@ -224,7 +229,7 @@ class FlattenedTileType():
                 default=site_types[0],
                 matchers=[])
             self.tile_constraints.add_tag(tag_prefix,
-                                     tags_for_tile_type[tag_prefix])
+                                          tags_for_tile_type[tag_prefix])
 
         for bel in self.bels:
             site = self.sites[bel.site_index]
@@ -244,8 +249,8 @@ class FlattenedTileType():
                     continue
                 else:
                     tags_for_tile_type[tag_prefix] = tag
-                    self.tile_constraints.add_tag(tag_prefix,
-                                             tags_for_tile_type[tag_prefix])
+                    self.tile_constraints.add_tag(
+                        tag_prefix, tags_for_tile_type[tag_prefix])
 
             for cell_type in bel.valid_cells:
                 # When any valid cell type is placed here, make sure that
@@ -465,7 +470,8 @@ class FlattenedTileType():
         for output_bel_idx, (bel_idx, _) in enumerate(
                 sorted(
                     enumerate(self.bels),
-                    key=lambda value: (value[1].bel_category.value, value[0]))):
+                    key=lambda value: (value[1].bel_category.value, value[0]))
+        ):
             self.bel_index_remap[bel_idx] = output_bel_idx
             self.bel_output_map[output_bel_idx] = bel_idx
 
@@ -503,8 +509,10 @@ class FlattenedTileType():
                 # Don't need pin_map for routing / site ports.
                 bel_info.pin_map = [-1 for _ in cell_bel_mapper.get_cells()]
                 for idx, cell in enumerate(cell_bel_mapper.get_cells()):
-                    bel_info.pin_map[idx] = cell_bel_mapper.get_cell_bel_map_index(
-                        cell, tile_type.name, bel.site_index, site_type, bel.name)
+                    bel_info.pin_map[
+                        idx] = cell_bel_mapper.get_cell_bel_map_index(
+                            cell, tile_type.name, bel.site_index, site_type,
+                            bel.name)
 
             tile_type.bel_data.append(bel_info)
 
@@ -553,10 +561,13 @@ class FlattenedTileType():
                         site_pip.inpin]
                     orig_bel_index = site.bel_to_bel_index[bel_idx]
                     expected_category = self.bels[orig_bel_index].bel_category
-                    assert expected_category in [BelCategory.ROUTING, BelCategory.LOGIC]
+                    assert expected_category in [
+                        BelCategory.ROUTING, BelCategory.LOGIC
+                    ]
 
                     pip_info.bel = self.bel_index_remap[orig_bel_index]
-                    assert tile_type.bel_data[pip_info.bel].bel_category == expected_category.value
+                    assert tile_type.bel_data[
+                        pip_info.bel].bel_category == expected_category.value
                     pip_info.extra_data = pin_idx
                 else:
                     assert pip.type == FlattenedPipType.SITE_PIN
@@ -566,7 +577,9 @@ class FlattenedTileType():
                     pip_info.bel = self.bel_index_remap[
                         site.bel_to_bel_index[bel_idx]]
                     pip_info.extra_data = pin_idx
-                    assert tile_type.bel_data[pip_info.bel].bel_category == BelCategory.SITE_PORT.value
+                    assert tile_type.bel_data[
+                        pip_info.
+                        bel].bel_category == BelCategory.SITE_PORT.value
             else:
                 assert pip.type == FlattenedPipType.TILE_PIP
                 pip_info.site = -1
@@ -667,7 +680,8 @@ class CellBelMapper():
                 self.bels.add((device.strs[site_type.name],
                                device.strs[bel.name]))
 
-    def get_cell_bel_map_index(self, cell_type, tile_type, site_index, site_type, bel):
+    def get_cell_bel_map_index(self, cell_type, tile_type, site_index,
+                               site_type, bel):
         if cell_type not in self.cell_to_bel_map:
             return -1
 
@@ -865,7 +879,8 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
 
         cell_bel_map = chip_info.cell_map.cell_bel_map[idx]
         if idx in cell_bel_mapper.cell_to_bel_constraints:
-            cell_bel_map.constraints = cell_bel_mapper.cell_to_bel_constraints[idx]
+            cell_bel_map.constraints = cell_bel_mapper.cell_to_bel_constraints[
+                idx]
 
     tiles = {}
     tile_name_to_tile_index = {}
