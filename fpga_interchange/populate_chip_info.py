@@ -115,8 +115,8 @@ def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
 
         tile_type.tags.append(tag)
 
-    for (cell_type, site_index, bel), constraints in tile_constraints.bel_cell_constraints.items():
-        idx = cell_bel_mapper.get_cell_bel_map_index(cell_type, tile_type.name, site_index, bel)
+    for (cell_type, site_index, site_type, bel), constraints in tile_constraints.bel_cell_constraints.items():
+        idx = cell_bel_mapper.get_cell_bel_map_index(cell_type, tile_type.name, site_index, site_type, bel)
 
         outs = []
         for tag_prefix, constraint in constraints:
@@ -253,6 +253,7 @@ class FlattenedTileType():
                 self.tile_constraints.add_cell_placement_constraint(
                     cell_type=cell_type,
                     site_index=bel.site_index,
+                    site_type=site.site_type_name,
                     bel=bel.name,
                     tag='type_of_site{:03d}'.format(
                         self.sites[bel.site_index].site_in_type_index),
@@ -267,6 +268,7 @@ class FlattenedTileType():
                     self.tile_constraints.add_cell_placement_constraint(
                         cell_type=cell_type,
                         site_index=bel.site_index,
+                        site_type=site.site_type_name,
                         bel=bel.name,
                         tag=tag,
                         constraint=constraint)
@@ -497,10 +499,12 @@ class FlattenedTileType():
             bel_key = (site_type, bel.name)
             bel_info.bel_bucket = cell_bel_mapper.bel_to_bel_bucket(*bel_key)
 
-            bel_info.pin_map = [-1 for _ in cell_bel_mapper.get_cells()]
-            for idx, cell in enumerate(cell_bel_mapper.get_cells()):
-                bel_info.pin_map[idx] = cell_bel_mapper.get_cell_bel_map_index(
-                    cell, tile_type.name, bel.site_index, bel.name)
+            if bel.bel_category == BelCategory.LOGIC:
+                # Don't need pin_map for routing / site ports.
+                bel_info.pin_map = [-1 for _ in cell_bel_mapper.get_cells()]
+                for idx, cell in enumerate(cell_bel_mapper.get_cells()):
+                    bel_info.pin_map[idx] = cell_bel_mapper.get_cell_bel_map_index(
+                        cell, tile_type.name, bel.site_index, site_type, bel.name)
 
             tile_type.bel_data.append(bel_info)
 
@@ -609,8 +613,8 @@ class CellBelMapper():
         self.cell_to_bel_map = {}
 
         for cell_bel_map in device.device_resource_capnp.cellBelMap:
-            cell_name = device.strs[cell_bel_map.cell]
-            assert cell_name in self.cell_names
+            cell_type = device.strs[cell_bel_map.cell]
+            assert cell_type in self.cell_names
 
             bels = set()
 
@@ -626,7 +630,7 @@ class CellBelMapper():
                         bel = device.strs[bel_str_id]
                         bels.add((site_type, bel))
 
-                        key = (cell_name, site_type, bel)
+                        key = (cell_type, site_type, bel)
                         assert key not in self.cell_to_bel_common_pins
                         self.cell_to_bel_common_pins[key] = pins
 
@@ -646,7 +650,7 @@ class CellBelMapper():
                     site_type = device.strs[parameter.siteType]
                     bels.add((site_type, bel))
 
-                    key = cell_name, site_type, bel
+                    key = cell_type, site_type, bel
                     if key not in self.cell_to_bel_parameter_pins:
                         self.cell_to_bel_parameter_pins[key] = {}
 
@@ -655,7 +659,7 @@ class CellBelMapper():
                     self.cell_to_bel_parameter_pins[key][(param_key,
                                                           param_value)] = pins
 
-            self.cell_to_bel_map[cell_name] = bels
+            self.cell_to_bel_map[cell_type] = bels
 
         self.bels = set()
         for site_type in device.device_resource_capnp.siteTypeList:
@@ -663,8 +667,14 @@ class CellBelMapper():
                 self.bels.add((device.strs[site_type.name],
                                device.strs[bel.name]))
 
-    def get_cell_bel_map_index(self, cell, tile_type, site_index, bel):
-        key = cell, tile_type, site_index, bel
+    def get_cell_bel_map_index(self, cell_type, tile_type, site_index, site_type, bel):
+        if cell_type not in self.cell_to_bel_map:
+            return -1
+
+        if (site_type, bel) not in self.cell_to_bel_map[cell_type]:
+            return -1
+
+        key = cell_type, tile_type, site_index, site_type, bel
         if key not in self.cell_site_bel_index:
             index = len(self.cell_site_bel_index)
             self.cell_site_bel_index[key] = index
@@ -830,8 +840,9 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
     for key, idx in sorted(
             cell_bel_mapper.cell_site_bel_index.items(),
             key=lambda item: item[1]):
-        cell, tile_type, site_index, bel = key
-        cell_bel_map = CellBelMap(cell, tile_type, site_index, bel)
+        cell_type, tile_type, site_index, site_type, bel = key
+
+        cell_bel_map = CellBelMap(cell_type, tile_type, site_index, bel)
         chip_info.cell_map.cell_bel_map.append(cell_bel_map)
 
         if key in cell_bel_mapper.cell_to_bel_common_pins:
