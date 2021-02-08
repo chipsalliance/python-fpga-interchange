@@ -40,6 +40,7 @@ class Enumerator():
         return self.values[index]
 
     def get_index(self, value):
+        assert isinstance(value, str)
         index = self.map.get(value, None)
         if index is None:
             self.values.append(value)

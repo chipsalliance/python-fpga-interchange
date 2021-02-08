@@ -218,9 +218,6 @@ class TileTypeInfo():
         # Tile type name
         self.name = ''
 
-        # Constraint prototype index
-        self.constraint_prototype = 0
-
         # Number of sites
         self.number_sites = 0
 
@@ -255,7 +252,6 @@ class TileTypeInfo():
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
-        bba.u32(self.constraint_prototype)
         bba.u32(self.number_sites)
 
         for field in self.children_fields:
@@ -386,7 +382,7 @@ class ParameterPins():
         bba.u32(len(self.pins))
 
 
-class CellConstraintPOD():
+class CellConstraint():
     def __init__(self):
         self.tag = None
         self.constraint_type = None
@@ -399,7 +395,7 @@ class CellConstraintPOD():
     def append_children_bba(self, bba, label_prefix):
         bba.label(self.field_label(label_prefix, 'states'), 'int32_t')
         for s in self.states:
-            bba.str_id(s)
+            bba.u32(s)
 
     def append_bba(self, bba, label_prefix):
         bba.u32(self.tag)
@@ -412,8 +408,8 @@ class CellBelMap():
     fields = ['common_pins', 'parameter_pins', 'constraints']
     field_types = ['CellBelPinPOD', 'ParameterPinsPOD', 'CellConstraintPOD']
 
-    def __init__(self, cell, site_type, bel):
-        self.key = '_'.join((cell, site_type, bel))
+    def __init__(self, cell, tile_type, site_index, bel):
+        self.key = '_'.join((cell, tile_type, str(site_index), bel))
         self.common_pins = []
         self.parameter_pins = []
         self.constraints = []
@@ -441,13 +437,13 @@ class CellBelMap():
 
 class CellMap():
     int_fields = ['cell_names', 'cell_bel_buckets']
-    fields = ['cell_bel_pin_map']
+    fields = ['cell_bel_map']
     field_types = ['CellBelMapPOD']
 
     def __init__(self):
         self.cell_names = []
         self.cell_bel_buckets = []
-        self.cell_bel_pin_map = []
+        self.cell_bel_map = []
 
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
