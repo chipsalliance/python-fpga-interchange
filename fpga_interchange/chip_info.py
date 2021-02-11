@@ -8,6 +8,12 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+from enum import Enum
+
+
+class ConstraintType(Enum):
+    TAG_IMPLIES = 0
+    TAG_REQUIRES = 1
 
 
 class BelInfo():
@@ -38,8 +44,8 @@ class BelInfo():
         # What type of BEL is this?
         self.bel_category = 0
 
-        # Bool array (length number of cells).
-        self.valid_cells = []
+        # Index into CellMapPOD::cell_bel_pin_map
+        self.pin_map = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name,
@@ -60,9 +66,9 @@ class BelInfo():
             for value in getattr(self, field):
                 bba.u32(value)
 
-        bba.label(self.field_label(label_prefix, 'valid_cells'), 'int8_t')
-        for value in self.valid_cells:
-            bba.u8(value)
+        bba.label(self.field_label(label_prefix, 'pin_map'), 'int32_t')
+        for value in self.pin_map:
+            bba.u32(value)
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
@@ -81,7 +87,7 @@ class BelInfo():
         bba.u16(self.bel_category)
         bba.u16(0)
 
-        bba.ref(self.field_label(label_prefix, 'valid_cells'))
+        bba.ref(self.field_label(label_prefix, 'pin_map'))
 
 
 class BelPort():
@@ -183,9 +189,33 @@ class PipInfo():
         bba.u16(self.extra_data)
 
 
+class ConstraintTag():
+    def __init__(self):
+        self.tag_prefix = ''
+        self.default_state = ''
+        self.states = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.tag_prefix, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'states'), 'constids')
+        for s in self.states:
+            bba.str_id(s)
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.tag_prefix)
+        bba.str_id(self.default_state)
+        bba.ref(self.field_label(label_prefix, 'states'))
+        bba.u32(len(self.states))
+
+
 class TileTypeInfo():
-    children_fields = ['bel_data', 'wire_data', 'pip_data']
-    children_types = ['BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD']
+    children_fields = ['bel_data', 'wire_data', 'pip_data', 'tags']
+    children_types = [
+        'BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD'
+    ]
 
     def __init__(self):
         # Tile type name
@@ -202,6 +232,9 @@ class TileTypeInfo():
 
         # Array of PipInfo
         self.pip_data = []
+
+        # Array of ConstraintTag
+        self.tags = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -235,6 +268,8 @@ class SiteInstInfo():
         # <site>.<site type>
         self.name = ''
 
+        self.site_name = ''
+
         # Site type name
         self.site_type = ''
 
@@ -243,6 +278,7 @@ class SiteInstInfo():
 
     def append_bba(self, bba, label_prefix):
         bba.str(self.name)
+        bba.str(self.site_name)
         bba.str_id(self.site_type)
 
 
@@ -279,6 +315,7 @@ class TileInstInfo():
         bba.str(self.name)
         bba.u32(self.type)
         bba.ref(self.sites_label(label_prefix))
+        bba.u32(len(self.sites))
         bba.ref(self.tile_wire_to_node_label(label_prefix))
         bba.u32(len(self.tile_wire_to_node))
 
@@ -312,12 +349,108 @@ class NodeInfo():
         bba.u32(len(self.tile_wires))
 
 
+class CellBelPin():
+    def __init__(self, cell_pin, bel_pin):
+        self.cell_pin = cell_pin
+        self.bel_pin = bel_pin
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_pin)
+        bba.str_id(self.bel_pin)
+
+
+class ParameterPins():
+    def __init__(self):
+        self.key = ''
+        self.value = ''
+        self.pins = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}.{}'.format(label_prefix, self.key, self.value,
+                                      field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        for pin in self.pins:
+            pin.append_children_bba(bba, self.field_label(
+                label_prefix, 'pins'))
+
+        bba.label(self.field_label(label_prefix, 'pins'), 'CellBelPinPOD')
+        for pin in self.pins:
+            pin.append_bba(bba, self.field_label(label_prefix, 'pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.key)
+        bba.str_id(self.value)
+        bba.ref(self.field_label(label_prefix, 'pins'))
+        bba.u32(len(self.pins))
+
+
+class CellConstraint():
+    def __init__(self):
+        self.tag = None
+        self.constraint_type = None
+        self.states = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.tag, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'states'), 'int32_t')
+        for s in self.states:
+            bba.u32(s)
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.tag)
+        bba.u32(self.constraint_type.value)
+        bba.ref(self.field_label(label_prefix, 'states'))
+        bba.u32(len(self.states))
+
+
+class CellBelMap():
+    fields = ['common_pins', 'parameter_pins', 'constraints']
+    field_types = ['CellBelPinPOD', 'ParameterPinsPOD', 'CellConstraintPOD']
+
+    def __init__(self, cell, tile_type, site_index, bel):
+        self.key = '_'.join((cell, tile_type, str(site_index), bel))
+        self.common_pins = []
+        self.parameter_pins = []
+        self.constraints = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.key, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        for field in self.fields:
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba(self, bba, label_prefix):
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class CellMap():
-    fields = ['cell_names', 'cell_bel_buckets']
+    int_fields = ['cell_names', 'cell_bel_buckets']
+    fields = ['cell_bel_map']
+    field_types = ['CellBelMapPOD']
 
     def __init__(self):
         self.cell_names = []
         self.cell_bel_buckets = []
+        self.cell_bel_map = []
 
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
@@ -330,17 +463,71 @@ class CellMap():
     def append_children_bba(self, bba, label_prefix):
         assert len(self.cell_names) == len(self.cell_bel_buckets)
 
-        for field in self.fields:
+        for field in self.int_fields:
             bba.label(self.field_label(label_prefix, field), 'uint32_t')
             for s in getattr(self, field):
                 bba.str_id(s)
 
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
     def append_bba(self, bba, label_prefix):
         assert len(self.cell_names) == len(self.cell_bel_buckets)
 
-        for field in self.fields:
+        for field in self.int_fields:
             bba.ref(self.field_label(label_prefix, field))
             bba.u32(len(self.cell_names))
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
+class PackagePin():
+    def __init__(self):
+        self.package_pin = ''
+        self.site = ''
+        self.bel = ''
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.package_pin)
+        bba.str_id(self.site)
+        bba.str_id(self.bel)
+
+
+class Package():
+    def __init__(self):
+        self.package = ''
+        self.package_pins = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.package, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for package_pin in self.package_pins:
+            package_pin.append_children_bba(
+                bba, self.field_label(label_prefix, 'package_pins'))
+
+        bba.label(
+            self.field_label(label_prefix, 'package_pins'), 'PackagePinPOD')
+        for package_pin in self.package_pins:
+            package_pin.append_bba(
+                bba, self.field_label(label_prefix, 'package_pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.package)
+        bba.ref(self.field_label(label_prefix, 'package_pins'))
+        bba.u32(len(self.package_pins))
 
 
 class ChipInfo():
@@ -356,6 +543,7 @@ class ChipInfo():
         self.sites = []
         self.tiles = []
         self.nodes = []
+        self.packages = []
 
         # str, constids
         self.bel_buckets = []
@@ -365,10 +553,13 @@ class ChipInfo():
     def append_bba(self, bba, label_prefix):
         label = label_prefix
 
-        children_fields = ['tile_types', 'sites', 'tiles', 'nodes']
+        children_fields = ['tile_types', 'sites', 'tiles', 'nodes', 'packages']
         children_types = [
-            'TileTypeInfoPOD', 'SiteInstInfoPOD', 'TileInstInfoPOD',
-            'NodeInfoPOD'
+            'TileTypeInfoPOD',
+            'SiteInstInfoPOD',
+            'TileInstInfoPOD',
+            'NodeInfoPOD',
+            'PackagePOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)

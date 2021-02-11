@@ -43,9 +43,10 @@ class Tag():
     def prefix(self, other):
         return get_prefix(self.matchers, other)
 
-    def __str__(self):
-        return "Tag({}, {}, {})".format(
-            repr(self.name), repr(self.states), repr(self.default))
+    def __repr__(self):
+        return "Tag(name={}, states={}, default={}, matchers={})".format(
+            repr(self.name), repr(self.states), repr(self.default),
+            repr(self.matchers))
 
 
 BelPin = namedtuple('BelPin', 'pin tag')
@@ -76,6 +77,9 @@ class TileTypeMatcher():
     def __init__(self, tile_type):
         self.tile_type = tile_type
 
+    def __repr__(self):
+        return 'TileTypeMatcher({})'.format(repr(self.tile_type))
+
     def match(self, other):
         return other.is_tile_type(self.tile_type)
 
@@ -101,6 +105,9 @@ class SiteTypeMatcher():
 
     def __init__(self, site_type):
         self.site_type = site_type
+
+    def __repr__(self):
+        return 'SiteTypeMatcher({})'.format(repr(self.site_type))
 
     def match(self, other):
         return other.is_site_type(self.site_type)
@@ -128,6 +135,10 @@ class BelMatcher():
     def __init__(self, site_type, bel):
         self.site_type = site_type
         self.bel = bel
+
+    def __repr__(self):
+        return 'BelMatcher({}, {})'.format(
+            repr(self.site_type), repr(self.bel))
 
     def match(self, other):
         return other.is_bel(self.site_type, self.bel)
@@ -158,6 +169,11 @@ class ImpliesConstraint():
         self.matchers = matchers
         self.port = port
 
+    def __repr__(self):
+        return 'ImpliesConstraint({}, {}, {}, {})'.format(
+            repr(self.tag), repr(self.state), repr(self.matchers),
+            repr(self.port))
+
     def match(self, other):
         """ Return true if other matches this constraint. """
         return any(matcher.match(other) for matcher in self.matchers)
@@ -165,7 +181,7 @@ class ImpliesConstraint():
     def tag_for(self, tags, other):
         tag = tags[self.tag]
         tag_prefix = tag.prefix(other)
-        assert tag_prefix is not None
+        assert tag_prefix is not None, (self.tag, other)
         return '{}.{}'.format(tag_prefix, self.tag)
 
     def clauses_for(self, source_variable, state_group):
@@ -182,6 +198,11 @@ class RequiresConstraint():
         self.states = states
         self.matchers = matchers
         self.port = port
+
+    def __repr__(self):
+        return 'RequiresConstraint({}, {}, {}, {})'.format(
+            repr(self.tag), repr(self.state), repr(self.matchers),
+            repr(self.port))
 
     def match(self, other):
         """ Return true if other matches this constraint. """
@@ -403,6 +424,30 @@ class Constraints():
                     assert constraint.tag in self.tags
                     assert constraint.port is None
 
+    def yield_tags_at_placement(self, placement):
+        for tag in self.tags.values():
+            tag_prefix = tag.prefix(placement)
+            if tag_prefix is not None:
+                tag_prefix = tag_prefix + '.' + tag.name
+
+                yield tag_prefix, tag
+
+        for tag in self.routed_tags.values():
+            tag_prefix = tag.prefix(placement)
+            if tag_prefix is not None:
+                tag_prefix = tag_prefix + '.' + tag.name
+
+                yield tag_prefix, tag
+        pass
+
+    def yield_constraints_for_cell_type_at_placement(self, cell_type,
+                                                     placement):
+        cell_constraint = self.cells.get(cell_type, None)
+        if cell_constraint is not None:
+            for constraint in cell_constraint.for_placement(placement):
+                tag = constraint.tag_for(self.tags, placement)
+                yield tag, constraint
+
     def build_sat(self, available_placements, available_cells,
                   placement_oracle):
         """ Build a SAT problem given the placements, cells, and placement_oracle."""
@@ -410,25 +455,11 @@ class Constraints():
 
         # Emit tags and routed tags for all available placements.
         for placement in available_placements:
-            for tag in self.tags.values():
-                tag_prefix = tag.prefix(placement)
-                if tag_prefix is not None:
-                    tag_prefix = tag_prefix + '.' + tag.name
+            for tag_prefix, tag in self.yield_tags_at_placement(placement):
+                if tag_prefix in all_tags:
+                    assert all_tags[tag_prefix] is tag
 
-                    if tag_prefix in all_tags:
-                        assert all_tags[tag_prefix] is tag
-
-                    all_tags[tag_prefix] = tag
-
-            for tag in self.routed_tags.values():
-                tag_prefix = tag.prefix(placement)
-                if tag_prefix is not None:
-                    tag_prefix = tag_prefix + '.' + tag.name
-
-                    if tag_prefix in all_tags:
-                        assert all_tags[tag_prefix] is tag
-
-                    all_tags[tag_prefix] = tag
+                all_tags[tag_prefix] = tag
 
         # TODO: Placements need to include routed tag stuff if present.
         # The current implementation doesn't account for routed tags at all.

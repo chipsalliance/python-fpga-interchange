@@ -40,6 +40,7 @@ class Enumerator():
         return self.values[index]
 
     def get_index(self, value):
+        assert isinstance(value, str)
         index = self.map.get(value, None)
         if index is None:
             self.values.append(value)
@@ -75,6 +76,7 @@ class BaseReaderWriter():
                 v for v in getattr(self.struct_reader, field)
             ]
 
+        assert value < len(self.value_cache[field]), (field, value)
         return self.value_cache[field][value]
 
     def get_parent(self, depth):

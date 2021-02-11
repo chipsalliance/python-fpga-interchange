@@ -15,6 +15,7 @@ from fpga_interchange.interchange_capnp import Interchange
 from fpga_interchange.converters import Enumerator
 from fpga_interchange.nextpnr import BbaWriter
 from fpga_interchange.populate_chip_info import populate_chip_info
+import yaml
 
 
 def main():
@@ -22,6 +23,7 @@ def main():
     parser.add_argument('--schema_dir', required=True)
     parser.add_argument('--output_dir', required=True)
     parser.add_argument('--device')
+    parser.add_argument('--bel_bucket_seeds')
 
     args = parser.parse_args()
     interchange = Interchange(args.schema_dir)
@@ -29,8 +31,12 @@ def main():
     with open(args.device, 'rb') as f:
         device = interchange.read_device_resources(f)
 
+    with open(args.bel_bucket_seeds, 'r') as f:
+        bel_bucket_seeds = yaml.safe_load(f.read())
+
     const_ids = Enumerator()
-    chip_info = populate_chip_info(device, const_ids)
+    chip_info = populate_chip_info(device, const_ids,
+                                   bel_bucket_seeds['buckets'])
 
     with open(os.path.join(args.output_dir, 'chipdb.bba'), 'w') as f:
         bba = BbaWriter(f, const_ids)
