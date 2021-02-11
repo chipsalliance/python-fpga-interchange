@@ -455,7 +455,7 @@ class Constraints():
 
         # Emit tags and routed tags for all available placements.
         for placement in available_placements:
-            for tag_prefix, tag in self.yield_tags(placement):
+            for tag_prefix, tag in self.yield_tags_at_placement(placement):
                 if tag_prefix in all_tags:
                     assert all_tags[tag_prefix] is tag
 
