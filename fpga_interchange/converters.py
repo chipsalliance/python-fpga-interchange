@@ -76,6 +76,7 @@ class BaseReaderWriter():
                 v for v in getattr(self.struct_reader, field)
             ]
 
+        assert value < len(self.value_cache[field]), (field, value)
         return self.value_cache[field][value]
 
     def get_parent(self, depth):

@@ -14,7 +14,7 @@ from collections import namedtuple
 from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
-        CellConstraint, ConstraintType
+        CellConstraint, ConstraintType, Package, PackagePin
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintGenerator, ConstraintPrototype
@@ -631,8 +631,8 @@ class CellBelMapper():
 
             bels = set()
 
-            pins = []
             for common_pin in cell_bel_map.commonPins:
+                pins = []
                 for pin in common_pin.pins:
                     pins.append((device.strs[pin.cellPin],
                                  device.strs[pin.belPin]))
@@ -744,6 +744,10 @@ class CellBelMapper():
         self.bel_buckets.add(bel_bucket_name)
         for site_type, bel in remaining_bels:
             self.bel_to_bel_buckets[site_type, bel] = bel_bucket_name
+
+        bel_bucket_name = 'IOPORTS'
+        assert bel_bucket_name not in self.bel_buckets
+        self.bel_buckets.add(bel_bucket_name)
 
     def get_cells(self):
         return self.cells_in_order
@@ -859,15 +863,16 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
         cell_bel_map = CellBelMap(cell_type, tile_type, site_index, bel)
         chip_info.cell_map.cell_bel_map.append(cell_bel_map)
 
-        if key in cell_bel_mapper.cell_to_bel_common_pins:
+        pin_key = (cell_type, site_type, bel)
+        if pin_key in cell_bel_mapper.cell_to_bel_common_pins:
             for (cell_pin,
-                 bel_pin) in cell_bel_mapper.cell_to_bel_common_pins[key]:
+                 bel_pin) in cell_bel_mapper.cell_to_bel_common_pins[pin_key]:
                 cell_bel_map.common_pins.append(CellBelPin(cell_pin, bel_pin))
 
-        if key in cell_bel_mapper.cell_to_bel_parameter_pins:
-            for (
-                    param_key, param_value
-            ), pins in cell_bel_mapper.cell_to_bel_parameter_pins[key].items():
+        if pin_key in cell_bel_mapper.cell_to_bel_parameter_pins:
+            for (param_key, param_value
+                 ), pins in cell_bel_mapper.cell_to_bel_parameter_pins[
+                     pin_key].items():
                 parameter = ParameterPins()
                 parameter.key = param_key
                 parameter.value = param_value
@@ -905,6 +910,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
                 site_type_in_tile_type.primaryType]
             site_type_name = device.strs[site_type.name]
             site_info.name = '{}.{}'.format(site_name, site_type_name)
+            site_info.site_name = site_name
             site_info.site_type = site_type_name
 
             tile_info.sites.append(len(chip_info.sites))
@@ -919,6 +925,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
                 alt_site_type_name = device.strs[alt_site_type.name]
                 alt_site_info.name = '{}.{}'.format(site_name,
                                                     alt_site_type_name)
+                alt_site_info.site_name = site_name
                 alt_site_info.site_type = alt_site_type_name
 
                 tile_info.sites.append(len(chip_info.sites))
@@ -986,5 +993,23 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
             tile_wire.index = wire_in_tile_id
 
             node_info.tile_wires.append(tile_wire)
+
+    for package in device.device_resource_capnp.packages:
+        package_data = Package()
+        package_data.package = device.strs[package.name]
+        chip_info.packages.append(package_data)
+
+        for package_pin in package.packagePins:
+            if package_pin.site.which() == 'noSite':
+                continue
+            if package_pin.site.which() == 'noBel':
+                continue
+
+            package_pin_data = PackagePin()
+            package_pin_data.package_pin = device.strs[package_pin.packagePin]
+            package_pin_data.site = device.strs[package_pin.site.site]
+            package_pin_data.bel = device.strs[package_pin.bel.bel]
+
+            package_data.package_pins.append(package_pin_data)
 
     return chip_info

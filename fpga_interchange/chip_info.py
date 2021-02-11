@@ -268,6 +268,8 @@ class SiteInstInfo():
         # <site>.<site type>
         self.name = ''
 
+        self.site_name = ''
+
         # Site type name
         self.site_type = ''
 
@@ -276,6 +278,7 @@ class SiteInstInfo():
 
     def append_bba(self, bba, label_prefix):
         bba.str(self.name)
+        bba.str(self.site_name)
         bba.str_id(self.site_type)
 
 
@@ -312,6 +315,7 @@ class TileInstInfo():
         bba.str(self.name)
         bba.u32(self.type)
         bba.ref(self.sites_label(label_prefix))
+        bba.u32(len(self.sites))
         bba.ref(self.tile_wire_to_node_label(label_prefix))
         bba.u32(len(self.tile_wire_to_node))
 
@@ -486,6 +490,46 @@ class CellMap():
             bba.u32(len(getattr(self, field)))
 
 
+class PackagePin():
+    def __init__(self):
+        self.package_pin = ''
+        self.site = ''
+        self.bel = ''
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.package_pin)
+        bba.str_id(self.site)
+        bba.str_id(self.bel)
+
+
+class Package():
+    def __init__(self):
+        self.package = ''
+        self.package_pins = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.package, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for package_pin in self.package_pins:
+            package_pin.append_children_bba(
+                bba, self.field_label(label_prefix, 'package_pins'))
+
+        bba.label(
+            self.field_label(label_prefix, 'package_pins'), 'PackagePinPOD')
+        for package_pin in self.package_pins:
+            package_pin.append_bba(
+                bba, self.field_label(label_prefix, 'package_pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.package)
+        bba.ref(self.field_label(label_prefix, 'package_pins'))
+        bba.u32(len(self.package_pins))
+
+
 class ChipInfo():
     def __init__(self):
         self.name = ''
@@ -499,6 +543,7 @@ class ChipInfo():
         self.sites = []
         self.tiles = []
         self.nodes = []
+        self.packages = []
 
         # str, constids
         self.bel_buckets = []
@@ -508,10 +553,13 @@ class ChipInfo():
     def append_bba(self, bba, label_prefix):
         label = label_prefix
 
-        children_fields = ['tile_types', 'sites', 'tiles', 'nodes']
+        children_fields = ['tile_types', 'sites', 'tiles', 'nodes', 'packages']
         children_types = [
-            'TileTypeInfoPOD', 'SiteInstInfoPOD', 'TileInstInfoPOD',
-            'NodeInfoPOD'
+            'TileTypeInfoPOD',
+            'SiteInstInfoPOD',
+            'TileInstInfoPOD',
+            'NodeInfoPOD',
+            'PackagePOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
