@@ -17,7 +17,7 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         CellConstraint, ConstraintType, Package, PackagePin
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
-from fpga_interchange.constraint_generator import ConstraintGenerator, ConstraintPrototype
+from fpga_interchange.constraint_generator import ConstraintPrototype
 from fpga_interchange.nextpnr import PortType
 
 
@@ -242,7 +242,7 @@ class FlattenedTileType():
                 bel=bel.name)
             available_placements.append(placement)
 
-            for tag_prefix, tag in constraints.model.yield_tags_at_placement(
+            for tag_prefix, tag in constraints.yield_tags_at_placement(
                     placement):
                 if tag_prefix in tags_for_tile_type:
                     assert tags_for_tile_type[tag_prefix] is tag
@@ -268,7 +268,7 @@ class FlattenedTileType():
                         matchers=None,
                         port=None))
 
-                for tag, constraint in constraints.model.yield_constraints_for_cell_type_at_placement(
+                for tag, constraint in constraints.yield_constraints_for_cell_type_at_placement(
                         cell_type, placement):
                     self.tile_constraints.add_cell_placement_constraint(
                         cell_type=cell_type,
@@ -830,7 +830,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
 
-    constraints = ConstraintGenerator(device.get_constraints())
+    constraints = device.get_constraints()
 
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
