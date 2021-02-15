@@ -249,7 +249,7 @@ class Library():
         self.cells = {}
 
     def add_cell(self, cell):
-        assert cell.name not in self.cells
+        assert cell.name not in self.cells, cell.name
         self.cells[cell.name] = cell
 
 
@@ -350,7 +350,7 @@ def check_logical_netlist(libraries):
 
     for cell in master_cell_list.values():
         for inst in cell.cell_instances.values():
-            assert inst.cell_name in master_cell_list
+            assert inst.cell_name in master_cell_list, inst.cell_name
 
         for netname, net in cell.nets.items():
             port_directions = {

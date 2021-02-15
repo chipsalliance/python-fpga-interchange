@@ -567,7 +567,7 @@ def first_upper(s):
     return s[0].upper() + s[1:]
 
 
-def to_logical_netlist(netlist_capnp):
+def to_logical_netlist(netlist_capnp, strs=None):
     # name     @0 : Text;
     # propMap  @1 : PropertyMap;
     # topInst  @2 : CellInstance;
@@ -576,7 +576,9 @@ def to_logical_netlist(netlist_capnp):
     # portList @5 : List(Port);
     # instList @6 : List(CellInstance);
 
-    strs = [s for s in netlist_capnp.strList]
+    if strs is None:
+        strs = [s for s in netlist_capnp.strList]
+
     libraries = {}
 
     def convert_property_map(prop_map):
@@ -628,7 +630,7 @@ def to_logical_netlist(netlist_capnp):
                     name=port_name, direction=direction, property_map=prop_map)
             else:
                 assert port.which() == 'bus'
-                cell.add_port(
+                cell.add_bus_port(
                     name=port_name,
                     direction=direction,
                     property_map=prop_map,
@@ -653,9 +655,9 @@ def to_logical_netlist(netlist_capnp):
                     assert port_capnp.which() == 'bus'
                     bus = port_capnp.bus
                     if bus.busStart <= bus.busEnd:
-                        idx = port_capnp.busIdx.idx + bus.busStart
+                        idx = port_inst.busIdx.idx + bus.busStart
                     else:
-                        idx = bus.busStart - port_capnp.busIdx.idx
+                        idx = bus.busStart - port_inst.busIdx.idx
 
                 if port_inst.which() == 'extPort':
                     cell.connect_net_to_cell_port(
