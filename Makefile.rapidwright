@@ -1,7 +1,7 @@
 
 NEXTPNR_PATH := $(shell echo ~/cat_x/nextpnr/)
 RAPIDWRIGHT_PATH := $(shell echo ~/cat_x/RapidWright)
-INTERCHANGE_PATH := $(RAPIDWRIGHT_PATH)/interchange
+INTERCHANGE_PATH := $(shell echo ~/cat_x/fpga_interchange_schema)/interchange
 
 PART := xc7a35tcpg236-1
 CONSTRAINTS := test_data/series7_constraints.yaml
@@ -9,7 +9,7 @@ LUTS := test_data/series7_luts.yaml
 BEL_BUCKET_SEEDS := test_data/series7_bel_buckets.yaml
 
 .DELETE_ON_ERROR:
-.PHONY: all
+.PHONY: all yaml
 
 all: $(NEXTPNR_PATH)/fpga_interchange/chipdb.bba
 
@@ -50,6 +50,15 @@ $(PART)_constraints_luts.device: $(PART)_constraints.device
 		$(PART)_constraints.device \
 		$(LUTS) \
 		$(PART)_constraints_luts.device
+
+yaml: $(PART)_constraints_luts.device
+	/usr/bin/time -v python3 -mfpga_interchange.convert \
+		--schema_dir $(INTERCHANGE_PATH) \
+		--schema device \
+		--input_format capnp \
+		--output_format yaml \
+		$(PART)_constraints_luts.device \
+		$(PART)_constraints_luts.yaml
 
 $(NEXTPNR_PATH)/fpga_interchange/chipdb.bba: $(PART)_constraints_luts.device
 	/usr/bin/time -v python3 -mfpga_interchange.nextpnr_emit \

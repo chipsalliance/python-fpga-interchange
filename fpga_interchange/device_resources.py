@@ -874,3 +874,8 @@ class DeviceResources():
                     for bel in site_type.bels:
                         yield tile_name, site_name, tile.tile_type, \
                                 site.site_type_name, bel.name
+
+    def get_primitive_library(self):
+        from fpga_interchange.interchange_capnp import to_logical_netlist
+        return to_logical_netlist(self.device_resource_capnp.primLibs,
+                                  self.strs)
