@@ -5,14 +5,14 @@ provide some interoperability with other common formats.
 
 ## Capabilities
 
-This library is planned to support the following capabilities:
+This library supports the following capabilities:
  - Generate FPGA interchange files using Pythonic object model
  - Read FPGA interchange files into Pythonic object model
  - Sanity check logical netlist for completeness and correctness.
  - Sanity check a logical and physical netlist for completeness and
    correctness, given a device database.
- - (Planned) Read some common logical netlist formats in Pythonic object model:
-   - eblif
+ - Read some common logical netlist formats into the Pythonic object model:
+   - (Planned) eblif
    - Yosys Netlist JSON
  - Basic (incomplete) placer constraint solver
 
