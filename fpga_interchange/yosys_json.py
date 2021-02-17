@@ -313,37 +313,40 @@ def convert_cell(module_name, module_data, library, libraries, modules,
                     get_net(bits[0]), cell_name, port_name)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def find_all_cell_types_from_module(module, modules, primitive_cells):
+    """ Determine all of the cells types used in this module.
 
-    parser.add_argument('--schema_dir', required=True)
-    parser.add_argument('--device', required=True)
-    parser.add_argument('--top', required=True)
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument(
-        '--library',
-        default='work',
-        help='Library to put non-primitive elements')
-    parser.add_argument('yosys_json')
-    parser.add_argument('netlist')
+    This includes children of this module, and also includes primitive_cells.
+    The primitive_cells lists is used to determine when this search should
+    stop and not examine within a cell.  This is to prevent exposing yosys
+    internal logic (e.g. specify cells) to the output logical netlist.
 
-    args = parser.parse_args()
+    Returns a set of all cell types uses within the specified module.
 
-    with open(args.yosys_json) as f:
-        yosys_json = json.load(f)
+    """
+    cells_in_module = set()
 
-    assert 'modules' in yosys_json, yosys_json.keys()
+    assert module in modules
 
-    if args.top not in yosys_json['modules']:
-        raise RuntimeError(
-            'Could not find top module in yosys modules: {}'.format(', '.join(
-                yosys_json['modules'].keys())))
+    module_data = modules[module]
+    for cell_name, cell_data in module_data['cells'].items():
+        cell_type = cell_data['type']
 
-    interchange = Interchange(args.schema_dir)
+        cells_in_module.add(cell_type)
 
-    with open(args.device, 'rb') as f:
-        device = interchange.read_device_resources(f)
+        if cell_type not in primitive_cells:
+            cells_in_module |= find_all_cell_types_from_module(
+                cell_type, modules, primitive_cells)
 
+    return cells_in_module
+
+
+def convert_yosys_json(device,
+                       yosys_json,
+                       top,
+                       work_library='work',
+                       verbose=False):
+    """ Converts Yosys Netlist JSON to FPGA interchange logical netlist. """
     primitives = device.get_primitive_library()
     primitive_cells = primitives.get_master_cell_list()
     primitive_lib = {}
@@ -351,31 +354,40 @@ def main():
         for cell in lib.cells.values():
             primitive_lib[cell.name] = lib_name
 
-    name = args.top
+    name = top
     property_map = {}
-    top_module = yosys_json['modules'][args.top]
+    top_module = yosys_json['modules'][top]
     if 'attributes' in top_module:
         property_map.update(top_module['attributes'])
 
-    top_instance_name = args.top
+    top_instance_name = top
     top_instance = CellInstance(
-        property_map=property_map, view='netlist', cell_name=args.top)
+        property_map=property_map, view='netlist', cell_name=top)
 
     libraries = {
-        args.library: Library(args.library),
+        work_library: Library(work_library),
     }
+
+    cells_used_in_top = find_all_cell_types_from_module(
+        top, yosys_json['modules'], primitive_cells)
+    cells_used_in_top.add(top)
 
     module_errors = {}
     for module_name, module_data in yosys_json['modules'].items():
-        if module_name in primitive_cells:
-            if args.verbose:
-                print('Skipping {} because it is a library cell'.format(
+        if module_name not in cells_used_in_top:
+            if verbose:
+                print('Skipping {} because it is an unused cell type'.format(
                     module_name))
-
             continue
 
-        convert_cell(module_name, module_data, args.library, libraries,
-                     yosys_json['modules'], args.verbose, module_errors)
+        if module_name in primitive_cells:
+            if verbose:
+                print('Skipping {} because it is a library cell'.format(
+                    module_name))
+            continue
+
+        convert_cell(module_name, module_data, work_library, libraries,
+                     yosys_json['modules'], verbose, module_errors)
 
     netlist = LogicalNetlist(
         name=name,
@@ -407,6 +419,42 @@ def main():
         prim_cell = primitive_cells[required_cell]
         netlist.libraries[lib_name].add_cell(prim_cell)
 
+    return netlist
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    parser.add_argument('--schema_dir', required=True)
+    parser.add_argument('--device', required=True)
+    parser.add_argument('--top', required=True)
+    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument(
+        '--library',
+        default='work',
+        help='Library to put non-primitive elements')
+    parser.add_argument('yosys_json')
+    parser.add_argument('netlist')
+
+    args = parser.parse_args()
+
+    with open(args.yosys_json) as f:
+        yosys_json = json.load(f)
+
+    assert 'modules' in yosys_json, yosys_json.keys()
+
+    if args.top not in yosys_json['modules']:
+        raise RuntimeError(
+            'Could not find top module in yosys modules: {}'.format(', '.join(
+                yosys_json['modules'].keys())))
+
+    interchange = Interchange(args.schema_dir)
+
+    with open(args.device, 'rb') as f:
+        device = interchange.read_device_resources(f)
+
+    netlist = convert_yosys_json(device, yosys_json, args.top, args.library,
+                                 args.verbose)
     netlist_capnp = netlist.convert_to_capnp(interchange)
 
     with open(args.netlist, 'wb') as f:
