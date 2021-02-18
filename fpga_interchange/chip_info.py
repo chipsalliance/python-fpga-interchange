@@ -236,6 +236,9 @@ class TileTypeInfo():
         # Array of ConstraintTag
         self.tags = []
 
+        # Array of str
+        self.site_types = []
+
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
         return prefix
@@ -253,6 +256,10 @@ class TileTypeInfo():
             for value in getattr(self, field):
                 value.append_bba(bba, prefix)
 
+        bba.label(self.field_label(label, 'site_types'), 'constid')
+        for site_type in self.site_types:
+            bba.str_id(site_type)
+
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
         bba.u32(self.number_sites)
@@ -260,6 +267,9 @@ class TileTypeInfo():
         for field in self.children_fields:
             bba.ref(self.field_label(label_prefix, field))
             bba.u32(len(getattr(self, field)))
+
+        bba.ref(self.field_label(label_prefix, 'site_types'))
+        bba.u32(len(self.site_types))
 
 
 class SiteInstInfo():
@@ -530,6 +540,47 @@ class Package():
         bba.u32(len(self.package_pins))
 
 
+class Constants():
+    def __init__(self):
+        self.gnd_cell_name = ''
+        self.gnd_cell_port = ''
+
+        self.vcc_cell_name = ''
+        self.vcc_cell_port = ''
+
+        self.gnd_bel_tile = 0
+        self.gnd_bel_index = 0
+        self.gnd_bel_pin = ''
+
+        self.vcc_bel_tile = 0
+        self.vcc_bel_index = 0
+        self.vcc_bel_pin = ''
+
+        self.gnd_net_name = ''
+        self.vcc_net_name = ''
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.gnd_cell_name)
+        bba.str_id(self.gnd_cell_port)
+
+        bba.str_id(self.vcc_cell_name)
+        bba.str_id(self.vcc_cell_port)
+
+        bba.u32(self.gnd_bel_tile)
+        bba.u32(self.gnd_bel_index)
+        bba.str_id(self.gnd_bel_pin)
+
+        bba.u32(self.vcc_bel_tile)
+        bba.u32(self.vcc_bel_index)
+        bba.str_id(self.vcc_bel_pin)
+
+        bba.str_id(self.gnd_net_name)
+        bba.str_id(self.vcc_net_name)
+
+
 class ChipInfo():
     def __init__(self):
         self.name = ''
@@ -549,6 +600,7 @@ class ChipInfo():
         self.bel_buckets = []
 
         self.cell_map = CellMap()
+        self.constants = Constants()
 
     def append_bba(self, bba, label_prefix):
         label = label_prefix
@@ -574,11 +626,15 @@ class ChipInfo():
         for s in self.bel_buckets:
             bba.str_id(s)
 
-        cell_map_prefix = '{}.cell_map'.format(label)
-        self.cell_map.append_children_bba(bba, cell_map_prefix)
+        struct_children_fields = ['cell_map', 'constants']
+        struct_children_types = ['CellMapPOD', 'ConstantsPOD']
 
-        bba.label(cell_map_prefix, 'CellMapPOD')
-        self.cell_map.append_bba(bba, cell_map_prefix)
+        for field, field_type in zip(struct_children_fields, struct_children_types):
+            prefix = '{}.{}'.format(label, field)
+            getattr(self, field).append_children_bba(bba, prefix)
+
+            bba.label(prefix, field_type)
+            getattr(self, field).append_bba(bba, prefix)
 
         bba.label(label, 'ChipInfoPOD')
         bba.str(self.name)
@@ -594,7 +650,9 @@ class ChipInfo():
         bba.ref('{}.bel_buckets'.format(label))
         bba.u32(len(self.bel_buckets))
 
-        bba.ref('{}.cell_map'.format(label))
+        for field in struct_children_fields:
+            bba.ref('{}.{}'.format(label, field))
+
         bba.ref(self.strings_label(label))
 
     def strings_label(self, label_prefix):
