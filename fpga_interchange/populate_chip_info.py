@@ -859,6 +859,7 @@ class ConstantNetworkGenerator():
         gnd_bel.site = 0
         gnd_bel.site_variant = -1
         gnd_bel.bel_category = BelCategory.LOGIC.value
+        gnd_bel.synthetic = 1
 
         gnd_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
         gnd_cell_idx = self.cell_bel_mapper.get_cell_index(self.constants.gnd_cell_name)
@@ -885,6 +886,7 @@ class ConstantNetworkGenerator():
         vcc_bel.site = 0
         vcc_bel.site_variant = -1
         vcc_bel.bel_category = BelCategory.LOGIC.value
+        vcc_bel.synthetic = 1
 
         vcc_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
         vcc_cell_idx = self.cell_bel_mapper.get_cell_index(self.constants.vcc_cell_name)
@@ -992,6 +994,7 @@ class ConstantNetworkGenerator():
         gnd_site_port_bel.site = 0
         gnd_site_port_bel.site_variant = -1
         gnd_site_port_bel.bel_category = BelCategory.SITE_PORT.value
+        gnd_site_port_bel.synthetic = 1
 
         # Attach the site port to the site wire.
         gnd_site_port_bel_port = BelPort()
@@ -1041,6 +1044,7 @@ class ConstantNetworkGenerator():
         vcc_site_port_bel.site = 0
         vcc_site_port_bel.site_variant = -1
         vcc_site_port_bel.bel_category = BelCategory.SITE_PORT.value
+        vcc_site_port_bel.synthetic = 1
 
         # Attach the site port to the site wire.
         vcc_site_port_bel_port = BelPort()
@@ -1302,12 +1306,46 @@ class ConstantNetworkGenerator():
                 # Create pip connecting constant network to site wire source.
                 edge = PipInfo()
                 edge.site = bel_info.site
+                edge.site_variant = bel_info.site_variant
                 edge_idx = len(tile_type.pip_data)
                 tile_type.pip_data.append(edge)
 
                 assert src_wire_idx is not None
                 edge.src_index = src_wire_idx
                 edge.dst_index = wire_idx
+                edge.bel = len(tile_type.bel_data)
+
+                # Create site PIP BEL for edge between constant network site
+                # wire and site wire source.
+                site_pip_bel = BelInfo()
+                tile_type.bel_data.append(site_pip_bel)
+
+                site_pip_bel.name = '{}_{}'.format(bel_info.name, tile_type.wire_data[src_wire_idx].name)
+                site_pip_bel.type = 'NA'
+
+                site_pip_bel.ports.append(bel_info.name)
+                site_pip_bel.types.append(PortType.PORT_IN.value)
+                site_pip_bel.wires.append(src_wire_idx)
+
+                site_pip_bel.ports.append(tile_type.wire_data[src_wire_idx].name)
+                site_pip_bel.types.append(PortType.PORT_OUT.value)
+                site_pip_bel.wires.append(wire_idx)
+
+                in_bel_port = BelPort()
+                in_bel_port.bel_index = edge.bel
+                in_bel_port.port = site_pip_bel.ports[0]
+                tile_type.wire_data[src_wire_idx].bel_pins.append(in_bel_port)
+
+                out_bel_port = BelPort()
+                out_bel_port.bel_index = edge.bel
+                out_bel_port.port = site_pip_bel.ports[1]
+                tile_type.wire_data[wire_idx].bel_pins.append(out_bel_port)
+
+                site_pip_bel.bel_bucket = 'UNPLACABLE_BELS'
+                site_pip_bel.site = bel_info.site
+                site_pip_bel.site_variant = bel_info.site_variant
+                site_pip_bel.bel_category = BelCategory.ROUTING.value
+                site_pip_bel.synthetic = 1
 
                 # Update wire data pointing to new pip.
                 tile_type.wire_data[src_wire_idx].pips_downhill.append(edge_idx)
@@ -1337,6 +1375,7 @@ class ConstantNetworkGenerator():
 
                 edge.src_index = src_wire_idx
                 edge.dst_index = wire_idx
+                edge.extra_data = -1
 
                 # Update wire data pointing to new pip.
                 tile_type.wire_data[src_wire_idx].pips_downhill.append(edge_idx)
@@ -1375,6 +1414,7 @@ class ConstantNetworkGenerator():
         site_port_bel.site = site
         site_port_bel.site_variant = site_variant
         site_port_bel.bel_category = BelCategory.SITE_PORT.value
+        site_port_bel.synthetic = 1
 
         site_wire.name = site_wire_name
         site_wire_bel_port = BelPort()

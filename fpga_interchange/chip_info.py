@@ -44,6 +44,9 @@ class BelInfo():
         # What type of BEL is this?
         self.bel_category = 0
 
+        # Is this a synthetic BEL?
+        self.synthetic = 0
+
         # Index into CellMapPOD::cell_bel_pin_map
         self.pin_map = []
 
@@ -85,7 +88,7 @@ class BelInfo():
         bba.u16(self.site)
         bba.u16(self.site_variant)
         bba.u16(self.bel_category)
-        bba.u16(0)
+        bba.u16(self.synthetic)
 
         bba.ref(self.field_label(label_prefix, 'pin_map'))
 
