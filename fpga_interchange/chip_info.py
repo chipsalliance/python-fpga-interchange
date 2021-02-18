@@ -181,6 +181,9 @@ class PipInfo():
         pass
 
     def append_bba(self, bba, label_prefix):
+        assert self.src_index != -1
+        assert self.dst_index != -1
+
         bba.u32(self.src_index)
         bba.u32(self.dst_index)
         bba.u16(self.site)
@@ -221,9 +224,6 @@ class TileTypeInfo():
         # Tile type name
         self.name = ''
 
-        # Number of sites
-        self.number_sites = 0
-
         # Array of BelInfo
         self.bel_data = []
 
@@ -262,7 +262,6 @@ class TileTypeInfo():
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
-        bba.u32(self.number_sites)
 
         for field in self.children_fields:
             bba.ref(self.field_label(label_prefix, field))
