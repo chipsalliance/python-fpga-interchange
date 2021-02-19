@@ -10,7 +10,7 @@ pushd "$GITHUB_WORKSPACE/env"
 popd
 
 export CAPNP_PATH="$GITHUB_WORKSPACE/env/capnproto-java/compiler/src/main/schema/"
-export INTERCHANGE_SCHEMA_PATH="$GITHUB_WORKSPACE/env/RapidWright/interchange"
+export INTERCHANGE_SCHEMA_PATH="$GITHUB_WORKSPACE/env/fpga-interchange-schema/interchange"
 export DEVICE_RESOURCE_PATH="$GITHUB_WORKSPACE/env"
 
 make test-py
