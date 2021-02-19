@@ -631,7 +631,8 @@ class ChipInfo():
         struct_children_fields = ['cell_map', 'constants']
         struct_children_types = ['CellMapPOD', 'ConstantsPOD']
 
-        for field, field_type in zip(struct_children_fields, struct_children_types):
+        for field, field_type in zip(struct_children_fields,
+                                     struct_children_types):
             prefix = '{}.{}'.format(label, field)
             getattr(self, field).append_children_bba(bba, prefix)
 

@@ -814,7 +814,8 @@ class ConstantNetworkGenerator():
         self.tile_name = '$CONSTANTS_X0Y0'
 
         self.tile_type, gnd_bel, vcc_bel = self.create_initial_bels()
-        self.gnd_node_wire, self.vcc_node_wire = self.initialize_constant_network(self.tile_type, gnd_bel, vcc_bel)
+        self.gnd_node_wire, self.vcc_node_wire = self.initialize_constant_network(
+            self.tile_type, gnd_bel, vcc_bel)
 
     def create_initial_bels(self):
         """ Create initial BELs that are the global constant sources. """
@@ -841,16 +842,19 @@ class ConstantNetworkGenerator():
 
         tile_type.site_types.append(self.site_type)
 
-        self.cell_bel_mapper.cell_to_bel_map[self.constants.gnd_cell_name] = set(((
-            self.site_type, self.constants.gnd_cell_name),))
-        self.cell_bel_mapper.cell_to_bel_map[self.constants.vcc_cell_name] = set(((
-            self.site_type, self.constants.vcc_cell_name),))
+        self.cell_bel_mapper.cell_to_bel_map[
+            self.constants.gnd_cell_name] = set(
+                ((self.site_type, self.constants.gnd_cell_name), ))
+        self.cell_bel_mapper.cell_to_bel_map[
+            self.constants.vcc_cell_name] = set(
+                ((self.site_type, self.constants.vcc_cell_name), ))
 
         # Create BELs to be the source of the constant networks.
         gnd_bel = BelInfo()
         gnd_bel.name = self.constants.gnd_cell_name
         gnd_bel.type = self.constants.gnd_cell_name
-        gnd_bel.bel_bucket = self.cell_bel_mapper.cell_to_bel_bucket(self.constants.gnd_cell_name)
+        gnd_bel.bel_bucket = self.cell_bel_mapper.cell_to_bel_bucket(
+            self.constants.gnd_cell_name)
 
         gnd_bel.ports.append(self.constants.gnd_cell_port)
         gnd_bel.types.append(PortType.PORT_OUT)
@@ -862,8 +866,10 @@ class ConstantNetworkGenerator():
         gnd_bel.synthetic = 1
 
         gnd_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
-        gnd_cell_idx = self.cell_bel_mapper.get_cell_index(self.constants.gnd_cell_name)
-        gnd_bel.pin_map[gnd_cell_idx] = self.cell_bel_mapper.get_cell_bel_map_index(
+        gnd_cell_idx = self.cell_bel_mapper.get_cell_index(
+            self.constants.gnd_cell_name)
+        gnd_bel.pin_map[
+            gnd_cell_idx] = self.cell_bel_mapper.get_cell_bel_map_index(
                 cell_type=self.constants.gnd_cell_name,
                 tile_type=self.tile_type_name,
                 site_index=0,
@@ -877,7 +883,8 @@ class ConstantNetworkGenerator():
         vcc_bel = BelInfo()
         vcc_bel.name = self.constants.vcc_cell_name
         vcc_bel.type = self.constants.vcc_cell_name
-        vcc_bel.bel_bucket = self.cell_bel_mapper.cell_to_bel_bucket(self.constants.vcc_cell_name)
+        vcc_bel.bel_bucket = self.cell_bel_mapper.cell_to_bel_bucket(
+            self.constants.vcc_cell_name)
 
         vcc_bel.ports.append(self.constants.vcc_cell_port)
         vcc_bel.types.append(PortType.PORT_OUT)
@@ -889,8 +896,10 @@ class ConstantNetworkGenerator():
         vcc_bel.synthetic = 1
 
         vcc_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
-        vcc_cell_idx = self.cell_bel_mapper.get_cell_index(self.constants.vcc_cell_name)
-        vcc_bel.pin_map[vcc_cell_idx] = self.cell_bel_mapper.get_cell_bel_map_index(
+        vcc_cell_idx = self.cell_bel_mapper.get_cell_index(
+            self.constants.vcc_cell_name)
+        vcc_bel.pin_map[
+            vcc_cell_idx] = self.cell_bel_mapper.get_cell_bel_map_index(
                 cell_type=self.constants.vcc_cell_name,
                 tile_type=self.tile_type_name,
                 site_index=0,
@@ -906,13 +915,11 @@ class ConstantNetworkGenerator():
 
         key = (self.constants.gnd_cell_name, self.site_type, gnd_bel.name)
         self.cell_bel_mapper.cell_to_bel_common_pins[key] = ((
-            self.constants.gnd_cell_port,
-            self.constants.gnd_cell_port),)
+            self.constants.gnd_cell_port, self.constants.gnd_cell_port), )
 
         key = (self.constants.vcc_cell_name, self.site_type, vcc_bel.name)
         self.cell_bel_mapper.cell_to_bel_common_pins[key] = ((
-            self.constants.vcc_cell_port,
-            self.constants.vcc_cell_port),)
+            self.constants.vcc_cell_port, self.constants.vcc_cell_port), )
 
         tile_type.name = self.tile_type_name
 
@@ -1070,7 +1077,8 @@ class ConstantNetworkGenerator():
         tile_idx = 0
 
         # Overwrite tile at 0,0 assuming that it is a NULL tile.
-        tile_type_name = self.chip_info.tile_types[self.chip_info.tiles[tile_idx].type].name
+        tile_type_name = self.chip_info.tile_types[self.chip_info.
+                                                   tiles[tile_idx].type].name
         assert tile_type_name == 'NULL', tile_type_name
 
         self.constants.gnd_bel_tile = tile_idx
@@ -1086,11 +1094,14 @@ class ConstantNetworkGenerator():
         site_inst.site_name = self.site_name
         site_inst.site_type = self.site_type
 
-        self.chip_info.tiles[tile_idx].tile_wire_to_node = [-1 for _ in range(len(self.tile_type.wire_data))]
+        self.chip_info.tiles[tile_idx].tile_wire_to_node = [
+            -1 for _ in range(len(self.tile_type.wire_data))
+        ]
 
         # Create nodes for the global constant network
         gnd_node_idx = len(self.chip_info.nodes)
-        self.chip_info.tiles[tile_idx].tile_wire_to_node[self.gnd_node_wire] = gnd_node_idx
+        self.chip_info.tiles[tile_idx].tile_wire_to_node[
+            self.gnd_node_wire] = gnd_node_idx
         gnd_node = NodeInfo()
         self.chip_info.nodes.append(gnd_node)
         gnd_node.name = 'gnd_node'
@@ -1102,7 +1113,8 @@ class ConstantNetworkGenerator():
         gnd_node_ref.index = self.gnd_node_wire
 
         vcc_node_idx = len(self.chip_info.nodes)
-        self.chip_info.tiles[tile_idx].tile_wire_to_node[self.vcc_node_wire] = vcc_node_idx
+        self.chip_info.tiles[tile_idx].tile_wire_to_node[
+            self.vcc_node_wire] = vcc_node_idx
         vcc_node = NodeInfo()
         self.chip_info.nodes.append(vcc_node)
         vcc_node.name = 'vcc_node'
@@ -1138,7 +1150,8 @@ class ConstantNetworkGenerator():
             if tile_type_idx == self.tile_type_index:
                 continue
 
-            tile_type_data = device.device_resource_capnp.tileTypeList[tile_type_idx]
+            tile_type_data = device.device_resource_capnp.tileTypeList[
+                tile_type_idx]
             assert device.strs[tile_type_data.name] == tile_type.name
 
             for wire_constant in tile_type_data.constants:
@@ -1150,7 +1163,8 @@ class ConstantNetworkGenerator():
                     assert False, wire_constant.constant
 
             for site_in_tile_type in tile_type_data.siteTypes:
-                site_type = device.device_resource_capnp.siteTypeList[site_in_tile_type.primaryType]
+                site_type = device.device_resource_capnp.siteTypeList[
+                    site_in_tile_type.primaryType]
 
                 site_type_name = device.strs[site_type.name]
                 if site_type_name in site_types_with_gnd:
@@ -1160,7 +1174,8 @@ class ConstantNetworkGenerator():
                     tile_types_with_vcc.add(tile_type_idx)
 
                 for alt_site_type_idx in site_type.altSiteTypes:
-                    alt_site_type = device.device_resource_capnp.siteTypeList[alt_site_type_idx]
+                    alt_site_type = device.device_resource_capnp.siteTypeList[
+                        alt_site_type_idx]
 
                     site_type_name = device.strs[alt_site_type.name]
                     if site_type_name in site_types_with_gnd:
@@ -1189,10 +1204,10 @@ class ConstantNetworkGenerator():
                 continue
 
             gnd_wire_idx = tile_type_gnd_wires[tile.type]
-            assert gnd_wire_idx >= len(tile.tile_wire_to_node), (
-                    gnd_wire_idx,
-                    len(tile.tile_wire_to_node),
-                    len(tile_type.wire_data))
+            assert gnd_wire_idx >= len(
+                tile.tile_wire_to_node), (gnd_wire_idx,
+                                          len(tile.tile_wire_to_node),
+                                          len(tile_type.wire_data))
 
             while gnd_wire_idx > len(tile.tile_wire_to_node):
                 tile.tile_wire_to_node.append(-1)
@@ -1243,18 +1258,22 @@ class ConstantNetworkGenerator():
             vcc_wire_idx = tile_type_vcc_wires.get(tile_type_idx, None)
 
             self.connect_tile_type(tile_type_idx, gnd_wire_idx, vcc_wire_idx,
-                    bel_pins_connected_to_gnd, bel_pins_connected_to_vcc)
+                                   bel_pins_connected_to_gnd,
+                                   bel_pins_connected_to_vcc)
 
         # FIXME: Implement node constant sources.
         #
         # Node constant sources are rarer, and less important, so don't
         # import them right now.
 
-    def connect_tile_type(self, tile_type_idx, gnd_wire_idx, vcc_wire_idx, bel_pins_connected_to_gnd, bel_pins_connected_to_vcc):
+    def connect_tile_type(self, tile_type_idx, gnd_wire_idx, vcc_wire_idx,
+                          bel_pins_connected_to_gnd,
+                          bel_pins_connected_to_vcc):
         device = self.device
 
         tile_type = self.chip_info.tile_types[tile_type_idx]
-        tile_type_data = self.device.device_resource_capnp.tileTypeList[tile_type_idx]
+        tile_type_data = self.device.device_resource_capnp.tileTypeList[
+            tile_type_idx]
         assert device.strs[tile_type_data.name] == tile_type.name
 
         gnd_site_wires = {}
@@ -1275,12 +1294,12 @@ class ConstantNetworkGenerator():
                     gnd_site_wire_idx = gnd_site_wires.get(bel_info.site, None)
                     if gnd_site_wire_idx is None:
                         gnd_site_wire_idx = self.build_input_site_port(
-                                tile_type_idx=tile_type_idx,
-                                port_name='$GND',
-                                site_wire_name='$GND_SITE_WIRE',
-                                tile_wire_idx=gnd_wire_idx,
-                                site=bel_info.site,
-                                site_variant=bel_info.site_variant)
+                            tile_type_idx=tile_type_idx,
+                            port_name='$GND',
+                            site_wire_name='$GND_SITE_WIRE',
+                            tile_wire_idx=gnd_wire_idx,
+                            site=bel_info.site,
+                            site_variant=bel_info.site_variant)
 
                         gnd_site_wires[bel_info.site] = gnd_site_wire_idx
 
@@ -1290,12 +1309,12 @@ class ConstantNetworkGenerator():
                     vcc_site_wire_idx = vcc_site_wires.get(bel_info.site, None)
                     if vcc_site_wire_idx is None:
                         vcc_site_wire_idx = self.build_input_site_port(
-                                tile_type_idx=tile_type_idx,
-                                port_name='$VCC',
-                                site_wire_name='$VCC_SITE_WIRE',
-                                tile_wire_idx=vcc_wire_idx,
-                                site=bel_info.site,
-                                site_variant=bel_info.site_variant)
+                            tile_type_idx=tile_type_idx,
+                            port_name='$VCC',
+                            site_wire_name='$VCC_SITE_WIRE',
+                            tile_wire_idx=vcc_wire_idx,
+                            site=bel_info.site,
+                            site_variant=bel_info.site_variant)
 
                         vcc_site_wires[bel_info.site] = vcc_site_wire_idx
 
@@ -1320,14 +1339,16 @@ class ConstantNetworkGenerator():
                 site_pip_bel = BelInfo()
                 tile_type.bel_data.append(site_pip_bel)
 
-                site_pip_bel.name = '{}_{}'.format(bel_info.name, tile_type.wire_data[src_wire_idx].name)
+                site_pip_bel.name = '{}_{}'.format(
+                    bel_info.name, tile_type.wire_data[src_wire_idx].name)
                 site_pip_bel.type = 'NA'
 
                 site_pip_bel.ports.append(bel_info.name)
                 site_pip_bel.types.append(PortType.PORT_IN.value)
                 site_pip_bel.wires.append(src_wire_idx)
 
-                site_pip_bel.ports.append(tile_type.wire_data[src_wire_idx].name)
+                site_pip_bel.ports.append(
+                    tile_type.wire_data[src_wire_idx].name)
                 site_pip_bel.types.append(PortType.PORT_OUT.value)
                 site_pip_bel.wires.append(wire_idx)
 
@@ -1348,7 +1369,8 @@ class ConstantNetworkGenerator():
                 site_pip_bel.synthetic = 1
 
                 # Update wire data pointing to new pip.
-                tile_type.wire_data[src_wire_idx].pips_downhill.append(edge_idx)
+                tile_type.wire_data[src_wire_idx].pips_downhill.append(
+                    edge_idx)
                 tile_type.wire_data[wire_idx].pips_uphill.append(edge_idx)
 
         for wire_constant in tile_type_data.constants:
@@ -1378,10 +1400,12 @@ class ConstantNetworkGenerator():
                 edge.extra_data = -1
 
                 # Update wire data pointing to new pip.
-                tile_type.wire_data[src_wire_idx].pips_downhill.append(edge_idx)
+                tile_type.wire_data[src_wire_idx].pips_downhill.append(
+                    edge_idx)
                 tile_type.wire_data[wire_idx].pips_uphill.append(edge_idx)
 
-    def build_input_site_port(self, tile_type_idx, port_name, site_wire_name, tile_wire_idx, site, site_variant):
+    def build_input_site_port(self, tile_type_idx, port_name, site_wire_name,
+                              tile_wire_idx, site, site_variant):
         tile_type = self.chip_info.tile_types[tile_type_idx]
 
         site_port_edge_idx = len(tile_type.pip_data)
@@ -1400,7 +1424,8 @@ class ConstantNetworkGenerator():
         site_port_edge.bel = site_port_bel_idx
 
         site_port_edge.src_index = tile_wire_idx
-        tile_type.wire_data[tile_wire_idx].pips_downhill.append(site_port_edge_idx)
+        tile_type.wire_data[tile_wire_idx].pips_downhill.append(
+            site_port_edge_idx)
 
         site_port_edge.dst_index = site_wire_idx
         site_wire.pips_uphill.append(site_port_edge_idx)
@@ -1562,8 +1587,8 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
                 tile_info.sites.append(len(chip_info.sites))
                 chip_info.sites.append(alt_site_info)
 
-        assert len(
-            tile_info.sites) == len(chip_info.tile_types[tile.type].site_types), (
+        assert len(tile_info.sites) == len(
+            chip_info.tile_types[tile.type].site_types), (
                 tile_info.name, len(tile_info.sites),
                 len(chip_info.tile_types[tile.type].site_types))
 
