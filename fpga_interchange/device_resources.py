@@ -45,6 +45,11 @@ def can_be_connected(a_direction, b_direction):
         return b_direction == Direction.Input, (a_direction, b_direction)
 
 
+Constants = namedtuple(
+    'Constants',
+    'VCC_CELL_TYPE GND_CELL_TYPE VCC_PORT GND_PORT VCC_NET GND_NET')
+
+
 class Tile(
         namedtuple(
             'Tile',
@@ -879,3 +884,25 @@ class DeviceResources():
         from fpga_interchange.interchange_capnp import to_logical_netlist
         return to_logical_netlist(self.device_resource_capnp.primLibs,
                                   self.strs)
+
+    def get_constants(self):
+        constants = self.device_resource_capnp.constants
+
+        # Have a default in case it can be any name!
+        vcc_net_name = 'GLOBAL_LOGIC1'
+        gnd_net_name = 'GLOBAL_LOGIC0'
+
+        if constants.vccNetName.which() == 'name':
+            vcc_net_name = constants.vccNetName.name
+
+        if constants.gndNetName.which() == 'name':
+            gnd_net_name = constants.gndNetName.name
+
+        return Constants(
+            VCC_CELL_TYPE=self.strs[constants.vccCellType],
+            GND_CELL_TYPE=self.strs[constants.gndCellType],
+            VCC_PORT=self.strs[constants.vccCellPin],
+            GND_PORT=self.strs[constants.gndCellPin],
+            VCC_NET=vcc_net_name,
+            GND_NET=gnd_net_name,
+        )

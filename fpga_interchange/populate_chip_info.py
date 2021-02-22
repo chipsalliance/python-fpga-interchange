@@ -819,12 +819,13 @@ class ConstantNetworkGenerator():
 
     def create_initial_bels(self):
         """ Create initial BELs that are the global constant sources. """
-        # FIXME: Pull these constants from device
-        self.constants.gnd_cell_name = 'GND'
-        self.constants.gnd_cell_port = 'G'
+        consts = self.device.get_constants()
 
-        self.constants.vcc_cell_name = 'VCC'
-        self.constants.vcc_cell_port = 'P'
+        self.constants.gnd_cell_name = consts.GND_CELL_TYPE
+        self.constants.gnd_cell_port = consts.GND_PORT
+
+        self.constants.vcc_cell_name = consts.VCC_CELL_TYPE
+        self.constants.vcc_cell_port = consts.VCC_PORT
 
         self.constants.gnd_bel_index = 0
         self.constants.gnd_bel_pin = self.constants.gnd_cell_port
@@ -832,9 +833,8 @@ class ConstantNetworkGenerator():
         self.constants.vcc_bel_index = 1
         self.constants.vcc_bel_pin = self.constants.vcc_cell_port
 
-        # FIXME: Pull these constants from device
-        self.constants.gnd_net_name = 'GLOBAL_LOGIC0'
-        self.constants.vcc_net_name = 'GLOBAL_LOGIC1'
+        self.constants.gnd_net_name = consts.GND_NET
+        self.constants.vcc_net_name = consts.VCC_NET
 
         tile_type = TileTypeInfo()
         self.tile_type_index = len(self.chip_info.tile_types)
