@@ -893,10 +893,10 @@ class DeviceResources():
         gnd_net_name = 'GLOBAL_LOGIC0'
 
         if constants.vccNetName.which() == 'name':
-            vcc_net_name = constants.vccNetName.name
+            vcc_net_name = self.strs[constants.vccNetName.name]
 
         if constants.gndNetName.which() == 'name':
-            gnd_net_name = constants.gndNetName.name
+            gnd_net_name = self.strs[constants.gndNetName.name]
 
         return Constants(
             VCC_CELL_TYPE=self.strs[constants.vccCellType],

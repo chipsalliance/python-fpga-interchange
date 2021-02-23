@@ -11,7 +11,6 @@
 """ Utility for converting yosys json to logical netlist. """
 import argparse
 import json
-from collections import namedtuple
 
 from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
 from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
@@ -255,12 +254,12 @@ def convert_cell(module_name, module_data, library, libraries, modules,
         if 'attributes' in port_data:
             property_map = port_data['attributes']
 
-        offset = net_data.get('offset', 0)
-        upto = net_data.get('upto', False)
+        offset = port_data.get('offset', 0)
+        upto = port_data.get('upto', False)
 
         if is_bus(port_data['bits'], offset, upto):
-            start = offset
-            end = start + len(port_data['bits']) - 1
+            end = offset
+            start = offset + len(port_data['bits']) - 1
 
             if upto:
                 start, end = end, start
