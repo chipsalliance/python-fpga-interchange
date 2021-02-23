@@ -72,13 +72,6 @@ def interp_yosys_net(bits, offset, upto):
             yield offset + (len(bits) - 1) - idx, bit
 
 
-# FIXME: These constants should likely be from the device database.
-VCC_CELL_TYPE = 'VCC'
-GND_CELL_TYPE = 'GND'
-VCC_PORT = 'P'
-GND_PORT = 'G'
-
-
 def create_unique_name(names, base_name):
     if base_name not in names:
         return base_name
@@ -92,26 +85,26 @@ def create_unique_name(names, base_name):
         idx += 1
 
 
-def make_vcc_cell(cell, module_data):
+def make_vcc_cell(cell, module_data, consts):
     cell_names = set(cell.cell_instances.keys()) | set(
         module_data['cells'].keys())
     vcc_cell = create_unique_name(cell_names, '$__vcc')
-    cell.add_cell_instance(name=vcc_cell, cell_name=VCC_CELL_TYPE)
+    cell.add_cell_instance(name=vcc_cell, cell_name=consts.VCC_CELL_TYPE)
 
     return vcc_cell
 
 
-def make_gnd_cell(cell, module_data):
+def make_gnd_cell(cell, module_data, consts):
     cell_names = set(cell.cell_instances.keys()) | set(
         module_data['cells'].keys())
     gnd_cell = create_unique_name(cell_names, '$__gnd')
-    cell.add_cell_instance(name=gnd_cell, cell_name=GND_CELL_TYPE)
+    cell.add_cell_instance(name=gnd_cell, cell_name=consts.GND_CELL_TYPE)
 
     return gnd_cell
 
 
 def convert_cell(module_name, module_data, library, libraries, modules,
-                 verbose, errors):
+                 verbose, errors, consts):
     for cell_name, cell_data in module_data['cells'].items():
         # Don't import modules that are missing children, they likely aren't
         # important.
@@ -145,10 +138,12 @@ def convert_cell(module_name, module_data, library, libraries, modules,
 
                 if bit == '0':
                     cell.connect_net_to_instance(
-                        name, make_gnd_cell(cell, module_data), GND_PORT)
+                        name, make_gnd_cell(cell, module_data, consts),
+                        consts.GND_PORT)
                 elif bit == '1':
                     cell.connect_net_to_instance(
-                        name, make_vcc_cell(cell, module_data), VCC_PORT)
+                        name, make_vcc_cell(cell, module_data, consts),
+                        consts.VCC_PORT)
                 else:
                     assert isinstance(bit, int), bit
 
@@ -166,13 +161,13 @@ def convert_cell(module_name, module_data, library, libraries, modules,
 
             bit = net_data['bits'][0]
             if bit == '0':
-                cell.connect_net_to_instance(net_name,
-                                             make_gnd_cell(cell, module_data),
-                                             GND_PORT)
+                cell.connect_net_to_instance(
+                    net_name, make_gnd_cell(cell, module_data, consts),
+                    consts.GND_PORT)
             elif bit == '1':
-                cell.connect_net_to_instance(net_name,
-                                             make_vcc_cell(cell, module_data),
-                                             VCC_PORT)
+                cell.connect_net_to_instance(
+                    net_name, make_vcc_cell(cell, module_data, consts),
+                    consts.VCC_PORT)
             else:
                 assert isinstance(bit, int)
 
@@ -218,26 +213,28 @@ def convert_cell(module_name, module_data, library, libraries, modules,
             nonlocal gnd_cell
             nonlocal gnd_net
             if gnd_cell is None:
-                gnd_cell = make_gnd_cell(cell, module_data)
+                gnd_cell = make_gnd_cell(cell, module_data, consts)
                 net_names = set(cell.nets.keys()) | set(
                     module_data['netnames'].keys())
                 gnd_net = create_unique_name(net_names, '$__gnd_net')
 
                 cell.add_net(gnd_net)
-                cell.connect_net_to_instance(gnd_net, gnd_cell, GND_PORT)
+                cell.connect_net_to_instance(gnd_net, gnd_cell,
+                                             consts.GND_PORT)
 
             return gnd_net
         elif bit == '1':
             nonlocal vcc_cell
             nonlocal vcc_net
             if vcc_cell is None:
-                vcc_cell = make_vcc_cell(cell, module_data)
+                vcc_cell = make_vcc_cell(cell, module_data, consts)
                 net_names = set(cell.nets.keys()) | set(
                     module_data['netnames'].keys())
                 vcc_net = create_unique_name(net_names, '$__vcc_net')
 
                 cell.add_net(vcc_net)
-                cell.connect_net_to_instance(vcc_net, vcc_cell, VCC_PORT)
+                cell.connect_net_to_instance(vcc_net, vcc_cell,
+                                             consts.VCC_PORT)
 
             return vcc_net
         else:
@@ -257,12 +254,12 @@ def convert_cell(module_name, module_data, library, libraries, modules,
         if 'attributes' in port_data:
             property_map = port_data['attributes']
 
-        offset = net_data.get('offset', 0)
-        upto = net_data.get('upto', False)
+        offset = port_data.get('offset', 0)
+        upto = port_data.get('upto', False)
 
         if is_bus(port_data['bits'], offset, upto):
-            start = offset
-            end = start + len(port_data['bits']) - 1
+            end = offset
+            start = offset + len(port_data['bits']) - 1
 
             if upto:
                 start, end = end, start
@@ -354,6 +351,8 @@ def convert_yosys_json(device,
         for cell in lib.cells.values():
             primitive_lib[cell.name] = lib_name
 
+    consts = device.get_constants()
+
     name = top
     property_map = {}
     top_module = yosys_json['modules'][top]
@@ -387,7 +386,7 @@ def convert_yosys_json(device,
             continue
 
         convert_cell(module_name, module_data, work_library, libraries,
-                     yosys_json['modules'], verbose, module_errors)
+                     yosys_json['modules'], verbose, module_errors, consts)
 
     netlist = LogicalNetlist(
         name=name,
