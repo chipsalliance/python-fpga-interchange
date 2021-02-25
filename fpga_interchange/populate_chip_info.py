@@ -14,7 +14,8 @@ from collections import namedtuple
 from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
-        CellConstraint, ConstraintType, Package, PackagePin
+        CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
+        LutElement, LutBel
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -52,7 +53,8 @@ BelPin = namedtuple('BelPin', 'port type wire')
 
 
 class FlattenedBel():
-    def __init__(self, name, type, site_index, bel_index, bel_category):
+    def __init__(self, name, type, site_index, bel_index, bel_category,
+                 lut_element):
         self.name = name
         self.type = type
         self.site_index = site_index
@@ -61,6 +63,7 @@ class FlattenedBel():
         self.ports = []
 
         self.valid_cells = set()
+        self.lut_element = lut_element
 
     def add_port(self, device, bel_pin, wire_index):
         self.ports.append(
@@ -143,9 +146,40 @@ def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
         cell_bel_mapper.cell_to_bel_constraints[idx] = outs
 
 
+class LutElementsEmitter():
+    def __init__(self, luts):
+        self.luts = luts
+
+    def emit(self, lut_elements):
+        output_map = {}
+
+        for lut in self.luts:
+            lut_element_idx = len(lut_elements)
+            lut_element = LutElement(lut_element_idx)
+            lut_elements.append(lut_element)
+
+            lut_element.width = lut.width
+
+            for bel in lut.bels:
+                lut_bel = LutBel()
+                lut_element.lut_bels.append(lut_bel)
+
+                lut_bel.name = bel.name
+                for pin in bel.inputPins:
+                    lut_bel.pins.append(pin)
+
+                lut_bel.low_bit = bel.lowBit
+                lut_bel.high_bit = bel.highBit
+
+                assert bel.name not in output_map, (bel.name, )
+                output_map[bel.name] = lut_element_idx
+
+        return output_map
+
+
 class FlattenedTileType():
     def __init__(self, device, tile_type_index, tile_type, cell_bel_mapper,
-                 constraints):
+                 constraints, lut_elements):
         self.tile_type_name = device.strs[tile_type.name]
         self.tile_type = tile_type
 
@@ -157,6 +191,9 @@ class FlattenedTileType():
         self.wires = []
 
         self.pips = []
+
+        self.lut_elements = []
+        self.lut_elements_map = {}
 
         # Add tile wires
         self.tile_wire_to_wire_in_tile_index = {}
@@ -189,17 +226,28 @@ class FlattenedTileType():
 
             self.add_site_type(device, site_type_in_tile_type,
                                site_in_type_index, site_type_index,
-                               site_variant, cell_bel_mapper)
+                               site_variant, cell_bel_mapper, lut_elements)
 
             for site_variant, (alt_site_type_index, _) in enumerate(
                     zip(primary_site_type.altSiteTypes,
                         site_type_in_tile_type.altPinsToPrimaryPins)):
                 self.add_site_type(device, site_type_in_tile_type,
                                    site_in_type_index, alt_site_type_index,
-                                   site_variant, cell_bel_mapper,
+                                   site_variant, cell_bel_mapper, lut_elements,
                                    primary_site_type)
         self.remap_bel_indicies()
         self.generate_constraints(constraints)
+
+    def get_lut_element_for_bel(self, lut_elements, site_type_name, site_index,
+                                bel_name):
+        if site_type_name not in lut_elements:
+            return -1
+
+        if site_index not in self.lut_elements_map:
+            self.lut_elements_map[site_index] = lut_elements[
+                site_type_name].emit(self.lut_elements)
+
+        return self.lut_elements_map[site_index].get(bel_name, -1)
 
     def generate_constraints(self, constraints):
         tags_for_tile_type = {}
@@ -312,6 +360,7 @@ class FlattenedTileType():
                       site_type_index,
                       site_variant,
                       cell_bel_mapper,
+                      lut_elements,
                       primary_site_type=None):
         if site_variant == -1:
             assert primary_site_type is None
@@ -367,7 +416,13 @@ class FlattenedTileType():
                 type=device.strs[bel.type],
                 site_index=site_index,
                 bel_index=bel_idx,
-                bel_category=bel_category)
+                bel_category=bel_category,
+                lut_element=self.get_lut_element_for_bel(
+                    lut_elements=lut_elements,
+                    site_type_name=site_type_name,
+                    site_index=site_index,
+                    bel_name=device.strs[bel.name],
+                ))
             bel_index = len(self.bels)
             bel_to_bel_index[bel_idx] = bel_index
             self.bels.append(flat_bel)
@@ -478,6 +533,7 @@ class FlattenedTileType():
     def create_tile_type_info(self, cell_bel_mapper):
         tile_type = TileTypeInfo()
         tile_type.name = self.tile_type_name
+        tile_type.lut_elements = self.lut_elements
 
         bels_used = set()
         for bel_index in range(len(self.bels)):
@@ -498,6 +554,7 @@ class FlattenedTileType():
             bel_info.site = bel.site_index
             bel_info.site_variant = self.sites[bel.site_index].site_variant
             bel_info.bel_category = bel.bel_category.value
+            bel_info.lut_element = bel.lut_element
 
             site_type = self.sites[bel.site_index].site_type_name
 
@@ -1478,6 +1535,20 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
         chip_info.cell_map.add_cell(
             cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
 
+    for lut_cell in device.device_resource_capnp.lutDefinitions.lutCells:
+        out = LutCell()
+        out.cell = lut_cell.cell
+
+        for pin in lut_cell.inputPins:
+            out.input_pins.append(pin)
+
+        assert lut_cell.equation.which(
+        ) == 'initParam', lut_cell.equation.which()
+
+        out.parameter = lut_cell.equation.initParam
+
+        chip_info.cell_map.lut_cells.append(out)
+
     for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
         chip_info.bel_buckets.append(bel_bucket)
 
@@ -1486,10 +1557,16 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
 
     constraints = device.get_constraints()
 
+    lut_elements = {}
+    for lut_element in device.device_resource_capnp.lutDefinitions.lutElements:
+        assert lut_element.site not in lut_elements
+        lut_elements[lut_element.site] = LutElementsEmitter(lut_element.luts)
+
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
-        flattened_tile_type = FlattenedTileType(
-            device, tile_type_index, tile_type, cell_bel_mapper, constraints)
+        flattened_tile_type = FlattenedTileType(device, tile_type_index,
+                                                tile_type, cell_bel_mapper,
+                                                constraints, lut_elements)
 
         tile_type_info = flattened_tile_type.create_tile_type_info(
             cell_bel_mapper)

@@ -47,6 +47,9 @@ class BelInfo():
         # Is this a synthetic BEL?
         self.synthetic = 0
 
+        # -1 if this is not a LUT type BEL, index into tile_type.lut_elements.
+        self.lut_element = -1
+
         # Index into CellMapPOD::cell_bel_pin_map
         self.pin_map = []
 
@@ -88,7 +91,8 @@ class BelInfo():
         bba.u16(self.site)
         bba.u16(self.site_variant)
         bba.u16(self.bel_category)
-        bba.u16(self.synthetic)
+        bba.u8(self.synthetic)
+        bba.u8(self.lut_element)
 
         bba.ref(self.field_label(label_prefix, 'pin_map'))
 
@@ -217,10 +221,62 @@ class ConstraintTag():
         bba.u32(len(self.states))
 
 
+class LutBel():
+    def __init__(self):
+        self.name = ''
+        self.pins = []
+        self.low_bit = 0
+        self.high_bit = 0
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'pins'), 'constids')
+        for pin in self.pins:
+            bba.str_id(pin)
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.ref(self.field_label(label_prefix, 'pins'))
+        bba.u32(len(self.pins))
+        bba.u32(self.low_bit)
+        bba.u32(self.high_bit)
+
+
+class LutElement():
+    def __init__(self, lut_element_idx):
+        self.lut_element_idx = lut_element_idx
+        self.width = 0
+        self.lut_bels = []
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.lut_element_idx, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = self.field_label(label_prefix, 'lut_bels')
+        for lut_bel in self.lut_bels:
+            lut_bel.append_children_bba(bba, label)
+
+        bba.label(label, 'LutBelPOD')
+        for lut_bel in self.lut_bels:
+            lut_bel.append_bba(bba, label)
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.width)
+        bba.ref(self.field_label(label_prefix, 'lut_bels'))
+        bba.u32(len(self.lut_bels))
+
+
 class TileTypeInfo():
-    children_fields = ['bel_data', 'wire_data', 'pip_data', 'tags']
+    children_fields = [
+        'bel_data', 'wire_data', 'pip_data', 'tags', 'lut_elements'
+    ]
     children_types = [
-        'BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD'
+        'BelInfoPOD', 'TileWireInfoPOD', 'PipInfoPOD', 'ConstraintTagPOD',
+        'LutElementPOD'
     ]
 
     def __init__(self):
@@ -238,6 +294,9 @@ class TileTypeInfo():
 
         # Array of ConstraintTag
         self.tags = []
+
+        # Array of LutElement
+        self.lut_elements = []
 
         # Array of str
         self.site_types = []
@@ -454,15 +513,38 @@ class CellBelMap():
             bba.u32(len(getattr(self, field)))
 
 
+class LutCell():
+    def __init__(self):
+        self.cell = ''
+        self.input_pins = []
+        self.parameter = ''
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.cell, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'input_pins'), 'constids')
+        for pin in self.input_pins:
+            bba.str_id(pin)
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell)
+        bba.ref(self.field_label(label_prefix, 'input_pins'))
+        bba.u32(len(self.input_pins))
+        bba.str_id(self.parameter)
+
+
 class CellMap():
     int_fields = ['cell_names', 'cell_bel_buckets']
-    fields = ['cell_bel_map']
-    field_types = ['CellBelMapPOD']
+    fields = ['cell_bel_map', 'lut_cells']
+    field_types = ['CellBelMapPOD', 'LutCellPOD']
 
     def __init__(self):
         self.cell_names = []
         self.cell_bel_buckets = []
         self.cell_bel_map = []
+        self.lut_cells = []
 
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
