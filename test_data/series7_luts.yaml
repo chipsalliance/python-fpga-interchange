@@ -2,21 +2,29 @@ lutCells:
 - cell: LUT1
   inputPins:
     - I0
+  equation:
+    initParam: INIT
 - cell: LUT2
   inputPins:
     - I0
     - I1
+  equation:
+    initParam: INIT
 - cell: LUT3
   inputPins:
     - I0
     - I1
     - I2
+  equation:
+    initParam: INIT
 - cell: LUT4
   inputPins:
     - I0
     - I1
     - I2
     - I3
+  equation:
+    initParam: INIT
 - cell: LUT5
   inputPins:
     - I0
@@ -24,6 +32,8 @@ lutCells:
     - I2
     - I3
     - I4
+  equation:
+    initParam: INIT
 - cell: LUT6
   inputPins:
     - I0
@@ -32,8 +42,104 @@ lutCells:
     - I3
     - I4
     - I5
+  equation:
+    initParam: INIT
 lutElements:
 - site: SLICEL
+  luts:
+    - width: 64
+      bels:
+      - name: A6LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        - A6
+        outputPin: O6
+        lowBit: 0
+        highBit: 63
+      - name: A5LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        outputPin: O5
+        lowBit: 0
+        highBit: 31
+    - width: 64
+      bels:
+      - name: B6LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        - A6
+        outputPin: O6
+        lowBit: 0
+        highBit: 63
+      - name: B5LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        outputPin: O5
+        lowBit: 0
+        highBit: 31
+    - width: 64
+      bels:
+      - name: C6LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        - A6
+        outputPin: O6
+        lowBit: 0
+        highBit: 63
+      - name: C5LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        outputPin: O5
+        lowBit: 0
+        highBit: 31
+    - width: 64
+      bels:
+      - name: D6LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        - A6
+        outputPin: O6
+        lowBit: 0
+        highBit: 63
+      - name: D5LUT
+        inputPins:
+        - A1
+        - A2
+        - A3
+        - A4
+        - A5
+        outputPin: O5
+        lowBit: 0
+        highBit: 31
+- site: SLICEM
   luts:
     - width: 64
       bels:
