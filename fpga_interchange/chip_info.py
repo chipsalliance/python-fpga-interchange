@@ -10,6 +10,9 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 
+# Note: Bump ChipInfo.version number each time schema changes to allow nextpnr
+# binary to detect changes to schema.
+
 
 class ConstraintType(Enum):
     TAG_IMPLIES = 0
@@ -681,6 +684,7 @@ class ChipInfo():
         self.name = ''
         self.generator = ''
 
+        # Note: Bump this whenever schema changes.
         self.version = 1
         self.width = 0
         self.height = 0
