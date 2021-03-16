@@ -291,7 +291,11 @@ class FlattenedTileType():
                         if port.port in pins:
                             pseudo_cell_pins_needed.discard((bel.name,
                                                              port.port))
-                            pseudo_cell_wires.add(port.wire)
+
+                            if port.type == PortType.PORT_OUT:
+                                # Only record wires driven by BEL pin outputs.
+                                # BEL pin inputs do not consume the wire.
+                                pseudo_cell_wires.add(port.wire)
 
             # Make sure every BEL pin from the database matches at least 1
             # instance (possibly more!).
