@@ -681,7 +681,7 @@ class ChipInfo():
         self.name = ''
         self.generator = ''
 
-        self.version = 0
+        self.version = 1
         self.width = 0
         self.height = 0
 
