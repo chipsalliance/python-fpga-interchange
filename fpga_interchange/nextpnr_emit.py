@@ -35,6 +35,10 @@ def main():
         bel_bucket_seeds = yaml.safe_load(f.read())
 
     const_ids = Enumerator()
+
+    # ID = 0 is always the empty string!
+    assert const_ids.get_index('') == 0
+
     chip_info = populate_chip_info(device, const_ids,
                                    bel_bucket_seeds['buckets'])
 
@@ -51,10 +55,10 @@ def main():
 
         bba.label(chip_info.strings_label(root_prefix), 'strings_slice')
         bba.ref('strings_data')
-        bba.u32(len(const_ids.values))
+        bba.u32(len(const_ids.values) - 1)
 
         bba.label('strings_data', 'strings')
-        for s in const_ids.values:
+        for s in const_ids.values[1:]:
             bba.str(s)
 
         bba.pop()
@@ -62,7 +66,7 @@ def main():
     bba.check_labels()
 
     with open(os.path.join(args.output_dir, 'constids.txt'), 'w') as f:
-        for s in const_ids.values:
+        for s in const_ids.values[1:]:
             print('X({})'.format(s), file=f)
 
 

@@ -1587,7 +1587,7 @@ class ConstantNetworkGenerator():
 
 
 def populate_chip_info(device, constids, bel_bucket_seeds):
-    assert len(constids.values) == 0
+    assert len(constids.values) == 1
 
     cell_bel_mapper = CellBelMapper(device, constids)
 
@@ -1622,6 +1622,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
         ) == 'initParam', lut_cell.equation.which()
 
         out.parameter = lut_cell.equation.initParam
+        assert out.parameter != '', lut_cell
 
         chip_info.cell_map.lut_cells.append(out)
 
