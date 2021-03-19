@@ -10,6 +10,9 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 
+# Note: Increment by 1 ChipInfo.version number each time schema changes to
+# allow nextpnr binary to detect changes to schema.
+
 
 class ConstraintType(Enum):
     TAG_IMPLIES = 0
@@ -184,8 +187,17 @@ class PipInfo():
 
         self.extra_data = 0
 
+        self.pseudo_cell_wires = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}.{}.{}'.format(label_prefix, self.src_index,
+                                       self.dst_index, self.extra_data, field)
+
     def append_children_bba(self, bba, label_prefix):
-        pass
+        bba.label(
+            self.field_label(label_prefix, 'pseudo_cell_wires'), 'int32_t')
+        for wire in self.pseudo_cell_wires:
+            bba.u32(wire)
 
     def append_bba(self, bba, label_prefix):
         assert self.src_index != -1
@@ -197,6 +209,8 @@ class PipInfo():
         bba.u16(self.site_variant)
         bba.u16(self.bel)
         bba.u16(self.extra_data)
+        bba.ref(self.field_label(label_prefix, 'pseudo_cell_wires'))
+        bba.u32(len(self.pseudo_cell_wires))
 
 
 class ConstraintTag():
@@ -670,7 +684,8 @@ class ChipInfo():
         self.name = ''
         self.generator = ''
 
-        self.version = 0
+        # Note: Increment by 1 this whenever schema changes.
+        self.version = 1
         self.width = 0
         self.height = 0
 

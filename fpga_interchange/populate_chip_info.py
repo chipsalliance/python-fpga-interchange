@@ -87,8 +87,10 @@ class FlattenedWire():
 
 
 class FlattenedPip(
-        namedtuple('FlattenedPip',
-                   'type src_index dst_index site_index pip_index')):
+        namedtuple(
+            'FlattenedPip',
+            'type src_index dst_index site_index pip_index pseudo_cell_wires')
+):
     pass
 
 
@@ -208,12 +210,19 @@ class FlattenedTileType():
                 site_index=None)
             self.add_wire(flat_wire)
 
-        # Add pips
+        # Add pips, collecting pseudo_pips for later processing.
+        pseudo_pips = []
         for idx, pip in enumerate(tile_type.pips):
-            # TODO: Handle pseudoCells
-            self.add_tile_pip(idx, pip.wire0, pip.wire1)
+            pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1)
+
+            is_pseudo_cell = pip.which() == 'pseudoCells'
+            if is_pseudo_cell:
+                pseudo_pips.append((pip_index, pip))
 
             if not pip.directional:
+                # Pseudo pips should not be bidirectional!
+                assert not is_pseudo_cell
+
                 self.add_tile_pip(idx, pip.wire1, pip.wire0)
 
         # Add all site variants
@@ -235,6 +244,67 @@ class FlattenedTileType():
                                    site_in_type_index, alt_site_type_index,
                                    site_variant, cell_bel_mapper, lut_elements,
                                    primary_site_type)
+
+        # Now that sites have been emitted, populate pseudo_pips data.
+        #
+        # FIXME: This data is likely incomplete.  We need a cell type and cell
+        # pin -> bel pin as well to have enough information.
+        for pip_index, pip in pseudo_pips:
+            flat_pip = self.pips[pip_index]
+            pseudo_cell_wires = set()
+            pseudo_cell_pins = {}
+            pseudo_cell_pins_needed = set()
+            assert pip.which() == 'pseudoCells'
+            for pseudo_cell in pip.pseudoCells:
+                bel_name = device.strs[pseudo_cell.bel]
+                if bel_name not in pseudo_cell_pins:
+                    pseudo_cell_pins[bel_name] = set()
+
+                for pin in pseudo_cell.pins:
+                    pin_name = device.strs[pin]
+                    pseudo_cell_pins[bel_name].add(pin_name)
+
+                    # Build list of expected BEL pin matches
+                    pseudo_cell_pins_needed.add((bel_name, pin_name))
+
+            # Find all sites that this pseudo pip intersects with
+            sites = set()
+            for other_pip in self.pips:
+                if other_pip.type != FlattenedPipType.SITE_PIN:
+                    continue
+
+                if flat_pip.src_index == other_pip.src_index:
+                    sites.add(other_pip.site_index)
+
+                if flat_pip.dst_index == other_pip.dst_index:
+                    sites.add(other_pip.site_index)
+
+            for bel in self.bels:
+                # This bel isn't in a site that this pseudo pip uses.
+                if bel.site_index not in sites:
+                    continue
+
+                if bel.name in pseudo_cell_pins:
+                    pins = pseudo_cell_pins[bel.name]
+
+                    for port in bel.ports:
+                        if port.port in pins:
+                            pseudo_cell_pins_needed.discard((bel.name,
+                                                             port.port))
+
+                            if port.type == PortType.PORT_OUT:
+                                # Only record wires driven by BEL pin outputs.
+                                # BEL pin inputs do not consume the wire.
+                                pseudo_cell_wires.add(port.wire)
+
+            # Make sure every BEL pin from the database matches at least 1
+            # instance (possibly more!).
+            assert len(pseudo_cell_pins_needed) == 0
+
+            self.pips[pip_index].pseudo_cell_wires.clear()
+            self.pips[pip_index].pseudo_cell_wires.extend(
+                sorted(pseudo_cell_wires))
+
         self.remap_bel_indicies()
         self.generate_constraints(constraints)
 
@@ -340,6 +410,8 @@ class FlattenedTileType():
         self.wires[flat_pip.src_index].pips_downhill.append(pip_index)
         self.wires[flat_pip.dst_index].pips_uphill.append(pip_index)
 
+        return pip_index
+
     def add_tile_pip(self, tile_pip_index, src_wire, dst_wire):
         assert self.wires[src_wire].type == FlattenedWireType.TILE_WIRE
         assert self.wires[dst_wire].type == FlattenedWireType.TILE_WIRE
@@ -349,9 +421,10 @@ class FlattenedTileType():
             src_index=src_wire,
             dst_index=dst_wire,
             site_index=None,
-            pip_index=tile_pip_index)
+            pip_index=tile_pip_index,
+            pseudo_cell_wires=[])
 
-        self.add_pip_common(flat_pip)
+        return self.add_pip_common(flat_pip)
 
     def add_site_type(self,
                       device,
@@ -498,9 +571,10 @@ class FlattenedTileType():
             src_index=src_wire,
             dst_index=dst_wire,
             site_index=site_index,
-            pip_index=site_pip_index)
+            pip_index=site_pip_index,
+            pseudo_cell_wires=[])
 
-        self.add_pip_common(flat_pip)
+        return self.add_pip_common(flat_pip)
 
     def add_site_pin(self, src_wire, dst_wire, site_index, site_pin_index):
         if self.wires[src_wire].type == FlattenedWireType.SITE_WIRE:
@@ -514,9 +588,10 @@ class FlattenedTileType():
             src_index=src_wire,
             dst_index=dst_wire,
             site_index=site_index,
-            pip_index=site_pin_index)
+            pip_index=site_pin_index,
+            pseudo_cell_wires=[])
 
-        self.add_pip_common(flat_pip)
+        return self.add_pip_common(flat_pip)
 
     def remap_bel_indicies(self):
         # Put logic BELs first before routing and site ports.
@@ -603,6 +678,7 @@ class FlattenedTileType():
 
             pip_info.src_index = pip.src_index
             pip_info.dst_index = pip.dst_index
+            pip_info.pseudo_cell_wires = pip.pseudo_cell_wires
 
             if pip.site_index is not None:
                 site = self.sites[pip.site_index]
@@ -1511,7 +1587,7 @@ class ConstantNetworkGenerator():
 
 
 def populate_chip_info(device, constids, bel_bucket_seeds):
-    assert len(constids.values) == 0
+    assert len(constids.values) == 1
 
     cell_bel_mapper = CellBelMapper(device, constids)
 
@@ -1546,6 +1622,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
         ) == 'initParam', lut_cell.equation.which()
 
         out.parameter = lut_cell.equation.initParam
+        assert out.parameter != '', lut_cell
 
         chip_info.cell_map.lut_cells.append(out)
 
@@ -1613,8 +1690,7 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
                 parameter.key = param_key
                 parameter.value = param_value
                 for (cell_pin, bel_pin) in pins:
-                    cell_bel_map.parameter_pins.append(
-                        CellBelPin(cell_pin, bel_pin))
+                    parameter.pins.append(CellBelPin(cell_pin, bel_pin))
 
                 cell_bel_map.parameter_pins.append(parameter)
 

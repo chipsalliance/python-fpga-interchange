@@ -58,8 +58,11 @@ class BbaWriter():
     def str_id(self, s):
         index = self.const_ids.get_index(s)
 
-        # 0 is a reserved constant id, so get_index(s) -> 0 is the ID_xxx = 1.
-        self.u32(index + 1)
+        # Pretty weird to see an empty string here, fail and make sure that
+        # this was the intention.
+        assert index > 0, s
+
+        self.u32(index)
 
     def pre(self, s):
         print("pre {}".format(s), file=self.f)
