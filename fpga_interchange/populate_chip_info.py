@@ -1583,7 +1583,10 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
             per_tile_map[wire.name] = idx
 
         tile_wire_to_wire_in_tile_index.append(per_tile_map)
-        num_tile_wires.append(max(per_tile_map.values()) + 1)
+        if len(per_tile_map) == 0:
+            num_tile_wires.append(0)
+        else:
+            num_tile_wires.append(max(per_tile_map.values()) + 1)
 
     constants = ConstantNetworkGenerator(device, chip_info, cell_bel_mapper)
 
