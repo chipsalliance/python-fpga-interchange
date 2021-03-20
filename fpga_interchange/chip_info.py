@@ -685,7 +685,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 1
+        self.version = 2
         self.width = 0
         self.height = 0
 

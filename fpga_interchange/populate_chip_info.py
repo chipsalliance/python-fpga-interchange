@@ -1603,8 +1603,9 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
 
     chip_info = ChipInfo()
     chip_info.name = device.device_resource_capnp.name
-    chip_info.generator = 'python-fpga-interchange v0.x'
-    chip_info.version = 1
+    # FIXME: Pull version from scm version once integrated.
+    chip_info.generator = 'python-fpga-interchange v0.0.2'
+    # Version is updated in chip_info.py
 
     # Emit cells in const ID order to build cell map.
     for cell_name in cell_bel_mapper.get_cells():
