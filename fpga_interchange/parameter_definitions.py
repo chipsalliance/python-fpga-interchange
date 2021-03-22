@@ -83,9 +83,11 @@ def is_parameter_formatted(format_type, str_value):
     True
     >>> is_parameter_formatted(ParameterFormat.VERILOG_BINARY, "1'b11")
     False
-    >>> is_parameter_formatted(ParameterFormat.VERILOG_HEX, "8'bF")
+    >>> is_parameter_formatted(ParameterFormat.VERILOG_HEX, "4'hF")
     True
-    >>> is_parameter_formatted(ParameterFormat.VERILOG_HEX, "8'b1F")
+    >>> is_parameter_formatted(ParameterFormat.VERILOG_HEX, "5'h1F")
+    True
+    >>> is_parameter_formatted(ParameterFormat.VERILOG_HEX, "4'h1F")
     False
     >>> is_parameter_formatted(ParameterFormat.C_BINARY, "0b011")
     True
@@ -137,11 +139,11 @@ def is_parameter_formatted(format_type, str_value):
         width = int(m.group(1))
 
         rem = width % 4
-        if width % 4 != 0:
+        if rem != 0:
             # Round up to nearest multiple of 4
             width += (4 - rem)
 
-        return width >= len(m.group(2)) / 4
+        return width >= len(m.group(2)) * 4
     elif format_type == ParameterFormat.C_BINARY:
         m = C_BINARY_RE.match(str_value)
         return m is not None
