@@ -11,6 +11,7 @@
 """ Utility for converting yosys json to logical netlist. """
 import argparse
 import json
+import re
 
 from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
 from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
@@ -103,17 +104,33 @@ def make_gnd_cell(cell, module_data, consts):
     return gnd_cell
 
 
+# This regex matches the case when Yosys JSON parameters add an extra space.
+TRAILING_SPACE_RE = re.compile('[01xz]* +$')
+
+
+def check_trailing_space(value):
+    """ Some strings in Yosys JSON have a trailing space.  Remove it if needed. """
+
+    m = TRAILING_SPACE_RE.match(value)
+    if m is not None:
+        return value[:-1]
+    else:
+        return value
+
+
 def convert_parameters(device, cell, cell_type, property_map):
     """ Convert cell parameters to match expression type from default. """
     for name in property_map.keys():
         definition = device.get_parameter_definition(cell_type, name)
         if definition is None:
             # This parameter doesn't have a special definition, don't touch it.
+            property_map[name] = check_trailing_space(property_map[name])
             continue
 
         if not definition.is_integer_like():
             # Non-integer like parameters come from yosys as a string, leave
             # them alone.
+            property_map[name] = check_trailing_space(property_map[name])
             continue
 
         yosys_value = property_map[name]
