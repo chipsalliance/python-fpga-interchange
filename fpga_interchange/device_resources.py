@@ -12,6 +12,7 @@
 from collections import namedtuple
 from .logical_netlist import Direction
 from fpga_interchange.constraints.model import Constraints
+from fpga_interchange.parameter_definitions import ParameterFormat, ParameterDefinition
 
 
 def first_upper(s):
@@ -688,6 +689,7 @@ class DeviceResources():
                         site_type_name=site_type_name)
 
         self.tile_wire_index_to_node_index = None
+        self.parameter_definitions = None
 
     def build_node_index(self):
         """ Build node index for looking up wires to nodes. """
@@ -906,3 +908,60 @@ class DeviceResources():
             VCC_NET=vcc_net_name,
             GND_NET=gnd_net_name,
         )
+
+    def init_parameter_definitions(self):
+        assert self.parameter_definitions is None
+        self.parameter_definitions = {}
+
+        for cell_parameters in self.device_resource_capnp.parameterDefs.cells:
+            cell_type = self.strs[cell_parameters.cellType]
+
+            for parameter in cell_parameters.parameters:
+                name = self.strs[parameter.name]
+
+                key = (cell_type, name)
+
+                if parameter.format == 'string':
+                    string_format = ParameterFormat.STRING
+                elif parameter.format == 'boolean':
+                    string_format = ParameterFormat.BOOLEAN
+                elif parameter.format == 'integer':
+                    string_format = ParameterFormat.INTEGER
+                elif parameter.format == 'floatingPoint':
+                    string_format = ParameterFormat.FLOATING_POINT
+                elif parameter.format == 'verilogBinary':
+                    string_format = ParameterFormat.VERILOG_BINARY
+                elif parameter.format == 'verilogHex':
+                    string_format = ParameterFormat.VERILOG_HEX
+                elif parameter.format == 'cBinary':
+                    string_format = ParameterFormat.C_BINARY
+                elif parameter.format == 'cHex':
+                    string_format = ParameterFormat.C_HEX
+                else:
+                    raise RuntimeError('Invalid paramter format {}'.format(
+                        parameter.format))
+
+                assert parameter.default.which() == 'textValue'
+                default_value = self.strs[parameter.default.textValue]
+                self.parameter_definitions[key] = ParameterDefinition(
+                    name, string_format, default_value)
+
+    def get_parameter_definition(self, cell_type, parameter_name):
+        """ Return ParameterDefinition class if parameter exists, else None.
+
+        Arguments:
+            cell_type (str) - Cell type to get parameter defintion for.
+            parameter_name (str) - Parameter name to get definition.
+
+        Returns:
+            Either returns ParameterDefinition class if the parameter exists
+            within the specified cell type.
+
+            Otherwise returns None.
+        """
+
+        if self.parameter_definitions is None:
+            self.init_parameter_definitions()
+
+        return self.parameter_definitions.get((cell_type, parameter_name),
+                                              None)
