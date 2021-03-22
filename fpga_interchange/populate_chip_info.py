@@ -15,7 +15,7 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
-        LutElement, LutBel
+        LutElement, LutBel, CellParameter
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -1626,6 +1626,19 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
         assert out.parameter != '', lut_cell
 
         chip_info.cell_map.lut_cells.append(out)
+
+    if device.parameter_definitions is None:
+        device.init_parameter_definitions()
+
+    for (cell_type,
+         parameter_name), definition in device.parameter_definitions.items():
+        cell_parameter = CellParameter()
+        cell_parameter.cell_type = cell_type
+        cell_parameter.parameter = parameter_name
+        cell_parameter.format = definition.string_format.value
+        cell_parameter.default_value = definition.default_value
+
+        chip_info.cell_map.cell_parameters.append(cell_parameter)
 
     for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
         chip_info.bel_buckets.append(bel_bucket)

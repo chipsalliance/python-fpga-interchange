@@ -549,16 +549,34 @@ class LutCell():
         bba.str_id(self.parameter)
 
 
+class CellParameter():
+    def __init__(self):
+        self.cell_type = ''
+        self.parameter = ''
+        self.format = 0
+        self.default_value = ''
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_type)
+        bba.str_id(self.parameter)
+        bba.u32(self.format)
+        bba.str_id(self.default_value)
+
+
 class CellMap():
     int_fields = ['cell_names', 'cell_bel_buckets']
-    fields = ['cell_bel_map', 'lut_cells']
-    field_types = ['CellBelMapPOD', 'LutCellPOD']
+    fields = ['cell_bel_map', 'lut_cells', 'cell_parameters']
+    field_types = ['CellBelMapPOD', 'LutCellPOD', 'CellParameterPOD']
 
     def __init__(self):
         self.cell_names = []
         self.cell_bel_buckets = []
         self.cell_bel_map = []
         self.lut_cells = []
+        self.cell_parameters = []
 
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
@@ -685,7 +703,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 2
+        self.version = 3
         self.width = 0
         self.height = 0
 

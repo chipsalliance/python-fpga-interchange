@@ -19,8 +19,8 @@ class ParameterFormat(Enum):
     FLOATING_POINT = 3
     VERILOG_BINARY = 4
     VERILOG_HEX = 5
-    C_BINARY = 5
-    C_HEX = 6
+    C_BINARY = 6
+    C_HEX = 7
 
 
 # 0/1/256
@@ -32,7 +32,7 @@ FLOATING_POINT_RE = re.compile(r'([0-9]*)\.([0-9]*)$')
 # 1'b0
 VERILOG_BINARY_RE = re.compile(r"([1-9][0-9]*)'b([01]+)$")
 
-# 1'b0
+# 1'h0
 VERILOG_HEX_RE = re.compile(r"([1-9][0-9]*)'h([0-9a-fA-F]+)$")
 
 # 0b10
