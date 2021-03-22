@@ -11,6 +11,7 @@
 """ Utility for converting yosys json to logical netlist. """
 import argparse
 import json
+import re
 
 from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
 from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
@@ -103,7 +104,47 @@ def make_gnd_cell(cell, module_data, consts):
     return gnd_cell
 
 
-def convert_cell(module_name, module_data, library, libraries, modules,
+# This regex matches the case when Yosys JSON parameters add an extra space.
+TRAILING_SPACE_RE = re.compile('[01xz]* +$')
+
+
+def check_trailing_space(value):
+    """ Some strings in Yosys JSON have a trailing space.  Remove it if needed. """
+
+    m = TRAILING_SPACE_RE.match(value)
+    if m is not None:
+        return value[:-1]
+    else:
+        return value
+
+
+def convert_parameters(device, cell, cell_type, property_map):
+    """ Convert cell parameters to match expression type from default. """
+    for name in property_map.keys():
+        definition = device.get_parameter_definition(cell_type, name)
+        if definition is None:
+            # This parameter doesn't have a special definition, don't touch it.
+            property_map[name] = check_trailing_space(property_map[name])
+            continue
+
+        if not definition.is_integer_like():
+            # Non-integer like parameters come from yosys as a string, leave
+            # them alone.
+            property_map[name] = check_trailing_space(property_map[name])
+            continue
+
+        yosys_value = property_map[name]
+        try:
+            integer_value = int(yosys_value, 2)
+        except ValueError as e:
+            raise ValueError(
+                'When converting cell {} of type {}, property {} should be integer-like, but was {}\n{}'
+                .format(cell, cell_type, name, yosys_value, e))
+
+        property_map[name] = definition.encode_integer(integer_value)
+
+
+def convert_cell(device, module_name, module_data, library, libraries, modules,
                  verbose, errors, consts):
     for cell_name, cell_data in module_data['cells'].items():
         # Don't import modules that are missing children, they likely aren't
@@ -289,13 +330,14 @@ def convert_cell(module_name, module_data, library, libraries, modules,
         if 'parameters' in cell_data:
             property_map.update(cell_data['parameters'])
 
+        convert_parameters(device, cell_name, cell_data['type'], property_map)
+
         cell.add_cell_instance(
             name=cell_name,
             cell_name=cell_data['type'],
             property_map=property_map)
 
         cell_type = modules[cell_data['type']]
-
         for port_name, bits in cell_data['connections'].items():
             port = cell_type['ports'][port_name]
             offset = port.get('offset', 0)
@@ -385,7 +427,7 @@ def convert_yosys_json(device,
                     module_name))
             continue
 
-        convert_cell(module_name, module_data, work_library, libraries,
+        convert_cell(device, module_name, module_data, work_library, libraries,
                      yosys_json['modules'], verbose, module_errors, consts)
 
     netlist = LogicalNetlist(
