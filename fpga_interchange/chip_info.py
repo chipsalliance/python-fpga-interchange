@@ -56,6 +56,10 @@ class BelInfo():
         # Index into CellMapPOD::cell_bel_pin_map
         self.pin_map = []
 
+        # Index into ports/types/wires if this BEL has inverting site pips.
+        self.non_inverting_pin = -1
+        self.inverting_pin = -1
+
     def field_label(self, label_prefix, field):
         prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name,
                                           field)
@@ -98,6 +102,12 @@ class BelInfo():
         bba.u8(self.lut_element)
 
         bba.ref(self.field_label(label_prefix, 'pin_map'))
+
+        bba.u8(self.non_inverting_pin)
+        bba.u8(self.inverting_pin)
+
+        # Pad to nearest 32-bit alignment
+        bba.u16(0)
 
 
 class BelPort():
@@ -675,6 +685,8 @@ class Constants():
         self.gnd_net_name = ''
         self.vcc_net_name = ''
 
+        self.best_constant_net = ''
+
     def append_children_bba(self, bba, label_prefix):
         pass
 
@@ -696,6 +708,8 @@ class Constants():
         bba.str_id(self.gnd_net_name)
         bba.str_id(self.vcc_net_name)
 
+        bba.str_id(self.best_constant_net)
+
 
 class ChipInfo():
     def __init__(self):
@@ -703,7 +717,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 3
+        self.version = 4
         self.width = 0
         self.height = 0
 
