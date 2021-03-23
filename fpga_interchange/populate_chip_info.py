@@ -61,6 +61,8 @@ class FlattenedBel():
         self.bel_index = bel_index
         self.bel_category = bel_category
         self.ports = []
+        self.non_inverting_pin = -1
+        self.inverting_pin = -1
 
         self.valid_cells = set()
         self.lut_element = lut_element
@@ -516,6 +518,19 @@ class FlattenedTileType():
                     self.wires[wire_idx].bel_pins.append(
                         (bel_index, device.strs[bel_pin.name]))
 
+            # If this BEL is a local inverter, mark which BEL port is the
+            # inverting vs non-inverting input.
+            if bel.which() == 'inverting':
+                inverting = bel.inverting
+
+                _, flat_pin_idx = bel_pin_index_to_bel_index[inverting.
+                                                             nonInvertingPin]
+                flat_bel.non_inverting_pin = flat_pin_idx
+
+                _, flat_pin_idx = bel_pin_index_to_bel_index[inverting.
+                                                             invertingPin]
+                flat_bel.inverting_pin = flat_pin_idx
+
         # Add site pips
         for idx, site_pip in enumerate(site_type.sitePIPs):
             src_bel_pin = site_pip.inpin
@@ -630,6 +645,8 @@ class FlattenedTileType():
             bel_info.site_variant = self.sites[bel.site_index].site_variant
             bel_info.bel_category = bel.bel_category.value
             bel_info.lut_element = bel.lut_element
+            bel_info.non_inverting_pin = bel.non_inverting_pin
+            bel_info.inverting_pin = bel.inverting_pin
 
             site_type = self.sites[bel.site_index].site_type_name
 
@@ -934,6 +951,12 @@ def print_bel_buckets(cell_bel_mapper):
             site_type, bel, cell_bel_mapper.bel_to_bel_bucket(site_type, bel)))
 
 
+class SyntheticType(Enum):
+    SIGNAL = 1
+    GND = 2
+    VCC = 3
+
+
 class ConstantNetworkGenerator():
     def __init__(self, device, chip_info, cell_bel_mapper):
         self.device = device
@@ -969,6 +992,17 @@ class ConstantNetworkGenerator():
         self.constants.gnd_net_name = consts.GND_NET
         self.constants.vcc_net_name = consts.VCC_NET
 
+        if self.device.device_resource_capnp.constants.defaultBestConstant == 'noPreference':
+            # Use ('',) instead of '' to clearly mark that we want the empty
+            # string.
+            self.constants.best_constant_net = ('', )
+        elif self.device.device_resource_capnp.constants.defaultBestConstant == 'gnd':
+            self.constants.best_constant_net = consts.GND_NET
+        elif self.device.device_resource_capnp.constants.defaultBestConstant == 'vcc':
+            self.constants.best_constant_net = consts.VCC_NET
+        else:
+            assert False, self.device.device_resource_capnp.constants.defaultBestConstant
+
         tile_type = TileTypeInfo()
         self.tile_type_index = len(self.chip_info.tile_types)
         self.chip_info.tile_types.append(tile_type)
@@ -996,7 +1030,7 @@ class ConstantNetworkGenerator():
         gnd_bel.site = 0
         gnd_bel.site_variant = -1
         gnd_bel.bel_category = BelCategory.LOGIC.value
-        gnd_bel.synthetic = 1
+        gnd_bel.synthetic = SyntheticType.GND.value
 
         gnd_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
         gnd_cell_idx = self.cell_bel_mapper.get_cell_index(
@@ -1026,7 +1060,7 @@ class ConstantNetworkGenerator():
         vcc_bel.site = 0
         vcc_bel.site_variant = -1
         vcc_bel.bel_category = BelCategory.LOGIC.value
-        vcc_bel.synthetic = 1
+        vcc_bel.synthetic = SyntheticType.VCC.value
 
         vcc_bel.pin_map = [-1 for _ in self.cell_bel_mapper.get_cells()]
         vcc_cell_idx = self.cell_bel_mapper.get_cell_index(
@@ -1134,7 +1168,7 @@ class ConstantNetworkGenerator():
         gnd_site_port_bel.site = 0
         gnd_site_port_bel.site_variant = -1
         gnd_site_port_bel.bel_category = BelCategory.SITE_PORT.value
-        gnd_site_port_bel.synthetic = 1
+        gnd_site_port_bel.synthetic = SyntheticType.GND.value
 
         # Attach the site port to the site wire.
         gnd_site_port_bel_port = BelPort()
@@ -1184,7 +1218,7 @@ class ConstantNetworkGenerator():
         vcc_site_port_bel.site = 0
         vcc_site_port_bel.site_variant = -1
         vcc_site_port_bel.bel_category = BelCategory.SITE_PORT.value
-        vcc_site_port_bel.synthetic = 1
+        vcc_site_port_bel.synthetic = SyntheticType.VCC.value
 
         # Attach the site port to the site wire.
         vcc_site_port_bel_port = BelPort()
@@ -1424,6 +1458,9 @@ class ConstantNetworkGenerator():
                 src_wire_idx = None
                 if key in bel_pins_connected_to_gnd:
                     assert key not in bel_pins_connected_to_vcc
+
+                    synthetic_type = SyntheticType.GND
+
                     gnd_site_wire_idx = gnd_site_wires.get(bel_info.site, None)
                     if gnd_site_wire_idx is None:
                         gnd_site_wire_idx = self.build_input_site_port(
@@ -1432,13 +1469,17 @@ class ConstantNetworkGenerator():
                             site_wire_name='$GND_SITE_WIRE',
                             tile_wire_idx=gnd_wire_idx,
                             site=bel_info.site,
-                            site_variant=bel_info.site_variant)
+                            site_variant=bel_info.site_variant,
+                            synthetic_type=synthetic_type)
 
                         gnd_site_wires[bel_info.site] = gnd_site_wire_idx
 
                     src_wire_idx = gnd_site_wire_idx
                 elif key in bel_pins_connected_to_vcc:
                     assert key not in bel_pins_connected_to_gnd
+
+                    synthetic_type = SyntheticType.VCC
+
                     vcc_site_wire_idx = vcc_site_wires.get(bel_info.site, None)
                     if vcc_site_wire_idx is None:
                         vcc_site_wire_idx = self.build_input_site_port(
@@ -1447,10 +1488,10 @@ class ConstantNetworkGenerator():
                             site_wire_name='$VCC_SITE_WIRE',
                             tile_wire_idx=vcc_wire_idx,
                             site=bel_info.site,
-                            site_variant=bel_info.site_variant)
+                            site_variant=bel_info.site_variant,
+                            synthetic_type=synthetic_type)
 
                         vcc_site_wires[bel_info.site] = vcc_site_wire_idx
-
                     src_wire_idx = vcc_site_wire_idx
                 else:
                     continue
@@ -1499,7 +1540,7 @@ class ConstantNetworkGenerator():
                 site_pip_bel.site = bel_info.site
                 site_pip_bel.site_variant = bel_info.site_variant
                 site_pip_bel.bel_category = BelCategory.ROUTING.value
-                site_pip_bel.synthetic = 1
+                site_pip_bel.synthetic = synthetic_type.value
 
                 # Update wire data pointing to new pip.
                 tile_type.wire_data[src_wire_idx].pips_downhill.append(
@@ -1538,7 +1579,8 @@ class ConstantNetworkGenerator():
                 tile_type.wire_data[wire_idx].pips_uphill.append(edge_idx)
 
     def build_input_site_port(self, tile_type_idx, port_name, site_wire_name,
-                              tile_wire_idx, site, site_variant):
+                              tile_wire_idx, site, site_variant,
+                              synthetic_type):
         tile_type = self.chip_info.tile_types[tile_type_idx]
 
         site_port_edge_idx = len(tile_type.pip_data)
@@ -1572,7 +1614,7 @@ class ConstantNetworkGenerator():
         site_port_bel.site = site
         site_port_bel.site_variant = site_variant
         site_port_bel.bel_category = BelCategory.SITE_PORT.value
-        site_port_bel.synthetic = 1
+        site_port_bel.synthetic = synthetic_type.value
 
         site_wire.name = site_wire_name
         site_wire_bel_port = BelPort()

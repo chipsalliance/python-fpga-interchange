@@ -56,11 +56,14 @@ class BbaWriter():
             print('str |{}| {}'.format(s, comment), file=self.f)
 
     def str_id(self, s):
-        index = self.const_ids.get_index(s)
+        if s == ('', ):
+            index = self.const_ids.get_index('')
+        else:
+            index = self.const_ids.get_index(s)
 
-        # Pretty weird to see an empty string here, fail and make sure that
-        # this was the intention.
-        assert index > 0, s
+            # Pretty weird to see an empty string here, fail and make sure that
+            # this was the intention.
+            assert index > 0, s
 
         self.u32(index)
 
