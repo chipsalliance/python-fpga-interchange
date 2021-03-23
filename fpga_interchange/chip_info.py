@@ -577,12 +577,13 @@ class CellParameter():
 
 
 class CellMap():
-    int_fields = ['cell_names', 'cell_bel_buckets']
+    int_fields = ['cell_names', 'global_buffers', 'cell_bel_buckets']
     fields = ['cell_bel_map', 'lut_cells', 'cell_parameters']
     field_types = ['CellBelMapPOD', 'LutCellPOD', 'CellParameterPOD']
 
     def __init__(self):
         self.cell_names = []
+        self.global_buffers = []
         self.cell_bel_buckets = []
         self.cell_bel_map = []
         self.lut_cells = []
@@ -591,6 +592,9 @@ class CellMap():
     def add_cell(self, cell_name, cell_bel_bucket):
         self.cell_names.append(cell_name)
         self.cell_bel_buckets.append(cell_bel_bucket)
+
+    def add_global_buffer_bel(self, bel_name):
+        self.global_buffers.append(bel_name)
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}'.format(label_prefix, field)
@@ -717,7 +721,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 4
+        self.version = 5
         self.width = 0
         self.height = 0
 

@@ -1,3 +1,10 @@
+# Which BEL names are global buffers for nextpnr?
+global_buffers:
+- BUFG
+- BUFGCTRL
+- VCC
+- GND
+# How should nextpnr lump BELs during analytic placement?
 buckets:
 - bucket: FLIP_FLOPS
   cells:

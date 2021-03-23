@@ -22,8 +22,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--schema_dir', required=True)
     parser.add_argument('--output_dir', required=True)
-    parser.add_argument('--device')
-    parser.add_argument('--bel_bucket_seeds')
+    parser.add_argument('--device', required=True)
+    parser.add_argument('--device_config', required=True)
 
     args = parser.parse_args()
     interchange = Interchange(args.schema_dir)
@@ -31,16 +31,21 @@ def main():
     with open(args.device, 'rb') as f:
         device = interchange.read_device_resources(f)
 
-    with open(args.bel_bucket_seeds, 'r') as f:
-        bel_bucket_seeds = yaml.safe_load(f.read())
+    with open(args.device_config, 'r') as f:
+        device_config = yaml.safe_load(f.read())
 
     const_ids = Enumerator()
 
     # ID = 0 is always the empty string!
     assert const_ids.get_index('') == 0
 
-    chip_info = populate_chip_info(device, const_ids,
-                                   bel_bucket_seeds['buckets'])
+    if 'global_buffers' in device_config:
+        global_buffers = device_config['global_buffers']
+    else:
+        global_buffers = []
+
+    chip_info = populate_chip_info(device, const_ids, global_buffers,
+                                   device_config['buckets'])
 
     with open(os.path.join(args.output_dir, 'chipdb.bba'), 'w') as f:
         bba = BbaWriter(f, const_ids)
