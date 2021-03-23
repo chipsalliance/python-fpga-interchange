@@ -5,5 +5,5 @@ ninja
 pyyaml
 yapf==0.24.0
 # TODO: https://github.com/SymbiFlow/python-fpga-interchange/issues/11
-git+https://github.com/litghost/rapidyaml.git@fixup_python_packaging#egg=rapidyaml&subdirectory=api/python
+git+https://github.com/litghost/rapidyaml.git@fixup_python_packaging#egg=rapidyaml
 -e .
