@@ -1628,7 +1628,7 @@ class ConstantNetworkGenerator():
         return site_wire_idx
 
 
-def populate_chip_info(device, constids, bel_bucket_seeds):
+def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds):
     assert len(constids.values) == 1
 
     cell_bel_mapper = CellBelMapper(device, constids)
@@ -1653,6 +1653,9 @@ def populate_chip_info(device, constids, bel_bucket_seeds):
     for cell_name in cell_bel_mapper.get_cells():
         chip_info.cell_map.add_cell(
             cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
+
+    for bel_name in global_buffers:
+        chip_info.cell_map.add_global_buffer_bel(bel_name)
 
     for lut_cell in device.device_resource_capnp.lutDefinitions.lutCells:
         out = LutCell()
