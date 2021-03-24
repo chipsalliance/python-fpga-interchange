@@ -16,9 +16,9 @@ def get_module_from_id(capnp_id, parser=None):
 
     This is useful to determine the schema of a node within a capnp tree.
 
-    The parser argument is optional, as in most circumstances the pycapnp
+    The parser argument is optional, because in most circumstances the pycapnp
     _global_schema_parser is used.  In the event that this parser was not used,
-    the parser must be provide.  This case should be rare.
+    the parser must be provided.  This case should be rare.
 
     """
     if parser is None:
