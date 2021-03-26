@@ -302,7 +302,7 @@ def output_logical_netlist(logical_netlist_schema,
     master_cell_list = check_logical_netlist(libraries)
 
     # Make sure top level cell is in the master cell list.
-    assert top_instance.cell_name in master_cell_list
+    assert top_instance is None or top_instance.cell_name in master_cell_list
 
     # Count cell, port and cell instance counts to enable pre-allocation of
     # capnp arrays.
@@ -424,14 +424,16 @@ def output_logical_netlist(logical_netlist_schema,
                     else:
                         port_obj.busIdx.singleBit = None
 
-    top_level_cell_instance = logical_netlist.get_top_cell_instance()
-
-    # Convert the top level cell now that the libraries have been converted.
-    top_level_cell_instance.name = logical_netlist.string_id(top_instance_name)
-    top_level_cell_instance.cell = cell_name_to_idx[top_instance.cell_name]
-    top_level_cell_instance.view = logical_netlist.string_id(top_instance.view)
-    logical_netlist.create_property_map(top_level_cell_instance.propMap,
-                                        top_instance.property_map)
+    if top_instance is not None:
+        top_level_cell_instance = logical_netlist.get_top_cell_instance()
+        # Convert the top level cell now that the libraries have been converted.
+        top_level_cell_instance.name = logical_netlist.string_id(
+            top_instance_name)
+        top_level_cell_instance.cell = cell_name_to_idx[top_instance.cell_name]
+        top_level_cell_instance.view = logical_netlist.string_id(
+            top_instance.view)
+        logical_netlist.create_property_map(top_level_cell_instance.propMap,
+                                            top_instance.property_map)
 
     return logical_netlist.finish_encode()
 
