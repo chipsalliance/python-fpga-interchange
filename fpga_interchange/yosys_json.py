@@ -332,6 +332,9 @@ def convert_cell(device, module_name, module_data, library, libraries, modules,
 
         convert_parameters(device, cell_name, cell_data['type'], property_map)
 
+        # Set default parameters if not already set from Yosys.
+        device.add_default_parameters(cell_data['type'], property_map)
+
         cell.add_cell_instance(
             name=cell_name,
             cell_name=cell_data['type'],
