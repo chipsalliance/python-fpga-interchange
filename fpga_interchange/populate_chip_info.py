@@ -172,6 +172,8 @@ class LutElementsEmitter():
                 for pin in bel.inputPins:
                     lut_bel.pins.append(pin)
 
+                lut_bel.out_pin = bel.outputPin
+
                 lut_bel.low_bit = bel.lowBit
                 lut_bel.high_bit = bel.highBit
 
@@ -297,7 +299,8 @@ class FlattenedTileType():
                             if port.type == PortType.PORT_OUT:
                                 # Only record wires driven by BEL pin outputs.
                                 # BEL pin inputs do not consume the wire.
-                                pseudo_cell_wires.add(port.wire)
+                                if port.wire != -1:
+                                    pseudo_cell_wires.add(port.wire)
 
             # Make sure every BEL pin from the database matches at least 1
             # instance (possibly more!).

@@ -251,6 +251,7 @@ class LutBel():
         self.pins = []
         self.low_bit = 0
         self.high_bit = 0
+        self.out_pin = ''
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -267,6 +268,7 @@ class LutBel():
         bba.u32(len(self.pins))
         bba.u32(self.low_bit)
         bba.u32(self.high_bit)
+        bba.str_id(self.out_pin)
 
 
 class LutElement():
@@ -721,7 +723,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 5
+        self.version = 6
         self.width = 0
         self.height = 0
 
