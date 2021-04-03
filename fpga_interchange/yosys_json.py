@@ -368,7 +368,7 @@ def find_all_cell_types_from_module(module, modules, primitive_cells):
     """
     cells_in_module = set()
 
-    assert module in modules
+    assert module in modules, module
 
     module_data = modules[module]
     for cell_name, cell_data in module_data['cells'].items():
