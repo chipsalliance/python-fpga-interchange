@@ -157,18 +157,39 @@ class LogicalNetlistBuilder():
                                 in all libraries for this file.
     property_map (dict) - Root level property map for the netlist.
 
+    indexed_strings (list of str, optional) - If provided, this string list
+        is used to store strings, instead of LogicalNetlist.strList.
+
+        This is useful when embedding LogicalNetlist in other schemas.
+
     """
 
-    def __init__(self, logical_netlist_schema, name, cell_count, port_count,
-                 cell_instance_count, property_map):
+    def __init__(self,
+                 logical_netlist_schema,
+                 name,
+                 cell_count,
+                 port_count,
+                 cell_instance_count,
+                 property_map,
+                 indexed_strings=None):
         self.logical_netlist_schema = logical_netlist_schema
         self.logical_netlist = self.logical_netlist_schema.Netlist.new_message(
         )
 
         self.logical_netlist.name = name
 
-        self.string_map = {}
-        self.string_list = []
+        if indexed_strings is None:
+            self.own_string_list = True
+            self.string_map = {}
+            self.string_list = []
+        else:
+            # An external string list is being provided.  Use that list (and
+            # update it), and initialize the string_map with that initial list.
+            self.own_string_list = False
+            self.string_list = indexed_strings
+            self.string_map = {}
+            for idx, s in enumerate(self.string_list):
+                self.string_map[s] = idx
 
         self.cell_idx = 0
         self.cell_count = cell_count
@@ -240,10 +261,12 @@ class LogicalNetlistBuilder():
         Returns completed logical_netlist.Netlist pycapnp object.
 
         """
-        self.logical_netlist.init('strList', len(self.string_list))
 
-        for idx, s in enumerate(self.string_list):
-            self.logical_netlist.strList[idx] = s
+        if self.own_string_list:
+            self.logical_netlist.init('strList', len(self.string_list))
+
+            for idx, s in enumerate(self.string_list):
+                self.logical_netlist.strList[idx] = s
 
         return self.logical_netlist
 
@@ -285,7 +308,8 @@ def output_logical_netlist(logical_netlist_schema,
                            top_instance_name,
                            top_instance,
                            view="netlist",
-                           property_map={}):
+                           property_map={},
+                           indexed_strings=None):
     """ Convert logical_netlist.Library python classes to a FPGA interchange LogicalNetlist capnp.
 
     logical_netlist_schema - logical_netlist schema.
@@ -321,7 +345,8 @@ def output_logical_netlist(logical_netlist_schema,
         cell_count=cell_count,
         port_count=port_count,
         cell_instance_count=cell_instance_count,
-        property_map=property_map)
+        property_map=property_map,
+        indexed_strings=indexed_strings)
 
     # Assign each python Cell objects in libraries to capnp
     # logical_netlist.Cell objects, and record the cell index for use with

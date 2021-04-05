@@ -293,7 +293,7 @@ class LogicalNetlist(
         """
         return interchange.read_logical_netlist(f, *args, **kwargs)
 
-    def convert_to_capnp(self, interchange):
+    def convert_to_capnp(self, interchange, indexed_strings=None):
         """ Convert LogicalNetlist object into capnp object.
 
         Use interchange_capnp.write_capnp_file to write to disk or other
@@ -303,13 +303,20 @@ class LogicalNetlist(
             Interchange object holding capnp schema's for the FPGA interchange
             format.
 
+        indexed_strings (list of str, optional)
+            If provided, this string list is used to store strings, instead
+            of LogicalNetlist.strList.
+
+            This is useful when embedding LogicalNetlist in other schemas.
+
         """
         return interchange.output_logical_netlist(
             name=self.name,
             libraries=self.libraries,
             top_instance=self.top_instance,
             top_instance_name=self.top_instance_name,
-            property_map=self.property_map)
+            property_map=self.property_map,
+            indexed_strings=indexed_strings)
 
     def get_master_cell_list(self):
         master_cell_list = {}

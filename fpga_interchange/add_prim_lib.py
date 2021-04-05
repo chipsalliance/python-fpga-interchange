@@ -22,11 +22,10 @@ python -mfpga_interchange.add_prim_lib --schema_dir ${SCHEMA_DIR} \
 """
 import argparse
 import json
-import re
 
 from fpga_interchange.interchange_capnp import Interchange, read_capnp_file, write_capnp_file
 from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
-        CellInstance, Direction, Library
+        Direction, Library
 
 from fpga_interchange.yosys_json import is_bus
 
@@ -110,10 +109,20 @@ def main():
         top_instance=None,
         libraries=libraries)
 
-    netlist_capnp = netlist.convert_to_capnp(interchange)
+    str_list = [s for s in device.strList]
+
+    netlist_capnp = netlist.convert_to_capnp(
+        interchange, indexed_strings=str_list)
 
     # Patch device
     device.primLibs = netlist_capnp
+
+    if len(device.strList) != len(str_list):
+        # At least 1 string was added to the list, update the strList.
+        device.init('strList', len(str_list))
+
+        for idx, s in enumerate(str_list):
+            device.strList[idx] = s
 
     # Save patched device
     with open(args.device_out, 'wb') as f:
