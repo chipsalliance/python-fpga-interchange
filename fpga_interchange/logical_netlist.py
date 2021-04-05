@@ -8,6 +8,18 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+""" Classes for representing and creating a logical netlist in python,
+along with reading and writing the logical netlist format.
+
+Useful starting points:
+
+ Cell - class to define and inspect a logical netlist cell.
+ Library - A collection of cells.  All cells will must be part of a library
+           to be within the logical netlist format.
+ LogicalNetlist - class that can read and write logical netlist format, and
+                  be constructed and inspected from Python.
+
+"""
 
 import enum
 from collections import namedtuple
@@ -269,6 +281,20 @@ class LogicalNetlist(
         namedtuple(
             'LogicalNetlist',
             'name property_map top_instance_name top_instance libraries')):
+    """ Object that represents a logical netlist.
+
+    name (str) - Name of the logical netlist
+    property_map (dict) - Top level properties for the netlist itself.
+        This is seperate from the properties on the top level instance, which
+        can be found in the top_instance field.
+    top_instance_name (str) - Name of top level cell instance
+    top_instance (CellInstance) - Top level cell instance
+    libraries (dict of str to Library) - Cell libraries used in logical
+        netlist.  All cells referenced in the top_instance and its children
+        must be found in one of the libraries.
+
+    """
+
     @staticmethod
     def read_from_capnp(f, interchange, *args, **kwargs):
         """ Reads a capnp logical netlist into LogicalNetlist object.
