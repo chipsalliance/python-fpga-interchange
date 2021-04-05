@@ -32,4 +32,12 @@ setuptools.setup(
         "License :: OSI Approved :: ISC License",
         "Operating System :: OS Independent",
     ],
-)
+    entry_points={
+        'console_scripts': [
+            'fpga_inter_add_prim_lib=fpga_interchange.add_prim_lib:main',
+            'fpga_inter_convert=fpga_interchange.convert:main',
+            'fpga_inter_nextpnr_emit=fpga_interchange.nextpnr_emit:main',
+            'fpga_inter_patch=fpga_interchange.patch:main',
+            'fpga_inter_yosys_json=fpga_interchange.yosys_json:main',
+        ],
+    })
