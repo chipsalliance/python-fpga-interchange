@@ -22,7 +22,7 @@ jobs:
 
     - name: Install
       run: |
-        sudo apt-get install libyaml-dev libyaml-cpp-dev
+        sudo apt-get install libyaml-dev libyaml-cpp-dev swig
         pip install --upgrade -r requirements.txt
 
     - name: Check formatting
