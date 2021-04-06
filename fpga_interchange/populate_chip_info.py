@@ -174,6 +174,9 @@ class LutElementsEmitter():
 
                 lut_bel.out_pin = bel.outputPin
 
+                assert bel.lowBit < lut.width
+                assert bel.highBit < lut.width
+
                 lut_bel.low_bit = bel.lowBit
                 lut_bel.high_bit = bel.highBit
 
