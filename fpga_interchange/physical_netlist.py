@@ -8,6 +8,15 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+""" Classes for representing and creating a physical netlist in python,
+along with reading and writing the physical netlist format.
+
+Useful starting points:
+
+  PhysicalNetlist - class that can read and write physical netlist format,
+                    and be constructed and inspected from Python.
+
+"""
 
 import enum
 from collections import namedtuple
