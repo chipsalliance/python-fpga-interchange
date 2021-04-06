@@ -16,6 +16,7 @@ import re
 from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
 from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
         CellInstance, Direction, Library
+from fpga_interchange.parameter_definitions import ParameterFormat
 
 
 def is_bus(bits, offset, upto):
@@ -118,6 +119,16 @@ def check_trailing_space(value):
         return value
 
 
+def yosys_encodes_as_bitvec(param):
+    # The parameter types that Yosys encodes as a bitvector
+    return param.string_format in [
+        ParameterFormat.BOOLEAN,
+        ParameterFormat.INTEGER,
+        ParameterFormat.VERILOG_BINARY,
+        ParameterFormat.VERILOG_HEX,
+    ]
+
+
 def convert_parameters(device, cell, cell_type, property_map):
     """ Convert cell parameters to match expression type from default. """
     for name in property_map.keys():
@@ -127,7 +138,7 @@ def convert_parameters(device, cell, cell_type, property_map):
             property_map[name] = check_trailing_space(property_map[name])
             continue
 
-        if not definition.is_integer_like():
+        if not yosys_encodes_as_bitvec(definition):
             # Non-integer like parameters come from yosys as a string, leave
             # them alone.
             property_map[name] = check_trailing_space(property_map[name])
