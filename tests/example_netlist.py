@@ -34,7 +34,7 @@ from fpga_interchange.interchange_capnp import Interchange, write_capnp_file
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.physical_netlist import PhysicalNetlist, PhysicalBelPin, \
         Placement, PhysicalPip, PhysicalSitePin, PhysicalSitePip, \
-        chain_branches, chain_pips, PhysicalNetType
+        chain_branches, chain_pips, PhysicalNetType, PhysicalCellType
 
 
 def example_logical_netlist():
@@ -313,6 +313,11 @@ def example_physical_netlist():
         sources=[const1],
         stubs=[],
         net_type=PhysicalNetType.Vcc)
+
+    phys_netlist.add_physical_cell(
+        cell_name='ibuf', cell_type=PhysicalCellType.Port)
+    phys_netlist.add_physical_cell(
+        cell_name='obuf', cell_type=PhysicalCellType.Port)
 
     return phys_netlist
 

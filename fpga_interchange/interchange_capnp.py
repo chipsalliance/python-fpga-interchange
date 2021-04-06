@@ -729,8 +729,8 @@ def to_physical_netlist(phys_netlist_capnp):
 
     for physical_cell in phys_netlist_capnp.physCells:
         phys_netlist.add_physical_cell(
-            strs[physical_cell.cellName],
-            PhysicalCellType(physical_cell.physType))
+            strs[physical_cell.cellName], PhysicalCellType[first_upper(
+                str(physical_cell.physType))])
 
     def convert_route_segment(route_segment_capnp):
         which = route_segment_capnp.which()
