@@ -39,5 +39,6 @@ setuptools.setup(
             'fpga_inter_nextpnr_emit=fpga_interchange.nextpnr_emit:main',
             'fpga_inter_patch=fpga_interchange.patch:main',
             'fpga_inter_yosys_json=fpga_interchange.yosys_json:main',
+            'fpga_inter_fasm_generator=fpga_interchange.fasm_generator:main',
         ],
     })
