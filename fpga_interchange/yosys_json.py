@@ -19,6 +19,9 @@ from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
 from fpga_interchange.parameter_definitions import ParameterFormat
 
 
+def is_special_value(value):
+    return value in ['x', 'z']
+
 def is_bus(bits, offset, upto):
     """ Returns true if this port/net is a bus.
 
@@ -142,6 +145,10 @@ def convert_parameters(device, cell, cell_type, property_map):
             # Non-integer like parameters come from yosys as a string, leave
             # them alone.
             property_map[name] = check_trailing_space(property_map[name])
+            continue
+
+        if is_special_value(check_trailing_space(property_map[name])):
+            # 'X' or 'Z' value
             continue
 
         yosys_value = property_map[name]
