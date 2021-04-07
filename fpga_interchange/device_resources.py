@@ -724,6 +724,16 @@ class DeviceResources():
 
         return self.tile_types[tile_type_index]
 
+    def get_tile_name_at_site_name(self, site_name):
+        """ Get Tile name at site name. """
+        assert site_name in self.site_name_to_site
+        sites_dict = self.site_name_to_site[site_name]
+
+        # Get the first site in the dict. Assume all alternative sites are at
+        # the same tile
+        site = list(sites_dict.values())[0]
+        return self.strs[site.tile_name_index]
+
     def bel_pin(self, site_name, site_type, bel, pin):
         """ Return BelPin device resource for BEL pin in site.
 
