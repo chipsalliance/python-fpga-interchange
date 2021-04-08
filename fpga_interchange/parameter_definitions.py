@@ -217,3 +217,29 @@ class ParameterDefinition():
             return '0b{:b}'.format(int_value)
         elif self.string_format == ParameterFormat.C_HEX:
             return '0x{:X}'.format(int_value)
+
+    def decode_integer(self, str_value):
+        assert self.is_integer_like()
+
+        if self.string_format == ParameterFormat.BOOLEAN:
+            if str_value == "FALSE":
+                return 0
+            elif str_value == "TRUE":
+                return 1
+            else:
+                raise ValueError(
+                    'Invalid boolean string value {}'.format(str_value))
+        elif self.string_format == ParameterFormat.INTEGER:
+            return int(str_value)
+        elif self.string_format == ParameterFormat.VERILOG_BINARY:
+            bin_string = str_value.replace("{}'b".format(self.width), "")
+            return int(bin_string, 2)
+        elif self.string_format == ParameterFormat.VERILOG_HEX:
+            hex_string = str_value.replace("{}'h".format(self.width), "")
+            return int(hex_string, 16)
+        elif self.string_format == ParameterFormat.C_BINARY:
+            bin_string = str_value.replace("0b".format(self.width), "")
+            return int(bin_string, 2)
+        elif self.string_format == ParameterFormat.C_HEX:
+            hex_string = str_value.replace("0x".format(self.width), "")
+            return int(hex_string, 16)
