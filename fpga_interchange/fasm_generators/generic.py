@@ -48,8 +48,10 @@ class FasmGenerator():
         feature_str = ".".join(feature_parts)
         self.cells_features.add(feature_str)
 
-    def add_pip_feature(self, feature_parts):
-        feature_str = ".".join(feature_parts)
+    def add_pip_feature(self, feature_parts, pip_feature_format):
+        tile, wire0, wire1 = feature_parts
+        feature_str = pip_feature_format.format(
+            tile=tile, wire0=wire0, wire1=wire1)
         self.pips_features.add(feature_str)
 
     def flatten_nets(self):
@@ -229,13 +231,13 @@ class FasmGenerator():
                 bel_pins=bel_pins,
                 attributes=cell_attr)
 
-    def fill_pip_features(self, extra_pip_features):
+    def fill_pip_features(self, pip_feature_format, extra_pip_features):
         """
         This function generates all features corresponding to the physical routing
         PIPs present in the physical netlist.
 
-        At the moment, the convention for the PIPs FASM features is:
-            <TILE_NAME>.<WIRE1>.<WIRE0>
+        The pip_feature_format argument is required to have a dynamic FASM feature
+        formatting, depending on how the specification of the FASM device database.
 
         where:
             TILE_NAME: is the name of the tile the PIP belongs to
@@ -275,7 +277,8 @@ class FasmGenerator():
                         extra_pip_features[tile_type_name].append((tile,
                                                                    wire0))
 
-                    self.add_pip_feature((tile, wire1, wire0))
+                    self.add_pip_feature((tile, wire0, wire1),
+                                         pip_feature_format)
 
         return site_thru_pips
 

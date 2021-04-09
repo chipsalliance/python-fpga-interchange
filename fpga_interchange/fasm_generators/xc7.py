@@ -367,7 +367,9 @@ class XC7FasmGenerator(FasmGenerator):
         ]
         extra_features = dict((tile_type, list()) for tile_type in tile_types)
 
-        site_thru_pips = self.fill_pip_features(extra_features)
+        pip_feature_format = "{tile}.{wire1}.{wire0}"
+        site_thru_pips = self.fill_pip_features(pip_feature_format,
+                                                extra_features)
 
         for tile_type, tile_pips in extra_features.items():
             for tile, pip in tile_pips:
