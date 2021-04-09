@@ -8,6 +8,21 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+"""
+This file defines the Series-7 devices FASM generator class.
+
+The FASM generator extends the generic one, with additional
+functions and handlers for specific elements in the Series-7 devices.
+
+The ultimate goal is to have most of the FASM annotations included in the
+device resources, so that the size of this file can be reduced to handle
+only very specific cases which are hard to encode in the device database.
+
+Such special cases may include:
+    - PLL and MMCM register configuration functions
+    - Extra features corresponding to specific PIPs (such as BUFG rebuf)
+
+"""
 import re
 from enum import Enum
 from collections import namedtuple
@@ -15,6 +30,16 @@ from collections import namedtuple
 from fpga_interchange.fasm_generators.generic import FasmGenerator
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip
+"""
+This is a helper object that is used to find and emit extra features
+that do depend on the usage of specific PIPs or Pseudo PIPs.
+
+regex: is used to identify the correct PIPs.
+features: list of extra features to be added.
+callback: function to get the correct prefix for the feature, based on the
+          regex match results.
+"""
+ExtraFeatures = namedtuple('ExtraFeatures', 'regex features callback')
 
 
 class LutsEnum(Enum):
@@ -232,29 +257,26 @@ class XC7FasmGenerator(FasmGenerator):
 
             return site_thru_feature.callback(m) if m else None
 
-        SiteThruFeature = namedtuple('SiteThruFeature',
-                                     'regex features callback')
-
         # FIXME: this information needs to be added as an annotation
         #        to the device resources
         site_thru_features = list()
         site_thru_features.append(
-            SiteThruFeature(
+            ExtraFeatures(
                 regex="IOI_OLOGIC([01])_D1",
                 features=["OMUX.D1", "OQUSED", "OSERDES.DATA_RATE_TQ.BUF"],
                 callback=lambda m: "OLOGIC_Y{}".format(m.group(1))))
         site_thru_features.append(
-            SiteThruFeature(
+            ExtraFeatures(
                 regex="[LR]IOI_ILOGIC([01])_D",
                 features=["ZINV_D"],
                 callback=lambda m: "ILOGIC_Y{}".format(m.group(1))))
-        site_thru_features.append(SiteThruFeature(
+        site_thru_features.append(ExtraFeatures(
             regex="CLK_HROW_CK_MUX_OUT_([LR])([0-9]+)",
             features=["IN_USE", "ZINV_CE"],
             callback=lambda m: "BUFHCE.BUFHCE_X{}Y{}".format(0 if m.group(1) == "L" else 1, m.group(2))
             ))
         site_thru_features.append(
-            SiteThruFeature(
+            ExtraFeatures(
                 regex="CLK_BUFG_BUFGCTRL([0-9]+)_I[01]",
                 features=[
                     "IN_USE", "ZINV_CE0", "ZINV_S0", "IS_IGNORE1_INVERTED"
@@ -301,26 +323,42 @@ class XC7FasmGenerator(FasmGenerator):
                 self.add_cell_feature((tile_name, slice_prefix, bel, pin))
 
     def handle_pips(self):
+        """
+        Handles all the FASM features corresponding to PIPs
 
-        PipRegex = namedtuple('PipRegex', 'regex callback')
+        In addition, emits extra features necessary to have the clock
+        resources working properly, as well the emission of site route
+        thru features for pseudo PIPs
+        """
 
+        # TODO: The FASM database should be reformatted so to have more
+        #       regular extra PIP features.
         regexs = list()
         regexs.append(
-            PipRegex(
+            ExtraFeatures(
                 regex="(CLK_HROW_CK_IN_[LR][0-9]+)",
-                callback=lambda m: ["{}_ACTIVE".format(m.group(1))]))
+                features=["_ACTIVE"],
+                callback=lambda m: m.group(1)))
         regexs.append(
-            PipRegex(
+            ExtraFeatures(
                 regex="(CLK_HROW_R_CK_GCLK[0-9]+)",
-                callback=lambda m: ["{}_ACTIVE".format(m.group(1))]))
-        regexs.append(PipRegex(
-            regex="(HCLK_CMT_CCIO[0-9]+)",
-            callback=lambda m: ["{}_{}".format(m.group(1), f) for f in ["ACTIVE", "USED"]]
-            ))
-        regexs.append(PipRegex(
-            regex="CLK_BUFG_REBUF_R_CK_(GCLK[0-9]+)_BOT",
-            callback=lambda m: ["{}_{}".format(m.group(1), f) for f in ["ENABLE_BELOW", "ENABLE_ABOVE"]]
-            ))
+                features=["_ACTIVE"],
+                callback=lambda m: m.group(1)))
+        regexs.append(
+            ExtraFeatures(
+                regex="(HCLK_CMT_CCIO[0-9]+)",
+                features=["_ACTIVE", "_USED"],
+                callback=lambda m: m.group(1)))
+        regexs.append(
+            ExtraFeatures(
+                regex="CLK_BUFG_REBUF_R_CK_(GCLK[0-9]+)_BOT",
+                features=["_ENABLE_BELOW", "_ENABLE_ABOVE"],
+                callback=lambda m: m.group(1)))
+        regexs.append(
+            ExtraFeatures(
+                regex="(HCLK_CK_BUFHCLK[0-9]+)",
+                features=[""],
+                callback=lambda m: "ENABLE_BUFFER.{}".format(m.group(1))))
 
         tile_types = [
             "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
@@ -331,18 +369,18 @@ class XC7FasmGenerator(FasmGenerator):
 
         site_thru_pips = self.fill_pip_features(extra_features)
 
-        import sys
         for tile_type, tile_pips in extra_features.items():
             for tile, pip in tile_pips:
-                for pip_regex in regexs:
-                    comp_regex = re.compile(pip_regex.regex)
+                for extra_feature in regexs:
+                    comp_regex = re.compile(extra_feature.regex)
 
                     m = comp_regex.match(pip)
 
                     if m:
-                        features = pip_regex.callback(m)
+                        prefix = extra_feature.callback(m)
 
-                        for f in features:
+                        for f in extra_feature.features:
+                            f = "{}{}".format(prefix, f)
                             self.add_cell_feature((tile, f))
 
         self.handle_site_thru(site_thru_pips)
