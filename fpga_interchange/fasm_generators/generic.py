@@ -36,12 +36,21 @@ class FasmGenerator():
         self.physical_cells_instances = dict()
         self.logical_cells_instances = dict()
 
-        self.routing_pips_features = list()
-        self.cells_features = list()
         self.build_luts_definitions()
         self.build_log_cells_instances()
         self.build_phys_cells_instances()
         self.flatten_nets()
+
+        self.pips_features = set()
+        self.cells_features = set()
+
+    def add_cell_feature(self, feature_parts):
+        feature_str = ".".join(feature_parts)
+        self.cells_features.add(feature_str)
+
+    def add_pip_feature(self, feature_parts):
+        feature_str = ".".join(feature_parts)
+        self.pips_features.add(feature_str)
 
     def flatten_nets(self):
         self.flattened_nets = dict()
@@ -220,7 +229,7 @@ class FasmGenerator():
                 bel_pins=bel_pins,
                 attributes=cell_attr)
 
-    def fill_pip_features(self):
+    def fill_pip_features(self, extra_pip_features):
         """
         This function generates all features corresponding to the physical routing
         PIPs present in the physical netlist.
@@ -244,6 +253,8 @@ class FasmGenerator():
                 if isinstance(segment, PhysicalPip):
                     tile = segment.tile
 
+                    tile_info = self.device_resources.tile_name_to_tile[tile]
+                    tile_type_name = tile_info.tile_type
                     tile_type_index = self.device_resources.tile_name_to_tile[
                         tile].tile_type_index
                     tile_type = self.device_resources.get_tile_type(
@@ -260,8 +271,11 @@ class FasmGenerator():
                         site_thru_pips.append((tile, wire0, wire1))
                         continue
 
-                    self.routing_pips_features.append("{}.{}.{}".format(
-                        tile, wire1, wire0))
+                    if tile_type_name in extra_pip_features:
+                        extra_pip_features[tile_type_name].append((tile,
+                                                                   wire0))
+
+                    self.add_pip_feature((tile, wire1, wire0))
 
         return site_thru_pips
 

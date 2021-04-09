@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 import re
 from enum import Enum
+from collections import namedtuple
 
 from fpga_interchange.fasm_generators.generic import FasmGenerator
 from fpga_interchange.route_stitching import flatten_segments
@@ -58,14 +59,15 @@ class XC7FasmGenerator(FasmGenerator):
             if cell_data.cell_type not in allowed_io_types:
                 continue
 
+            tile_name = cell_data.tile_name
+
             iob_site_idx = cell_data.sites_in_tile.index(cell_data.site_name)
 
             iob_site = iob_sites[
-                iob_site_idx] if "SING" not in cell_data.tile_name else "IOB_Y0"
+                iob_site_idx] if "SING" not in tile_name else "IOB_Y0"
 
             for feature in allowed_io_types[cell_data.cell_type]:
-                self.cells_features.append("{}.{}.{}".format(
-                    cell_data.tile_name, iob_site, feature))
+                self.add_cell_feature((tile_name, iob_site, feature))
 
     @staticmethod
     def get_slice_prefix(site_name, tile_type, sites_in_tile):
@@ -142,19 +144,80 @@ class XC7FasmGenerator(FasmGenerator):
             if lut5 is not None and lut6 is not None:
                 lut_init = "{}{}".format(lut6[0:32], lut5[32:64])
             elif lut5 is not None:
-                lut_init = lut5
+                lut_init = lut5[32:64].zfill(32)
             elif lut6 is not None:
                 lut_init = lut6
             else:
                 assert False
 
-            init_feature = "{}.INIT[{}:0]={}'b{}".format(
-                lut_name,
+            init_feature = "INIT[{}:0]={}'b{}".format(
                 len(lut_init) - 1, len(lut_init), lut_init)
-            lut_feature = "{}.{}.{}".format(tile_name, slice_site,
-                                            init_feature)
 
-            self.cells_features.append(lut_feature)
+            self.add_cell_feature((tile_name, slice_site, lut_name,
+                                   init_feature))
+
+    def handle_slice_ff(self):
+        """
+        Handles slice FFs FASM feature emission.
+        """
+
+        allowed_cell_types = ["FDRE", "FDSE", "FDCE", "FDPE", "LDCE", "LDPE"]
+        allowed_site_types = ["SLICEL", "SLICEM"]
+
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            cell_type = cell_data.cell_type
+            if cell_type not in allowed_cell_types:
+                continue
+
+            site_name = cell_data.site_name
+            site_type = cell_data.site_type
+
+            if site_type not in allowed_site_types:
+                continue
+
+            tile_name = cell_data.tile_name
+            tile_type = cell_data.tile_type
+            sites_in_tile = cell_data.sites_in_tile
+            slice_site = self.get_slice_prefix(site_name, tile_type,
+                                               sites_in_tile)
+
+            bel = cell_data.bel
+
+            if cell_type in ["FDRE", "FDCE", "LDCE"]:
+                self.add_cell_feature((tile_name, slice_site, bel, "ZRST"))
+
+            if cell_type.startswith("LD"):
+                self.add_cell_feature((tile_name, slice_site, "LATCH"))
+
+            if cell_type in ["FDRE", "FDCE"]:
+                self.add_cell_feature((tile_name, slice_site, "FFSYNC"))
+
+            init_param = self.device_resources.get_parameter_definition(
+                cell_data.cell_type, "INIT")
+            init_value = init_param.decode_integer(
+                cell_data.attributes["INIT"])
+
+            if init_value == 0:
+                self.add_cell_feature((tile_name, slice_site, bel, "ZINI"))
+
+    def handle_clock_resources(self):
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            cell_type = cell_data.cell_type
+            if cell_type not in ["BUFG", "BUFGCTRL"]:
+                continue
+
+            site_name = cell_data.site_name
+            site_type = cell_data.site_type
+            site_loc = cell_data.sites_in_tile.index(site_name)
+            site_prefix = "BUFGCTRL.BUFGCTRL_X0Y{}".format(site_loc)
+
+            tile_name = cell_data.tile_name
+
+            self.add_cell_feature((tile_name, site_prefix, "IN_USE"))
+
+            if cell_type == "BUFG":
+                for feature in ["IS_IGNORE1_INVERTED", "ZINV_CE0", "ZINV_S0"]:
+                    self.add_cell_feature((tile_name, site_prefix, feature))
 
     def handle_site_thru(self, site_thru_pips):
         """
@@ -162,32 +225,66 @@ class XC7FasmGenerator(FasmGenerator):
         for pseudo PIPs which need to be enabled to get the correct HW behaviour
         """
 
+        def get_feature_prefix(site_thru_feature, wire):
+            regex = re.compile(site_thru_feature.regex)
+
+            m = regex.match(wire)
+
+            return site_thru_feature.callback(m) if m else None
+
+        SiteThruFeature = namedtuple('SiteThruFeature',
+                                     'regex features callback')
+
         # FIXME: this information needs to be added as an annotation
         #        to the device resources
-        wire_to_features_map = {
-            "IOI_OLOGIC0_D1": [
-                "OLOGIC_Y0.OMUX.D1", "OLOGIC_Y0.OQUSED",
-                "OLOGIC_Y0.OSERDES.DATA_RATE_TQ.BUF"
-            ],
-            "IOI_OLOGIC1_D1": [
-                "OLOGIC_Y1.OMUX.D1", "OLOGIC_Y1.OQUSED",
-                "OLOGIC_Y1.OSERDES.DATA_RATE_TQ.BUF"
-            ]
-        }
+        site_thru_features = list()
+        site_thru_features.append(
+            SiteThruFeature(
+                regex="IOI_OLOGIC([01])_D1",
+                features=["OMUX.D1", "OQUSED", "OSERDES.DATA_RATE_TQ.BUF"],
+                callback=lambda m: "OLOGIC_Y{}".format(m.group(1))))
+        site_thru_features.append(
+            SiteThruFeature(
+                regex="[LR]IOI_ILOGIC([01])_D",
+                features=["ZINV_D"],
+                callback=lambda m: "ILOGIC_Y{}".format(m.group(1))))
+        site_thru_features.append(SiteThruFeature(
+            regex="CLK_HROW_CK_MUX_OUT_([LR])([0-9]+)",
+            features=["IN_USE", "ZINV_CE"],
+            callback=lambda m: "BUFHCE.BUFHCE_X{}Y{}".format(0 if m.group(1) == "L" else 1, m.group(2))
+            ))
+        site_thru_features.append(
+            SiteThruFeature(
+                regex="CLK_BUFG_BUFGCTRL([0-9]+)_I[01]",
+                features=[
+                    "IN_USE", "ZINV_CE0", "ZINV_S0", "IS_IGNORE1_INVERTED"
+                ],
+                callback=
+                lambda m: "BUFGCTRL.BUFGCTRL_X0Y{}".format(m.group(1))))
 
         for tile, wire0, wire1 in site_thru_pips:
-            features = wire_to_features_map.get(wire0, [])
+            for site_thru_feature in site_thru_features:
+                prefix = get_feature_prefix(site_thru_feature, wire0)
 
-            for feature in features:
-                self.cells_features.append("{}.{}".format(tile, feature))
+                if prefix is None:
+                    continue
+
+                for feature in site_thru_feature.features:
+                    self.add_cell_feature((tile, prefix, feature))
+
+                break
 
     def handle_slice_routing_bels(self):
         allowed_routing_bels = list()
 
+        used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
+        allowed_routing_bels.extend(used_muxes)
+
         for loc in "ABCD":
             ff_mux = "{}FFMUX".format(loc)
+            ff5_mux = "{}5FFMUX".format(loc)
             out_mux = "{}OUTMUX".format(loc)
-            allowed_routing_bels.extend([ff_mux, out_mux])
+            allowed_routing_bels.extend([ff_mux, ff5_mux, out_mux])
 
         routing_bels = self.get_routing_bels(allowed_routing_bels)
 
@@ -197,21 +294,69 @@ class XC7FasmGenerator(FasmGenerator):
             slice_prefix = self.get_slice_prefix(site, tile_type,
                                                  sites_in_tile)
 
-            routing_bel_feature = "{}.{}.{}.{}".format(tile_name, slice_prefix,
-                                                       bel, pin)
-            self.cells_features.append(routing_bel_feature)
+            if bel in used_muxes:
+                if pin not in ["0", "1"]:
+                    self.add_cell_feature((tile_name, slice_prefix, bel))
+            else:
+                self.add_cell_feature((tile_name, slice_prefix, bel, pin))
+
+    def handle_pips(self):
+
+        PipRegex = namedtuple('PipRegex', 'regex callback')
+
+        regexs = list()
+        regexs.append(
+            PipRegex(
+                regex="(CLK_HROW_CK_IN_[LR][0-9]+)",
+                callback=lambda m: ["{}_ACTIVE".format(m.group(1))]))
+        regexs.append(
+            PipRegex(
+                regex="(CLK_HROW_R_CK_GCLK[0-9]+)",
+                callback=lambda m: ["{}_ACTIVE".format(m.group(1))]))
+        regexs.append(PipRegex(
+            regex="(HCLK_CMT_CCIO[0-9]+)",
+            callback=lambda m: ["{}_{}".format(m.group(1), f) for f in ["ACTIVE", "USED"]]
+            ))
+        regexs.append(PipRegex(
+            regex="CLK_BUFG_REBUF_R_CK_(GCLK[0-9]+)_BOT",
+            callback=lambda m: ["{}_{}".format(m.group(1), f) for f in ["ENABLE_BELOW", "ENABLE_ABOVE"]]
+            ))
+
+        tile_types = [
+            "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
+            "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R", "CLK_HROW_BOT_R",
+            "CLK_BUFG_REBUF"
+        ]
+        extra_features = dict((tile_type, list()) for tile_type in tile_types)
+
+        site_thru_pips = self.fill_pip_features(extra_features)
+
+        import sys
+        for tile_type, tile_pips in extra_features.items():
+            for tile, pip in tile_pips:
+                for pip_regex in regexs:
+                    comp_regex = re.compile(pip_regex.regex)
+
+                    m = comp_regex.match(pip)
+
+                    if m:
+                        features = pip_regex.callback(m)
+
+                        for f in features:
+                            self.add_cell_feature((tile, f))
+
+        self.handle_site_thru(site_thru_pips)
 
     def output_fasm(self):
-        site_thru_pips = self.fill_pip_features()
-        self.handle_site_thru(site_thru_pips)
+        self.handle_pips()
         self.handle_slice_routing_bels()
+        self.handle_slice_ff()
         self.handle_ios()
         self.handle_luts()
+        self.handle_clock_resources()
 
-        for cell_feature in sorted(
-                self.cells_features, key=lambda f: f.split(".")[0]):
+        for cell_feature in sorted(list(self.cells_features)):
             print(cell_feature)
 
-        for routing_pip in sorted(
-                self.routing_pips_features, key=lambda f: f.split(".")[0]):
+        for routing_pip in sorted(list(self.pips_features)):
             print(routing_pip)
