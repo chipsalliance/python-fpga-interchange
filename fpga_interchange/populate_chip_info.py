@@ -188,7 +188,7 @@ class LutElementsEmitter():
 
 class FlattenedTileType():
     def __init__(self, device, tile_type_index, tile_type, cell_bel_mapper,
-                 constraints, lut_elements):
+                 constraints, lut_elements, disabled_routethrus):
         self.tile_type_name = device.strs[tile_type.name]
         self.tile_type = tile_type
 
@@ -220,9 +220,15 @@ class FlattenedTileType():
         # Add pips, collecting pseudo_pips for later processing.
         pseudo_pips = []
         for idx, pip in enumerate(tile_type.pips):
+            is_pseudo_cell = pip.which() == 'pseudoCells'
+            if is_pseudo_cell and any(
+                (device.strs[pcell.bel] in disabled_routethrus)
+                    for pcell in pip.pseudoCells):
+                # Skip pseudo pips through disabled cells
+                continue
+
             pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1)
 
-            is_pseudo_cell = pip.which() == 'pseudoCells'
             if is_pseudo_cell:
                 pseudo_pips.append((pip_index, pip))
 
@@ -1634,7 +1640,8 @@ class ConstantNetworkGenerator():
         return site_wire_idx
 
 
-def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds):
+def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds,
+                       disabled_routethrus):
     assert len(constids.values) == 1
 
     cell_bel_mapper = CellBelMapper(device, constids)
@@ -1706,9 +1713,9 @@ def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds):
 
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
-        flattened_tile_type = FlattenedTileType(device, tile_type_index,
-                                                tile_type, cell_bel_mapper,
-                                                constraints, lut_elements)
+        flattened_tile_type = FlattenedTileType(
+            device, tile_type_index, tile_type, cell_bel_mapper, constraints,
+            lut_elements, disabled_routethrus)
 
         tile_type_info = flattened_tile_type.create_tile_type_info(
             cell_bel_mapper)

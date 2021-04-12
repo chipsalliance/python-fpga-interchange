@@ -44,8 +44,11 @@ def main():
     else:
         global_buffers = []
 
+    disabled_routethroughs = device_config.get('disabled_routethroughs', [])
+
     chip_info = populate_chip_info(device, const_ids, global_buffers,
-                                   device_config['buckets'])
+                                   device_config['buckets'],
+                                   disabled_routethroughs)
 
     with open(os.path.join(args.output_dir, 'chipdb.bba'), 'w') as f:
         bba = BbaWriter(f, const_ids)
