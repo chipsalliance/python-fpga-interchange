@@ -27,7 +27,7 @@ def make_problem_from_device(device, allowed_sites):
     placement_oracle.add_sites_from_device(device)
 
     placements = []
-    for tile, site, tile_type, site_type, bel in device.yield_bels():
+    for tile, site, tile_type, site_type, bel, bel_type in device.yield_bels():
         if site not in allowed_sites:
             continue
 
