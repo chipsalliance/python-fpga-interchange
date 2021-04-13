@@ -335,11 +335,21 @@ class XC7FasmGenerator(FasmGenerator):
             features=["IN_USE", "ZINV_CE"],
             callback=lambda m: "BUFHCE.BUFHCE_X{}Y{}".format(0 if m.group(1) == "L" else 1, m.group(2))
             ))
+        #TODO: Better handle BUFGCTRL route-through depending on the
+        #      used input pin
         site_thru_features.append(
             ExtraFeatures(
-                regex="CLK_BUFG_BUFGCTRL([0-9]+)_I[01]",
+                regex="CLK_BUFG_BUFGCTRL([0-9]+)_I0",
                 features=[
                     "IN_USE", "ZINV_CE0", "ZINV_S0", "IS_IGNORE1_INVERTED"
+                ],
+                callback=
+                lambda m: "BUFGCTRL.BUFGCTRL_X0Y{}".format(m.group(1))))
+        site_thru_features.append(
+            ExtraFeatures(
+                regex="CLK_BUFG_BUFGCTRL([0-9]+)_I1",
+                features=[
+                    "IN_USE", "ZINV_CE1", "ZINV_S1", "IS_IGNORE0_INVERTED"
                 ],
                 callback=
                 lambda m: "BUFGCTRL.BUFGCTRL_X0Y{}".format(m.group(1))))

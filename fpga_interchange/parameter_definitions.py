@@ -238,8 +238,8 @@ class ParameterDefinition():
             hex_string = str_value.replace("{}'h".format(self.width), "")
             return int(hex_string, 16)
         elif self.string_format == ParameterFormat.C_BINARY:
-            bin_string = str_value.replace("0b".format(self.width), "")
+            bin_string = str_value.replace("0b", "")
             return int(bin_string, 2)
         elif self.string_format == ParameterFormat.C_HEX:
-            hex_string = str_value.replace("0x".format(self.width), "")
+            hex_string = str_value.replace("0x", "")
             return int(hex_string, 16)

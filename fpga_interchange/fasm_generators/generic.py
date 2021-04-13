@@ -111,7 +111,7 @@ class LutMapper():
         Returns the LUTs physical INIT parameter mapping given the initial logical INIT
         value and the cells' data containing the physical mapping of the input pins.
 
-        It is left to the caller to handle cases of fructured LUTs.
+        It is left to the caller to handle cases of fractured LUTs.
         """
 
         def physical_to_logical_map(lut_bel, bel_pins):
