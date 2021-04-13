@@ -54,3 +54,6 @@ buckets:
    - MUXCY
    - XORCY
    - CARRY4
+# don't route through the following cells
+disabled_routethroughs:
+  - BUFGCTRL
