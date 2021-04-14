@@ -11,6 +11,7 @@
 from collections import namedtuple
 from math import log2
 
+from fpga_interchange import get_version
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, PhysicalSitePip, PhysicalBelPin
 from fpga_interchange.chip_info_utils import LutCell, LutBel, LutElement
@@ -81,10 +82,10 @@ class LutMapper():
         bitstring_init = "{value:0{digits}b}".format(
             value=log_init, digits=lut_bel.high_bit + 1)
 
-        # Invert the string to have the LSB in the beginning
+        # Invert the string to have the LSB at the beginning
         logical_lut_init = bitstring_init[::-1]
 
-        physical_lut_init = list()
+        physical_lut_init = str()
         for phys_init_index in range(0, lut_element.width):
             log_init_index = 0
 
@@ -102,8 +103,9 @@ class LutMapper():
                 log_port_idx = lut_cell.pins.index(log_port)
                 log_init_index |= (1 << log_port_idx)
 
-            physical_lut_init.append(logical_lut_init[log_init_index])
+            physical_lut_init += logical_lut_init[log_init_index]
 
+        # Invert the string to have the MSB at the beginning
         return physical_lut_init[::-1]
 
     def get_phys_cell_lut_init(self, logical_init_value, cell_data):
@@ -140,11 +142,8 @@ class LutMapper():
         phys_to_log = physical_to_logical_map(lut_bel, bel_pins)
         lut_cell = self.lut_cells[cell_type]
 
-        physical_lut_init = self.get_phys_lut_init(
-            logical_init_value, lut_element, lut_bel, lut_cell, phys_to_log)
-
-        # Generate a string and invert the list, to have MSB in first position
-        return "".join(physical_lut_init)
+        return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
+                                      lut_cell, phys_to_log)
 
     def get_phys_wire_lut_init(self, logical_init_value, site_type, cell_type,
                                bel, bel_pin):
@@ -160,11 +159,8 @@ class LutMapper():
         phys_to_log = dict((pin, None) for pin in lut_bel.pins)
         phys_to_log[bel_pin] = lut_cell.pins[0]
 
-        physical_lut_init = self.get_phys_lut_init(
-            logical_init_value, lut_element, lut_bel, lut_cell, phys_to_log)
-
-        # Generate a string and invert the list, to have MSB in first position
-        return "".join(physical_lut_init)
+        return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
+                                      lut_cell, phys_to_log)
 
 
 class FasmGenerator():
@@ -190,6 +186,12 @@ class FasmGenerator():
         self.cells_features = set()
 
         self.lut_mapper = LutMapper(self.device_resources)
+
+    def get_origin_line(self):
+        version = get_version()
+
+        return "# Created by the FPGA Interchange FASM Generator (v{})".format(
+            version)
 
     def add_cell_feature(self, feature_parts):
         feature_str = ".".join(feature_parts)
@@ -361,10 +363,23 @@ class FasmGenerator():
 
         return routing_bels
 
-    def output_fasm(self):
+    def fill_features(self):
         """
-        Function to generate and print out the FASM features.
+        Function to fill the FASM features.
 
         Needs to be implemented by the children classes.
         """
         pass
+
+    def output_fasm(self, fasm_file):
+        """
+        Outputs FASM features that were filled during the fill_features call
+        """
+
+        with open(fasm_file, "w") as f:
+            print(self.get_origin_line(), file=f)
+            for cell_feature in sorted(list(self.cells_features)):
+                print(cell_feature, file=f)
+
+            for routing_pip in sorted(list(self.pips_features)):
+                print(routing_pip, file=f)
