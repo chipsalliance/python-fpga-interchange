@@ -535,7 +535,7 @@ class XC7FasmGenerator(FasmGenerator):
         self.handle_site_thru(site_thru_pips)
         self.handle_lut_thru(lut_thru_pips)
 
-    def output_fasm(self):
+    def fill_features(self):
         # Handling BELs
         self.handle_slice_ff()
         self.handle_ios()
@@ -551,9 +551,3 @@ class XC7FasmGenerator(FasmGenerator):
         # Emit LUT features. This needs to be done at last as
         # LUT features depend also on LUT route-thru
         self.add_lut_features()
-
-        for cell_feature in sorted(list(self.cells_features)):
-            print(cell_feature)
-
-        for routing_pip in sorted(list(self.pips_features)):
-            print(routing_pip)
