@@ -73,22 +73,23 @@ using TileTypeSiteTypeIdx = UInt32;
 
 struct Device {
 
-  name            @0 : Text;
-  strList         @1 : List(Text) $hashSet();
-  siteTypeList    @2 : List(SiteType);
-  tileTypeList    @3 : List(TileType);
-  tileList        @4 : List(Tile);
-  wires           @5 : List(Wire);
-  nodes           @6 : List(Node);
-  primLibs        @7 : Dir.Netlist; # Netlist libraries of Unisim primitives and macros
-  exceptionMap    @8 : List(PrimToMacroExpansion); # Prims to macros expand w/same name, except these
-  cellBelMap      @9 : List(CellBelMapping);
-  cellInversions @10 : List(CellInversion);
-  packages       @11 : List(Package);
-  constants      @12 : Constants;
-  constraints    @13 : Constraints;
-  lutDefinitions @14 : LutDefinitions;
-  parameterDefs  @15 : ParameterDefinitions;
+  name                  @0 : Text;
+  strList               @1 : List(Text) $hashSet();
+  siteTypeList          @2 : List(SiteType);
+  tileTypeList          @3 : List(TileType);
+  tileList              @4 : List(Tile);
+  wires                 @5 : List(Wire);
+  nodes                 @6 : List(Node);
+  primLibs              @7 : Dir.Netlist; # Netlist libraries of Unisim primitives and macros
+  exceptionMap          @8 : List(PrimToMacroExpansion); # Prims to macros expand w/same name, except these
+  cellBelMap            @9 : List(CellBelMapping);
+  cellInversions       @10 : List(CellInversion);
+  packages             @11 : List(Package);
+  constants            @12 : Constants;
+  constraints          @13 : Constraints;
+  lutDefinitions       @14 : LutDefinitions;
+  belChainsDefinitions @15 : BelChainsDefinitions;
+  parameterDefs        @16 : ParameterDefinitions;
 
   #######################################
   # Placement definition objects
@@ -625,6 +626,49 @@ struct Device {
 
     # Which sites have LUT BELs?
     lutElements @1 : List(LutElements);
+  }
+
+  ######################################
+  # BEL chains definitions
+  ######################################
+  struct BelChainsDefinitions {
+    struct BelChain {
+
+      struct ChainPattern {
+        source @0 : Text;
+	sink   @1 : Text;
+      }
+
+      struct ChainCoordConfig {
+        coord @0 : Text;
+	step  @1 : Int8;
+      }
+
+      struct ChainCellPort {
+        name  @0 : Text;
+	width @1 : Int8;
+      }
+
+      struct ChainCell {
+        cell        @0 : Text;
+	inputPins   @1 : List(ChainCellPort);
+	outputPins  @2 : List(ChainCellPort);
+      }
+
+      # Name of the BEL chain
+      name         @0 : Text;
+      # patterns for chain:
+      patterns     @1 : List(ChainPattern);
+      # List of sites to which apply listed patterns
+      sites        @2 : List(Text);
+      # Coordinate config for target chain (which coordinate incremented by given step)
+      coordConfigs @3 : List(ChainCoordConfig);
+      # Cells used in BEL chain
+      chainCells   @4 : List(ChainCell);
+    }
+
+    # List of BEL chains
+    belChains @0 : List(BelChain);
   }
 
   enum ParameterFormat {
