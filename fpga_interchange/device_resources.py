@@ -69,7 +69,8 @@ class Site(
 
 class SiteWire(
         namedtuple('SiteWire', 'tile_index site_index site_wire_index')):
-    pass
+    def name(self, site_type):
+        return site_type.site_wire_names[self.site_wire_index]
 
 
 class SitePinNames(
@@ -92,10 +93,11 @@ class Node(namedtuple('Node', 'node_index')):
 class BelPin():
     """ BEL Pin device resource object. """
 
-    def __init__(self, site, bel_pin_index, site_wire_index, direction,
+    def __init__(self, site, name, bel_pin_index, site_wire_index, direction,
                  is_site_pin):
         self.site = site
         self.site_wire_index = site_wire_index
+        self.name = name
         self.bel_pin_index = bel_pin_index
         self.direction = direction
         self.is_site_pin = is_site_pin
@@ -182,6 +184,7 @@ class Bel():
     def __init__(self, site_type, strs, bel):
         self.site_type = site_type
         self.name = strs[bel.name]
+        self.category = bel.category
         self.type = strs[bel.type]
         self.bel_pins = [bel_pin for bel_pin in bel.pins]
 
@@ -384,7 +387,9 @@ class SiteType():
         self.site_type_index = site_type_index
 
         bel_pin_index_to_site_wire_index = {}
+        self.site_wire_names = []
         for site_wire_index, site_wire in enumerate(site_type.siteWires):
+            self.site_wire_names.append(strs[site_wire.name])
             for bel_pin_index in site_wire.pins:
                 bel_pin_index_to_site_wire_index[
                     bel_pin_index] = site_wire_index
@@ -449,6 +454,7 @@ class SiteType():
         return BelPin(
             site=site,
             bel_pin_index=bel_pin_index,
+            name=pin,
             site_wire_index=site_wire_index,
             direction=direction,
             is_site_pin=bel_pin_index in self.bel_pin_to_site_pins,
