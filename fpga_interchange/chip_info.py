@@ -672,6 +672,45 @@ class Package():
         bba.u32(len(self.package_pins))
 
 
+class DefaultCellConnection():
+    def __init__(self):
+        self.name = ''
+        self.value = 0
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.u32(self.value)
+
+
+class DefaultCellConnections():
+    def __init__(self):
+        self.cell_type = ''
+        self.cell_pins = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.cell_type, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for cell_pin in self.cell_pins:
+            cell_pin.append_children_bba(
+                bba, self.field_label(label_prefix, 'cell_pins'))
+
+        bba.label(
+            self.field_label(label_prefix, 'cell_pins'),
+            'DefaultCellConnectionPOD')
+        for cell_pin in self.cell_pins:
+            cell_pin.append_bba(bba, self.field_label(label_prefix,
+                                                      'cell_pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_type)
+        bba.ref(self.field_label(label_prefix, 'cell_pins'))
+        bba.u32(len(self.cell_pins))
+
+
 class Constants():
     def __init__(self):
         self.gnd_cell_name = ''
@@ -693,8 +732,22 @@ class Constants():
 
         self.best_constant_net = ''
 
+        self.default_conns = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.constants.{}'.format(label_prefix, field)
+
     def append_children_bba(self, bba, label_prefix):
-        pass
+        for default_conn in self.default_conns:
+            default_conn.append_children_bba(
+                bba, self.field_label(label_prefix, 'default_conns'))
+
+        bba.label(
+            self.field_label(label_prefix, 'default_conns'),
+            'DefaultCellConnectionsPOD')
+        for default_conn in self.default_conns:
+            default_conn.append_bba(
+                bba, self.field_label(label_prefix, 'default_conns'))
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.gnd_cell_name)
@@ -716,6 +769,9 @@ class Constants():
 
         bba.str_id(self.best_constant_net)
 
+        bba.ref(self.field_label(label_prefix, 'default_conns'))
+        bba.u32(len(self.default_conns))
+
 
 class ChipInfo():
     def __init__(self):
@@ -723,7 +779,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 6
+        self.version = 7
         self.width = 0
         self.height = 0
 
