@@ -15,7 +15,7 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
-        LutElement, LutBel, CellParameter
+        LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -1770,6 +1770,17 @@ def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds,
         if idx in cell_bel_mapper.cell_to_bel_constraints:
             cell_bel_map.constraints = cell_bel_mapper.cell_to_bel_constraints[
                 idx]
+
+    # Emit default cell pin connections
+    for conn in device.get_constants().DEFAULT_CONNS:
+        conn_data = DefaultCellConnections()
+        conn_data.cell_type = conn.cell_type
+        for pin in conn.pins:
+            pin_data = DefaultCellConnection()
+            pin_data.name = pin.name
+            pin_data.value = pin.value.value
+            conn_data.cell_pins.append(pin_data)
+        chip_info.constants.default_conns.append(conn_data)
 
     tiles = {}
     tile_name_to_tile_index = {}

@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 
 from collections import namedtuple
+import enum
 from .logical_netlist import Direction
 from fpga_interchange.constraints.model import Constraints
 from fpga_interchange.parameter_definitions import ParameterFormat, ParameterDefinition
@@ -46,9 +47,39 @@ def can_be_connected(a_direction, b_direction):
         return b_direction == Direction.Input, (a_direction, b_direction)
 
 
+# Default value of a cell pin
+class CellPinValue(enum.Enum):
+    Float = 0
+    Gnd = 1
+    Vcc = 2
+
+
+def convert_pin_value(s):
+    """ Convert capnp enum to CellPinValue. """
+    return CellPinValue[first_upper(str(s))]
+
+
+class DefaultCellConnection(namedtuple('DefaultCellConnection', 'name value')):
+    pass
+
+
+class DefaultCellConnections:
+    """
+    This stores the values to use when cell pins are missing or disconnected
+    """
+
+    def __init__(self, conn, strs):
+        self.cell_type = strs[conn.cellType]
+        self.pins = [
+            DefaultCellConnection(strs[pin.name], convert_pin_value(pin.value))
+            for pin in conn.pins
+        ]
+
+
 Constants = namedtuple(
     'Constants',
-    'VCC_CELL_TYPE GND_CELL_TYPE VCC_PORT GND_PORT VCC_NET GND_NET')
+    'VCC_CELL_TYPE GND_CELL_TYPE VCC_PORT GND_PORT VCC_NET GND_NET DEFAULT_CONNS'
+)
 
 
 class Tile(
@@ -924,7 +955,10 @@ class DeviceResources():
             GND_PORT=self.strs[constants.gndCellPin],
             VCC_NET=vcc_net_name,
             GND_NET=gnd_net_name,
-        )
+            DEFAULT_CONNS=[
+                DefaultCellConnections(conn, self.strs)
+                for conn in constants.defaultCellConns
+            ])
 
     def init_parameter_definitions(self):
         assert self.parameter_definitions is None
