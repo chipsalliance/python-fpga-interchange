@@ -5,3 +5,13 @@ buckets:
 - bucket: LUTS
   cells:
     - LUT4
+- bucket: FFS
+  cells:
+    - FD1P3BX
+    - FD1P3DX
+    - FD1P3IX
+    - FD1P3JX
+- bucket: IOBs
+  cells:
+   - IB
+   - OB
