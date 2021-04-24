@@ -16,7 +16,8 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
-        WireType, GlobalCell, GlobalCellPin
+        WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroParamMapRule, MacroParameter, GlobalCell, GlobalCellPin
+
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -1657,6 +1658,65 @@ class ConstantNetworkGenerator():
         return site_wire_idx
 
 
+def populate_macros(device, chip_info):
+    prims = device.get_primitive_library()
+
+    def get_cell(cell_type):
+        # Gets the definition for a cell
+        for lib in prims.libraries.values():
+            if cell_type in lib.cells:
+                return lib.cells[cell_type]
+        return None
+
+    if 'macros' in prims.libraries:
+        macro_lib = prims.libraries['macros']
+        for cell_name, cell in sorted(
+                macro_lib.cells.items(), key=lambda x: x[0]):
+            macro = Macro()
+            macro.name = cell_name
+            # Import instances
+            for inst_name, inst in sorted(
+                    cell.cell_instances.items(), key=lambda x: x[0]):
+                macro_inst = MacroCellInst()
+                macro_inst.name = inst_name
+                macro_inst.type = inst.cell_name
+                for key, value in sorted(
+                        inst.property_map.items(), key=lambda x: x[0]):
+                    param = MacroParameter()
+                    param.key = key
+                    param.value = value
+                    macro_inst.parameters.append(param)
+                macro.cell_insts.append(macro_inst)
+            # Import nets
+            for net_name, net in sorted(cell.nets.items(), key=lambda x: x[0]):
+                macro_net = MacroNet()
+                macro_net.name = net_name
+                for port in net.ports:
+                    macro_port = MacroPortInst()
+                    macro_port.port = port.name
+                    # Flatten buses
+                    if port.idx is not None:
+                        macro_port.port += '[{}]'.format(port.idx)
+                    # Determine if this port is an instance port or top-level
+                    if port.instance_name is not None:
+                        macro_port.instance = port.instance_name
+                        # Obtain direction from instance cell
+                        cell_type = cell.cell_instances[
+                            port.instance_name].cell_name
+                        inst_cell = get_cell(cell_type)
+                        assert inst_cell is not None, cell_type
+                        macro_port.dir = inst_cell.ports[port.
+                                                         name].direction.value
+                    else:
+                        # Instance is explicitly empty for top level ports
+                        macro_port.instance = ('', )
+                        # Obtain direction from macro ports
+                        macro_port.dir = cell.ports[port.name].direction.value
+                    macro_net.ports.append(macro_port)
+                macro.nets.append(macro_net)
+            chip_info.macros.append(macro)
+
+
 def populate_chip_info(device, constids, device_config):
     assert len(constids.values) == 1
 
@@ -1722,6 +1782,8 @@ def populate_chip_info(device, constids, device_config):
 
     for bel_bucket in sorted(set(cell_bel_mapper.get_bel_buckets())):
         chip_info.bel_buckets.append(bel_bucket)
+
+    populate_macros(device, chip_info)
 
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
