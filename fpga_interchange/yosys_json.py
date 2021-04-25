@@ -472,6 +472,11 @@ def convert_yosys_json(device,
             libraries[lib_name] = Library(lib_name)
 
         prim_cell = primitive_cells[required_cell]
+
+        # Blackbox macro content, we only care about the primitive ports - the macro content is obtained from the chipdb
+        prim_cell.cell_instances.clear()
+        prim_cell.nets.clear()
+
         netlist.libraries[lib_name].add_cell(prim_cell)
 
     return netlist
