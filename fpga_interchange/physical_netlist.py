@@ -291,13 +291,15 @@ class PhysicalSitePip():
     site (str) - Site containing site pip
     bel (str) - Name of BEL that contains site pip
     pin (str) - Name of BEL pin that is the active site pip
+    is_inverting (bool) - Indicates whether the site PIP is inverted
 
     """
 
-    def __init__(self, site, bel, pin):
+    def __init__(self, site, bel, pin, is_inverting=False):
         self.site = site
         self.bel = bel
         self.pin = pin
+        self.is_inverting = is_inverting
 
         self.branches = []
 
@@ -314,6 +316,7 @@ class PhysicalSitePip():
         obj.routeSegment.sitePIP.site = string_id(self.site)
         obj.routeSegment.sitePIP.bel = string_id(self.bel)
         obj.routeSegment.sitePIP.pin = string_id(self.pin)
+        obj.routeSegment.sitePIP.isInverting = self.is_inverting
 
         descend_branch(obj, self, string_id)
 
@@ -329,13 +332,14 @@ class PhysicalSitePip():
         to generate a canonical routing tree.
 
         """
-        return ('site_pip', self.site, self.bel, self.pin)
+        return ('site_pip', self.site, self.bel, self.pin, self.is_inverting)
 
     def __str__(self):
-        return 'PhysicalSitePip({}, {}, {})'.format(
+        return 'PhysicalSitePip({}, {}, {}, {})'.format(
             repr(self.site),
             repr(self.bel),
             repr(self.pin),
+            repr(self.is_inverting),
         )
 
 

@@ -28,7 +28,7 @@ from collections import namedtuple
 from enum import Enum
 from itertools import product
 
-from fpga_interchange.fasm_generators.generic import FasmGenerator, PhysCellInstance
+from fpga_interchange.fasm_generators.generic import FasmGenerator, PhysCellInstance, invert_bitstring
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, Pin
 """
@@ -85,6 +85,100 @@ def parse_lut_bel(lut_bel):
 
 
 class XC7FasmGenerator(FasmGenerator):
+    def handle_brams(self):
+        """
+        Handles slice RAMB18 FASM feature emission.
+        """
+
+        # TODO: handle ramb36 as well
+
+        init_re = re.compile("INITP?_[0-9][0-9]")
+
+        z_features = ["INIT_A", "INIT_B", "SRVAL_A", "SRVAL_B"]
+        str_features = [
+            "RDADDR_COLLISION_HWCONFIG", "RSTREG_PRIORITY_A",
+            "RSTREG_PRIORITY_B", "WRITE_MODE_A", "WRITE_MODE_B"
+        ]
+        rw_widths = [
+            "READ_WIDTH_A", "READ_WIDTH_B", "WRITE_WIDTH_A", "WRITE_WIDTH_B"
+        ]
+
+        allowed_cell_types = ["RAMB18E1"]
+        allowed_site_types = ["RAMB18E1"]
+
+        fasm_features = list()
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            cell_type = cell_data.cell_type
+            if cell_type not in allowed_cell_types:
+                continue
+
+            tile_name = cell_data.tile_name
+            tile_type = cell_data.tile_type
+            site_name = cell_data.site_name
+            bram_prefix = self.get_bram_prefix(site_name, tile_type)
+
+            is_y1 = "Y1" in bram_prefix
+
+            self.add_cell_feature((tile_name, bram_prefix, "IN_USE"))
+
+            attributes = cell_data.attributes
+
+            ram_mode = attributes["RAM_MODE"]
+            for attr, value in attributes.items():
+                init_param = self.device_resources.get_parameter_definition(
+                    cell_type, attr)
+
+                init_match = init_re.match(attr)
+                fasm_feature = None
+                if init_match:
+                    init_value = init_param.decode_integer(value)
+
+                    if init_value == 0:
+                        continue
+
+                    init_str_value = "{:b}".format(init_value)
+                    init_str = "{len}'b{value}".format(
+                        len=len(init_str_value), value=init_str_value)
+                    fasm_feature = "{}[{}:0]={}".format(
+                        attr, len(init_str_value), init_str)
+                    fasm_features.append(fasm_feature)
+
+                elif attr in z_features:
+                    init_value = init_param.decode_integer(value)
+                    width = init_param.width
+
+                    init_str_value = "{value:0{width}b}".format(
+                        value=init_value, width=width)
+
+                    feature_value = invert_bitstring(init_str_value)
+
+                    fasm_feature = "Z{}[{}:0]={}'b{}".format(
+                        attr, width - 1, width, feature_value)
+                    fasm_features.append(fasm_feature)
+
+                elif attr in str_features:
+                    fasm_features.append("{}_{}".format(attr, value))
+
+                elif attr in rw_widths:
+                    init_value = init_param.decode_integer(value)
+
+                    # Handle special INIT value case
+                    if is_y1 and init_value == 36 and ram_mode == "SDP" and attr == "READ_WIDTH_A":
+                        init_value = 18
+
+                    fasm_features.append("{}_{}".format(attr, init_value))
+
+                    if init_value == 36 and ram_mode == "SDP":
+                        fasm_feature.append("SDP_{}_36".format(attr))
+
+            for fasm_feature in fasm_features:
+                self.add_cell_feature((tile_name, bram_prefix, fasm_feature))
+
+        for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
+            value = "1" * 13
+            fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
+            self.add_cell_feature((tile_name, fasm_feature))
+
     def handle_ios(self):
         """
         This function is specialized to add FASM features for the IO buffers
@@ -150,6 +244,19 @@ class XC7FasmGenerator(FasmGenerator):
 
         slice_site_idx = int(m.group(1)) % 2
         return slice_sites[tile_type][slice_site_idx]
+
+    @staticmethod
+    def get_bram_prefix(site_name, tile_type):
+        """
+        Returns the slice prefix corresponding to the input site name.
+        """
+
+        ramb_re = re.compile("RAMB18_X[0-9]+Y([0-9]+)")
+        m = ramb_re.match(site_name)
+        assert m, site_name
+
+        ramb_site_idx = int(m.group(1)) % 2
+        return "RAMB18_Y{}".format(ramb_site_idx)
 
     def add_lut_features(self):
         for lut in self.luts.values():
@@ -281,20 +388,17 @@ class XC7FasmGenerator(FasmGenerator):
                     self.add_cell_feature((tile_name, site_prefix, feature))
 
     def handle_slice_routing_bels(self):
-        allowed_routing_bels = list()
+        routing_bels = self.get_routing_bels("SLICE")
 
         used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
-        allowed_routing_bels.extend(used_muxes)
 
-        for loc in "ABCD":
-            ff_mux = "{}FFMUX".format(loc)
-            ff5_mux = "{}5FFMUX".format(loc)
-            out_mux = "{}OUTMUX".format(loc)
-            allowed_routing_bels.extend([ff_mux, ff5_mux, out_mux])
+        excluded_bels = ["{}USED".format(bel) for bel in "ABCD"]
+        excluded_bels += ["CLKINV"]
 
-        routing_bels = self.get_routing_bels(allowed_routing_bels)
+        for site, bel, pin, _ in routing_bels:
+            if bel in excluded_bels:
+                continue
 
-        for site, bel, pin in routing_bels:
             tile_name, tile_type = self.get_tile_info_at_site(site)
             slice_prefix = self.get_slice_prefix(site, tile_type)
 
@@ -303,6 +407,17 @@ class XC7FasmGenerator(FasmGenerator):
                     self.add_cell_feature((tile_name, slice_prefix, bel))
             else:
                 self.add_cell_feature((tile_name, slice_prefix, bel, pin))
+
+    def handle_bram_routing_bels(self):
+        routing_bels = self.get_routing_bels("RAMB")
+
+        for site, bel, pin, is_inverting in routing_bels:
+            tile_name, tile_type = self.get_tile_info_at_site(site)
+            bram_prefix = self.get_bram_prefix(site, tile_type)
+
+            if not is_inverting:
+                zinv_feature = "ZINV_{}".format(pin)
+                self.add_cell_feature((tile_name, bram_prefix, zinv_feature))
 
     def handle_site_thru(self, site_thru_pips):
         """
@@ -537,13 +652,15 @@ class XC7FasmGenerator(FasmGenerator):
 
     def fill_features(self):
         # Handling BELs
-        self.handle_slice_ff()
+        self.handle_brams()
+        self.handle_clock_resources()
         self.handle_ios()
         self.handle_luts()
-        self.handle_clock_resources()
+        self.handle_slice_ff()
 
         # Handling routing BELs
         self.handle_slice_routing_bels()
+        self.handle_bram_routing_bels()
 
         # Handling PIPs and Route-throughs
         self.handle_pips()

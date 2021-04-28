@@ -760,7 +760,8 @@ def to_physical_netlist(phys_netlist_capnp):
             return PhysicalSitePip(
                 site=strs[site_pip.site],
                 bel=strs[site_pip.bel],
-                pin=strs[site_pip.pin])
+                pin=strs[site_pip.pin],
+                is_inverting=site_pip.isInverting)
 
     def convert_route_branch(route_branch_capnp):
         obj = convert_route_segment(route_branch_capnp.routeSegment)

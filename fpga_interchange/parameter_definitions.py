@@ -224,7 +224,7 @@ class ParameterDefinition():
                 value=int_value, digits=digits)
 
     def decode_integer(self, str_value):
-        assert self.is_integer_like()
+        assert self.is_integer_like(), (self.name, self.string_format)
 
         if self.string_format == ParameterFormat.BOOLEAN:
             if str_value == "FALSE":
