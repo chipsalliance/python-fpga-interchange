@@ -207,16 +207,21 @@ class ParameterDefinition():
             assert self.width is not None
             assert int_value >= 0, int_value
             assert int_value <= (2**self.width), (self.width, int_value)
-            return "{}'b{:b}".format(self.width, int_value)
+            return "{width}'b{value:0{width}b}".format(
+                width=self.width, value=int_value)
         elif self.string_format == ParameterFormat.VERILOG_HEX:
             assert self.width is not None
             assert int_value >= 0, int_value
             assert int_value <= (2**self.width), (self.width, int_value)
-            return "{}'h{:X}".format(self.width, int_value)
+            digits = (self.width + 3) // 4
+            return "{width}'h{value:0{digits}X}".format(
+                width=self.width, value=int_value, digits=digits)
         elif self.string_format == ParameterFormat.C_BINARY:
-            return '0b{:b}'.format(int_value)
+            return '0b{value:0{digits}b}'.format(value=int_value, digits=width)
         elif self.string_format == ParameterFormat.C_HEX:
-            return '0x{:X}'.format(int_value)
+            digits = (self.width + 3) // 4
+            return '0x{value:0{digits}X}'.format(
+                value=int_value, digits=digits)
 
     def decode_integer(self, str_value):
         assert self.is_integer_like()
