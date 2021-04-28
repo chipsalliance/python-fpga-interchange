@@ -757,7 +757,14 @@ class FlattenedTileType():
 
 
 class CellBelMapper():
-    def __init__(self, device, constids):
+    def __init__(self, device, constids, disabled_cell_bel_maps):
+        def is_cell_bel_map_disabled(cell, bel):
+            for exclusion_map in disabled_cell_bel_maps:
+                if exclusion_map['cell'] == cell:
+                    return bel in exclusion_map['bels']
+
+            return False
+
         # Emit cell names so that they are compact list.
         self.cells_in_order = []
         self.cell_names = {}
@@ -805,6 +812,10 @@ class CellBelMapper():
                     site_type = device.strs[site_types_and_bels.siteType]
                     for bel_str_id in site_types_and_bels.bels:
                         bel = device.strs[bel_str_id]
+
+                        if is_cell_bel_map_disabled(cell_type, bel):
+                            continue
+
                         bels.add((site_type, bel))
 
                         key = (cell_type, site_type, bel)
@@ -824,6 +835,10 @@ class CellBelMapper():
                     param_value = device.strs[parameter.parameter.textValue]
 
                     bel = device.strs[parameter.bel]
+
+                    if is_cell_bel_map_disabled(cell_type, bel):
+                        continue
+
                     site_type = device.strs[parameter.siteType]
                     bels.add((site_type, bel))
 
@@ -1640,11 +1655,15 @@ class ConstantNetworkGenerator():
         return site_wire_idx
 
 
-def populate_chip_info(device, constids, global_buffers, bel_bucket_seeds,
-                       disabled_routethrus):
+def populate_chip_info(device, constids, device_config):
     assert len(constids.values) == 1
 
-    cell_bel_mapper = CellBelMapper(device, constids)
+    bel_bucket_seeds = device_config.get('buckets', [])
+    global_buffers = device_config.get('global_buffers', [])
+    disabled_routethrus = device_config.get('disabled_routethroughs', [])
+    disabled_cell_bel_map = device_config.get('disabled_cell_bel_map', [])
+
+    cell_bel_mapper = CellBelMapper(device, constids, disabled_cell_bel_map)
 
     # Make the BEL buckets.
     for bucket in bel_bucket_seeds:

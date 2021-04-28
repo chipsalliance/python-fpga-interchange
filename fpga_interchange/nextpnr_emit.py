@@ -39,16 +39,7 @@ def main():
     # ID = 0 is always the empty string!
     assert const_ids.get_index('') == 0
 
-    if 'global_buffers' in device_config:
-        global_buffers = device_config['global_buffers']
-    else:
-        global_buffers = []
-
-    disabled_routethroughs = device_config.get('disabled_routethroughs', [])
-
-    chip_info = populate_chip_info(device, const_ids, global_buffers,
-                                   device_config['buckets'],
-                                   disabled_routethroughs)
+    chip_info = populate_chip_info(device, const_ids, device_config)
 
     with open(os.path.join(args.output_dir, 'chipdb.bba'), 'w') as f:
         bba = BbaWriter(f, const_ids)

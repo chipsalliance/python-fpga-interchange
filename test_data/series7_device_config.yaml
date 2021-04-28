@@ -57,3 +57,10 @@ buckets:
 # don't route through the following cells
 disabled_routethroughs:
   - BUFGCTRL
+# Do not allow cells to be placed at BELs
+disabled_cell_bel_map:
+  - cell: FDRE
+    bels:
+     - TFF
+     - IFF
+     - OUTFF
