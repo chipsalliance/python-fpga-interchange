@@ -22,6 +22,11 @@ PhysCellInstance = namedtuple(
 )
 
 
+def invert_bitstring(string):
+    """ This function inverts all bits in a bitstring. """
+    return string.replace("1", "2").replace("0", "1").replace("2", "0")
+
+
 class LutMapper():
     def __init__(self, device_resources):
         """
@@ -345,21 +350,22 @@ class FasmGenerator():
 
         return site_thru_pips, lut_thru_pips
 
-    def get_routing_bels(self, allowed_routing_bels):
+    def get_routing_bels(self, allowed_site):
 
         routing_bels = list()
 
         for net in self.physical_netlist.nets:
             for segment in self.flattened_nets[net.name]:
                 if isinstance(segment, PhysicalSitePip):
-                    bel = segment.bel
-                    if bel not in allowed_routing_bels:
+                    site = segment.site
+                    if not site.startswith(allowed_site):
                         continue
 
-                    site = segment.site
+                    bel = segment.bel
                     pin = segment.pin
+                    is_inverting = segment.is_inverting
 
-                    routing_bels.append((site, bel, pin))
+                    routing_bels.append((site, bel, pin, is_inverting))
 
         return routing_bels
 
