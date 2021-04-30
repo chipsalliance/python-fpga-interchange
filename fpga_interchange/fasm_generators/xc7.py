@@ -174,10 +174,10 @@ class XC7FasmGenerator(FasmGenerator):
             for fasm_feature in fasm_features:
                 self.add_cell_feature((tile_name, bram_prefix, fasm_feature))
 
-        for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
-            value = "1" * 13
-            fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
-            self.add_cell_feature((tile_name, fasm_feature))
+            for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
+                value = "1" * 13
+                fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
+                self.add_cell_feature((tile_name, fasm_feature))
 
     def handle_ios(self):
         """
