@@ -15,10 +15,12 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
-        LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection
+        LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
+        WireType
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
+from fpga_interchange.device_resources import convert_wire_category
 from fpga_interchange.nextpnr import PortType
 
 
@@ -1811,6 +1813,8 @@ def populate_chip_info(device, constids, device_config):
         tile_info.type = tile.type
         tile_info.tile_wire_to_node = list(
             [-1 for _ in range(num_tile_wires[tile.type])])
+        tile_info.tile_wire_to_type = list(
+            [-1 for _ in range(num_tile_wires[tile.type])])
 
         tile_type = device.device_resource_capnp.tileTypeList[tile.type]
 
@@ -1907,6 +1911,16 @@ def populate_chip_info(device, constids, device_config):
 
             node_info.tile_wires.append(tile_wire)
 
+    for wire in device.device_resource_capnp.wires:
+        # Assign wire types
+        tile_name = device.strs[wire.tile]
+        wire_name = device.strs[wire.wire]
+        tile_index = tile_name_to_tile_index[tile_name]
+        tile_info = chip_info.tiles[tile_index]
+        wire_in_tile_id = tile_wire_to_wire_in_tile_index[tile_info.
+                                                          type][wire_name]
+        tile_info.tile_wire_to_type[wire_in_tile_id] = wire.type
+
     constants.populate_constant_network()
 
     for package in device.device_resource_capnp.packages:
@@ -1926,5 +1940,12 @@ def populate_chip_info(device, constids, device_config):
             package_pin_data.bel = device.strs[package_pin.bel.bel]
 
             package_data.package_pins.append(package_pin_data)
+
+    for wire_type in device.device_resource_capnp.wireTypes:
+        wire_type_data = WireType()
+        wire_type_data.name = device.strs[wire_type.name]
+        wire_type_data.category = convert_wire_category(
+            wire_type.category).value
+        chip_info.wire_types.append(wire_type_data)
 
     return chip_info

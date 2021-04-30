@@ -82,6 +82,18 @@ Constants = namedtuple(
 )
 
 
+# Default value of a cell pin
+class WireCategory(enum.Enum):
+    General = 0
+    Special = 1
+    Global = 2
+
+
+def convert_wire_category(s):
+    """ Convert capnp enum to WireCategory. """
+    return WireCategory[first_upper(str(s))]
+
+
 class Tile(
         namedtuple(
             'Tile',
