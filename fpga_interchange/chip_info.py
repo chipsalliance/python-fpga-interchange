@@ -393,11 +393,17 @@ class TileInstInfo():
         # Index into root.nodes
         self.tile_wire_to_node = []
 
+        # Index into root.wire_types
+        self.tile_wire_to_type = []
+
     def sites_label(self, label_prefix):
         return '{}.{}.sites'.format(label_prefix, self.name)
 
     def tile_wire_to_node_label(self, label_prefix):
         return '{}.{}.tile_wire_to_node'.format(label_prefix, self.name)
+
+    def tile_wire_to_type_label(self, label_prefix):
+        return '{}.{}.tile_wire_to_type'.format(label_prefix, self.name)
 
     def append_children_bba(self, bba, label_prefix):
         bba.label(self.sites_label(label_prefix), 'int32_t')
@@ -407,6 +413,12 @@ class TileInstInfo():
         bba.label(self.tile_wire_to_node_label(label_prefix), 'int32_t')
         for node_index in self.tile_wire_to_node:
             bba.u32(node_index)
+        bba.label(self.tile_wire_to_type_label(label_prefix), 'int16_t')
+        for type_index in self.tile_wire_to_type:
+            bba.u16(type_index)
+        if len(self.tile_wire_to_type) % 2 == 1:
+            # Pad to nearest 32-bit alignment
+            bba.u16(0)
 
     def append_bba(self, bba, label_prefix):
         bba.str(self.name)
@@ -415,6 +427,8 @@ class TileInstInfo():
         bba.u32(len(self.sites))
         bba.ref(self.tile_wire_to_node_label(label_prefix))
         bba.u32(len(self.tile_wire_to_node))
+        bba.ref(self.tile_wire_to_type_label(label_prefix))
+        bba.u32(len(self.tile_wire_to_type))
 
 
 class TileWireRef():
@@ -773,13 +787,26 @@ class Constants():
         bba.u32(len(self.default_conns))
 
 
+class WireType():
+    def __init__(self):
+        self.name = ''
+        self.category = 0
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.u32(self.category)
+
+
 class ChipInfo():
     def __init__(self):
         self.name = ''
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 7
+        self.version = 8
         self.width = 0
         self.height = 0
 
@@ -788,6 +815,7 @@ class ChipInfo():
         self.tiles = []
         self.nodes = []
         self.packages = []
+        self.wire_types = []
 
         # str, constids
         self.bel_buckets = []
@@ -798,13 +826,16 @@ class ChipInfo():
     def append_bba(self, bba, label_prefix):
         label = label_prefix
 
-        children_fields = ['tile_types', 'sites', 'tiles', 'nodes', 'packages']
+        children_fields = [
+            'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types'
+        ]
         children_types = [
             'TileTypeInfoPOD',
             'SiteInstInfoPOD',
             'TileInstInfoPOD',
             'NodeInfoPOD',
             'PackagePOD',
+            'WireTypePOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
