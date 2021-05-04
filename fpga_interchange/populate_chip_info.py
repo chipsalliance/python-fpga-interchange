@@ -16,7 +16,7 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
-        WireType
+        WireType, GlobalCell, GlobalCellPin
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -1661,9 +1661,10 @@ def populate_chip_info(device, constids, device_config):
     assert len(constids.values) == 1
 
     bel_bucket_seeds = device_config.get('buckets', [])
-    global_buffers = device_config.get('global_buffers', [])
+    global_buffer_bels = device_config.get('global_buffer_bels', [])
     disabled_routethrus = device_config.get('disabled_routethroughs', [])
     disabled_cell_bel_map = device_config.get('disabled_cell_bel_map', [])
+    global_buffer_cells = device_config.get('global_buffer_cells', [])
 
     cell_bel_mapper = CellBelMapper(device, constids, disabled_cell_bel_map)
 
@@ -1688,7 +1689,7 @@ def populate_chip_info(device, constids, device_config):
         chip_info.cell_map.add_cell(
             cell_name, cell_bel_mapper.cell_to_bel_bucket(cell_name))
 
-    for bel_name in global_buffers:
+    for bel_name in global_buffer_bels:
         chip_info.cell_map.add_global_buffer_bel(bel_name)
 
     for lut_cell in device.device_resource_capnp.lutDefinitions.lutCells:
@@ -1947,5 +1948,19 @@ def populate_chip_info(device, constids, device_config):
         wire_type_data.category = convert_wire_category(
             wire_type.category).value
         chip_info.wire_types.append(wire_type_data)
+
+    for global_cell in global_buffer_cells:
+        global_cell_data = GlobalCell()
+        global_cell_data.cell_type = global_cell['cell']
+        for pin in global_cell.get('pins', []):
+            pin_data = GlobalCellPin()
+            pin_data.name = pin['name']
+            pin_data.max_hops = pin.get('max_hops', -1)
+            pin_data.guide_placement = 1 if pin.get('guide_placement',
+                                                    False) else 0
+            pin_data.force_routing = 1 if pin.get('force_routing',
+                                                  False) else 0
+            global_cell_data.pins.append(pin_data)
+        chip_info.global_cells.append(global_cell_data)
 
     return chip_info

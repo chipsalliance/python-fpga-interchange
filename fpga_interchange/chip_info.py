@@ -800,13 +800,53 @@ class WireType():
         bba.u32(self.category)
 
 
+class GlobalCellPin():
+    def __init__(self):
+        self.name = ''
+        self.max_hops = -1
+        self.guide_placement = 0
+        self.force_routing = 0
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.u16(self.max_hops)
+        bba.u8(self.guide_placement)
+        bba.u8(self.force_routing)
+
+
+class GlobalCell():
+    def __init__(self):
+        self.cell_type = ''
+        self.pins = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.cell_type, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for cell_pin in self.pins:
+            cell_pin.append_children_bba(
+                bba, self.field_label(label_prefix, 'pins'))
+
+        bba.label(self.field_label(label_prefix, 'pins'), 'GlobalCellPOD')
+        for cell_pin in self.pins:
+            cell_pin.append_bba(bba, self.field_label(label_prefix, 'pins'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_type)
+        bba.ref(self.field_label(label_prefix, 'pins'))
+        bba.u32(len(self.pins))
+
+
 class ChipInfo():
     def __init__(self):
         self.name = ''
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 8
+        self.version = 9
         self.width = 0
         self.height = 0
 
@@ -816,6 +856,7 @@ class ChipInfo():
         self.nodes = []
         self.packages = []
         self.wire_types = []
+        self.global_cells = []
 
         # str, constids
         self.bel_buckets = []
@@ -827,7 +868,8 @@ class ChipInfo():
         label = label_prefix
 
         children_fields = [
-            'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types'
+            'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types',
+            'global_cells'
         ]
         children_types = [
             'TileTypeInfoPOD',
@@ -836,6 +878,7 @@ class ChipInfo():
             'NodeInfoPOD',
             'PackagePOD',
             'WireTypePOD',
+            'GlobalCellPOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
