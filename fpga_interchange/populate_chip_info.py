@@ -1958,7 +1958,7 @@ def populate_chip_info(device, constids, device_config):
             pin_data.max_hops = pin.get('max_hops', -1)
             pin_data.guide_placement = 1 if pin.get('guide_placement',
                                                     False) else 0
-            pin_data.force_routing = 1 if pin.get('force_routing',
+            pin_data.force_routing = 1 if pin.get('force_dedicated_routing',
                                                   False) else 0
             global_cell_data.pins.append(pin_data)
         chip_info.global_cells.append(global_cell_data)

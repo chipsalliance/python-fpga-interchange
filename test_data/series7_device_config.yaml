@@ -10,9 +10,9 @@ global_buffer_cells:
     pins: # list of pins that use global resources
      - name: I # pin name
        guide_placement: true # attempt to place so that this pin can use dedicated resources
-       max_hops: 10 # max hops of interconnect to search
+       max_hops: 10 # max hops of interconnect to search (10 is for test purposes and may need to be refined)
      - name: O
-       force_routing: true # the net connected to this pin _must_ use dedicated routing only
+       force_dedicated_routing: true # the net connected to this pin _must_ use dedicated routing only
   - cell: BUFGCTRL
     pins:
       - name: I0
@@ -22,7 +22,7 @@ global_buffer_cells:
         guide_placement: true
         max_hops: 10
       - name: O
-        force_routing: true
+        force_dedicated_routing: true
 # How should nextpnr lump BELs during analytic placement?
 buckets:
 - bucket: FLIP_FLOPS
