@@ -94,3 +94,61 @@ disabled_cell_bel_map:
      - TFF
      - IFF
      - OUTFF
+disabled_site_pips:
+  - bels:
+     - A6LUT
+     - B6LUT
+     - C6LUT
+     - D6LUT
+    ipin: A6
+    opin: O6
+clusters:
+- name: CARRY_CHAIN
+  chainable_ports:
+    - cell_source: CO[3]
+      cell_sink: CI
+      bel_source: CO3
+      bel_sink: CIN
+      avg_x_offset: 0
+      avg_y_offset: -1
+  root_cell_types:
+    - CARRY4
+  cluster_cells:
+    - cells:
+        - LUT1
+        - LUT2
+        - LUT3
+        - LUT4
+        - LUT5
+        - LUT6
+      ports:
+        - S[3]
+        - S[2]
+        - S[1]
+        - S[0]
+    - cells:
+        - FDRE
+        - FDSE
+        - FDCE
+        - FDPE
+      ports:
+        - O[3]
+        - O[2]
+        - O[1]
+        - O[0]
+- name: LUT_FF
+  root_cell_types:
+    - FDRE
+    - FDSE
+    - FDCE
+    - FDPE
+  cluster_cells:
+    - cells:
+        - LUT1
+        - LUT2
+        - LUT3
+        - LUT4
+        - LUT5
+        - LUT6
+      ports:
+        - D

@@ -81,5 +81,7 @@ class BbaWriter():
 
     def check_labels(self):
         refs_and_labels = self.refs & self.labels
-        assert len(refs_and_labels) == len(self.refs)
-        assert len(refs_and_labels) == len(self.labels)
+        assert len(refs_and_labels) == len(self.refs), "{} vs. {}".format(
+            len(refs_and_labels), len(self.refs))
+        assert len(refs_and_labels) == len(self.labels), "{} vs. {}".format(
+            len(refs_and_labels), len(self.labels))

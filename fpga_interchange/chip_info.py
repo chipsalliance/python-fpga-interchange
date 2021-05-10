@@ -9,6 +9,7 @@
 #
 # SPDX-License-Identifier: ISC
 from enum import Enum
+from itertools import product
 
 # Note: Increment by 1 ChipInfo.version number each time schema changes to
 # allow nextpnr binary to detect changes to schema.
@@ -646,6 +647,99 @@ class CellMap():
             bba.u32(len(getattr(self, field)))
 
 
+class ClusterCellPort():
+    def __init__(self, cell, port):
+        self.cell = cell
+        self.port = port
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell)
+        bba.str_id(self.port)
+
+
+class ChainablePort():
+    def __init__(self, cell_source, cell_sink, bel_source, bel_sink, x_offset,
+                 y_offset):
+        self.cell_source = cell_source
+        self.cell_sink = cell_sink
+        self.bel_source = bel_source
+        self.bel_sink = bel_sink
+        self.avg_x_offset = x_offset
+        self.avg_y_offset = y_offset
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_source)
+        bba.str_id(self.cell_sink)
+        bba.str_id(self.bel_source)
+        bba.str_id(self.bel_sink)
+        bba.u16(self.avg_x_offset)
+        bba.u16(self.avg_y_offset)
+
+
+class Cluster():
+    fields = ['chainable_ports', 'cluster_cell_ports']
+    field_types = ['ChainablePortPOD', 'ClusterCellPortPOD']
+
+    def __init__(self, name, chainable_ports, root_cell_types, cluster_cells):
+        # Chain name
+        self.name = name
+
+        # Chain cells used in BEL chain
+        self.root_cell_types = root_cell_types
+
+        # Chainable ports
+        self.chainable_ports = []
+        for port in chainable_ports:
+            self.chainable_ports.append(
+                ChainablePort(port["cell_source"], port["cell_sink"],
+                              port["bel_source"], port["bel_sink"],
+                              port["avg_x_offset"], port["avg_y_offset"]))
+
+        # Optional cell <-> port mapping to bind cells to a specific cluster
+        self.cluster_cell_ports = []
+        for cell in cluster_cells:
+            for cell, port in product(cell["cells"], cell["ports"]):
+                self.cluster_cell_ports.append(ClusterCellPort(cell, port))
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        bba.label(
+            self.field_label(label_prefix, 'root_cell_types'), 'constids')
+        for cell_type in self.root_cell_types:
+            bba.str_id(cell_type)
+
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+
+        bba.ref(self.field_label(label_prefix, 'root_cell_types'))
+        bba.u32(len(self.root_cell_types))
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class PackagePin():
     def __init__(self):
         self.package_pin = ''
@@ -1053,6 +1147,7 @@ class ChipInfo():
         self.packages = []
         self.wire_types = []
         self.global_cells = []
+        self.clusters = []
 
         # str, constids
         self.bel_buckets = []
@@ -1068,7 +1163,7 @@ class ChipInfo():
 
         children_fields = [
             'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types',
-            'global_cells', 'macros', 'macro_rules'
+            'global_cells', 'macros', 'macro_rules', 'clusters'
         ]
         children_types = [
             'TileTypeInfoPOD',
@@ -1080,6 +1175,7 @@ class ChipInfo():
             'GlobalCellPOD',
             'MacroPOD',
             'MacroExpansionPOD',
+            'ClusterPOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)

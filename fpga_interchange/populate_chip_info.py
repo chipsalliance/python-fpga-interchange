@@ -16,8 +16,8 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
-        WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin
-
+        WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, \
+        MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin, Cluster
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -191,7 +191,8 @@ class LutElementsEmitter():
 
 class FlattenedTileType():
     def __init__(self, device, tile_type_index, tile_type, cell_bel_mapper,
-                 constraints, lut_elements, disabled_routethrus):
+                 constraints, lut_elements, disabled_routethrus,
+                 disabled_site_pips):
         self.tile_type_name = device.strs[tile_type.name]
         self.tile_type = tile_type
 
@@ -206,6 +207,8 @@ class FlattenedTileType():
 
         self.lut_elements = []
         self.lut_elements_map = {}
+
+        self.disabled_site_pips = disabled_site_pips
 
         # Add tile wires
         self.tile_wire_to_wire_in_tile_index = {}
@@ -554,6 +557,21 @@ class FlattenedTileType():
 
             dst_bel_pin = site_pip.outpin
             dst_site_wire_idx = bel_pin_to_site_wire_index[dst_bel_pin]
+
+            src_pin_name_idx = site_type.belPins[src_bel_pin].name
+            dst_pin_name_idx = site_type.belPins[dst_bel_pin].name
+            bel_name_idx = site_type.bels[bel_idx].name
+
+            disable_pip = False
+            for dis_pip in self.disabled_site_pips:
+                if device.strs[bel_name_idx] in dis_pip["bels"] and \
+                        dis_pip["ipin"] == device.strs[src_pin_name_idx] and \
+                        dis_pip["opin"] == device.strs[dst_pin_name_idx]:
+                    disable_pip = True
+                    break
+
+            if disable_pip:
+                continue
 
             self.add_site_pip(src_site_wire_idx, dst_site_wire_idx, site_index,
                               idx)
@@ -1762,8 +1780,10 @@ def populate_chip_info(device, constids, device_config):
     bel_bucket_seeds = device_config.get('buckets', [])
     global_buffer_bels = device_config.get('global_buffer_bels', [])
     disabled_routethrus = device_config.get('disabled_routethroughs', [])
+    disabled_site_pips = device_config.get('disabled_site_pips', [])
     disabled_cell_bel_map = device_config.get('disabled_cell_bel_map', [])
     global_buffer_cells = device_config.get('global_buffer_cells', [])
+    clusters = device_config.get('clusters', [])
 
     cell_bel_mapper = CellBelMapper(device, constids, disabled_cell_bel_map)
 
@@ -1835,11 +1855,19 @@ def populate_chip_info(device, constids, device_config):
         assert lut_element.site not in lut_elements
         lut_elements[lut_element.site] = LutElementsEmitter(lut_element.luts)
 
+    for cluster in clusters:
+        cluster_name = cluster["name"]
+        cluster_obj = Cluster(cluster_name, cluster.get("chainable_ports", []),
+                              cluster["root_cell_types"],
+                              cluster.get("cluster_cells", []))
+
+        chip_info.clusters.append(cluster_obj)
+
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
         flattened_tile_type = FlattenedTileType(
             device, tile_type_index, tile_type, cell_bel_mapper, constraints,
-            lut_elements, disabled_routethrus)
+            lut_elements, disabled_routethrus, disabled_site_pips)
 
         tile_type_info = flattened_tile_type.create_tile_type_info(
             cell_bel_mapper)
