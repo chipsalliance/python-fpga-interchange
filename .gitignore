@@ -9,3 +9,4 @@ env
 *.swp
 *.swo
 *.yaml
+!test_data/*
