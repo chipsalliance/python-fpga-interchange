@@ -19,6 +19,11 @@ class ConstraintType(Enum):
     TAG_REQUIRES = 1
 
 
+class ChainCoordinate(Enum):
+    X = 0
+    Y = 1
+
+
 class BelInfo():
     str_id_fields = ['ports']
     int_fields = ['types', 'wires']
@@ -646,6 +651,147 @@ class CellMap():
             bba.u32(len(getattr(self, field)))
 
 
+class ChainPatternConfig():
+    def __init__(self, type, port):
+        self.type = type
+        self.port = port
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.type)
+        bba.str_id(self.port)
+
+
+class ChainPattern():
+    children_fields = [
+        'source', 'sink'
+    ]
+    children_types = [
+        'ChainPatternConfigPOD', 'ChainPatternConfigPOD'
+    ]
+
+    def __init__(self, source, sink):
+        self.source = ChainPatternConfig(source.type, source.port)
+        self.sink = ChainPatternConfig(sink.type, sink.port)
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}'.format(label_prefix, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        for field, field_type in zip(self.children_fields,
+                                     self.children_types):
+            prefix = self.field_label(label, field)
+            value = getattr(self, field)
+            value.append_children_bba(bba, prefix)
+
+            bba.label(prefix, field_type)
+            value.append_bba(bba, prefix)
+
+    def append_bba(self, bba, label_prefix):
+        for field in self.children_fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(1)
+
+
+class ChainCoordConfig():
+    def __init__(self, coord, step):
+        self.coord = ChainCoordinate[str(coord).upper()]
+        self.step = step
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.u8(self.coord.value)
+        bba.u8(self.step)
+        bba.u16(0)
+
+
+class ChainCell():
+    def __init__(self, cell, input_pins, output_pins):
+        self.cell = cell
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell)
+
+
+class BelChain():
+    children_fields = [
+        'patterns', 'coord_configs'
+    ]
+    children_types = [
+        'ChainPatternPOD', 'ChainCoordConfigPOD'
+    ]
+
+    def __init__(self, name, patterns, sites, coord_configs, cells):
+        # Chain name
+        self.name = name
+
+        # Chain patterns
+        self.patterns = []
+        for pattern in patterns:
+            self.patterns.append(ChainPattern(pattern.source, pattern.sink))
+
+        # Sites for which chain patterns apply
+        self.sites = sites
+
+        # Coordinates configurations
+        # which coordinate by what step should be incremented
+        self.coord_configs = []
+        if coord_configs is not None:
+            for coord_config in coord_configs:
+                self.coord_configs.append(ChainCoordConfig(coord_config.coord, coord_config.step))
+
+        # Chain cells used in BEL chain
+        self.cells = cells
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        bba.label(self.field_label(label_prefix, 'sites'), 'constids')
+        for site in self.sites:
+            bba.str_id(site)
+
+        bba.label(self.field_label(label_prefix, 'cells'), 'constids')
+        for cell in self.cells:
+            bba.str_id(cell)
+
+        for field, field_type in zip(self.children_fields,
+                                     self.children_types):
+            prefix = self.field_label(label, field)
+            for value in getattr(self, field):
+                value.append_children_bba(bba, prefix)
+
+            bba.label(prefix, field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, prefix)
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+
+        bba.ref(self.field_label(label_prefix, 'sites'))
+        bba.u32(len(self.sites))
+
+        bba.ref(self.field_label(label_prefix, 'cells'))
+        bba.u32(len(self.cells))
+
+        for field in self.children_fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class PackagePin():
     def __init__(self):
         self.package_pin = ''
@@ -1053,6 +1199,7 @@ class ChipInfo():
         self.packages = []
         self.wire_types = []
         self.global_cells = []
+        self.bel_chains = []
 
         # str, constids
         self.bel_buckets = []
@@ -1068,7 +1215,7 @@ class ChipInfo():
 
         children_fields = [
             'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types',
-            'global_cells', 'macros', 'macro_rules'
+            'global_cells', 'macros', 'macro_rules', 'bel_chains'
         ]
         children_types = [
             'TileTypeInfoPOD',
@@ -1080,6 +1227,7 @@ class ChipInfo():
             'GlobalCellPOD',
             'MacroPOD',
             'MacroExpansionPOD',
+            'BelChainPOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)

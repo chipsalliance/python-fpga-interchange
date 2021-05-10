@@ -1,0 +1,14 @@
+belChains:
+  - name: carryChain
+    patterns: 
+      - {source: {type: "CARRY4", port: "CO[3]"}, sink: {type: "CARRY4", port: "CI"}}
+    sites:
+      - SLICEL
+      - SLICEM
+    cells:
+      - XORCY
+      - MUXCY
+      - CARRY4
+    coordConfigs:
+      - {coord: y, step: -1} # Default
+      - {coord: y, step: -2} # When crossing clock region
