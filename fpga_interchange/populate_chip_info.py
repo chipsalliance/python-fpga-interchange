@@ -16,7 +16,7 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
-        WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroParamMapRule, MacroParameter, GlobalCell, GlobalCellPin
+        WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin
 
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
@@ -1717,6 +1717,39 @@ def populate_macros(device, chip_info):
             chip_info.macros.append(macro)
 
 
+def populate_macro_rules(device, chip_info):
+    for rule in device.device_resource_capnp.exceptionMap:
+        exp_data = MacroExpansion()
+        exp_data.prim_name = device.strs[rule.primName]
+        exp_data.macro_name = device.strs[rule.macroName]
+        if rule.which() == 'parameters':
+            for param in rule.parameters:
+                param_match = MacroParameter()
+                param_match.key = device.strs[param.key]
+                param_match.value = device.strs[param.textValue]
+                exp_data.param_matches.append(param_match)
+        for mapping in rule.paramMapping:
+            param_map = MacroParamMapRule()
+            param_map.prim_param = device.strs[mapping.primParam]
+            param_map.inst_name = device.strs[mapping.instName]
+            param_map.inst_param = device.strs[mapping.instParam]
+            if mapping.which() == 'copyValue':
+                param_map.rule_type = MacroParamRuleType.COPY.value
+            elif mapping.which() == 'bitSlice':
+                param_map.rule_type = MacroParamRuleType.SLICE.value
+                for bit in mapping.bitSlice:
+                    param_map.slice_bits.append(bit)
+            elif mapping.which() == 'tableLookup':
+                param_map.rule_type = MacroParamRuleType.TABLE.value
+                for entry in mapping.tableLookup:
+                    table_entry = MacroParameter()
+                    table_entry.key = device.strs[getattr(entry, 'from')]
+                    table_entry.value = device.strs[entry.to]
+                    param_map.map_table.append(table_entry)
+            exp_data.param_rules.append(param_map)
+        chip_info.macro_rules.append(exp_data)
+
+
 def populate_chip_info(device, constids, device_config):
     assert len(constids.values) == 1
 
@@ -1784,6 +1817,7 @@ def populate_chip_info(device, constids, device_config):
         chip_info.bel_buckets.append(bel_bucket)
 
     populate_macros(device, chip_info)
+    populate_macro_rules(device, chip_info)
 
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []

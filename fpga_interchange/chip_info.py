@@ -838,7 +838,7 @@ class MacroParamMapRule():
                 bba, self.field_label(label_prefix, 'map_table'))
 
         bba.label(self.field_label(label_prefix, 'slice_bits'), 'uint32_t')
-        for bit in slice_bits:
+        for bit in self.slice_bits:
             bba.u32(bit)
 
         bba.label(
@@ -964,7 +964,8 @@ class MacroExpansion():
         self.param_rules = []
 
     def field_label(self, label_prefix, field):
-        return '{}.{}.{}'.format(label_prefix, self.name, field)
+        return '{}.{}_{}.{}'.format(label_prefix, self.prim_name,
+                                    self.macro_name, field)
 
     def append_children_bba(self, bba, label_prefix):
         for param in self.param_matches:
