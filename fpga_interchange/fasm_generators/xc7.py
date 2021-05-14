@@ -106,7 +106,6 @@ class XC7FasmGenerator(FasmGenerator):
         allowed_cell_types = ["RAMB18E1"]
         allowed_site_types = ["RAMB18E1"]
 
-        fasm_features = list()
         for cell_instance, cell_data in self.physical_cells_instances.items():
             cell_type = cell_data.cell_type
             if cell_type not in allowed_cell_types:
@@ -123,6 +122,7 @@ class XC7FasmGenerator(FasmGenerator):
 
             attributes = cell_data.attributes
 
+            fasm_features = list()
             ram_mode = attributes["RAM_MODE"]
             for attr, value in attributes.items():
                 init_param = self.device_resources.get_parameter_definition(
@@ -140,7 +140,8 @@ class XC7FasmGenerator(FasmGenerator):
                     init_str = "{len}'b{value}".format(
                         len=len(init_str_value), value=init_str_value)
                     fasm_feature = "{}[{}:0]={}".format(
-                        attr, len(init_str_value), init_str)
+                        attr,
+                        len(init_str_value) - 1, init_str)
                     fasm_features.append(fasm_feature)
 
                 elif attr in z_features:
@@ -169,15 +170,16 @@ class XC7FasmGenerator(FasmGenerator):
                     fasm_features.append("{}_{}".format(attr, init_value))
 
                     if init_value == 36 and ram_mode == "SDP":
-                        fasm_feature.append("SDP_{}_36".format(attr))
+                        fasm_features.append("SDP_{}_36".format(attr))
 
             for fasm_feature in fasm_features:
                 self.add_cell_feature((tile_name, bram_prefix, fasm_feature))
 
-            for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
-                value = "1" * 13
-                fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
-                self.add_cell_feature((tile_name, fasm_feature))
+            if not is_y1:
+                for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
+                    value = "1" * 13
+                    fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
+                    self.add_cell_feature((tile_name, fasm_feature))
 
     def handle_ios(self):
         """
@@ -351,7 +353,7 @@ class XC7FasmGenerator(FasmGenerator):
             if cell_type.startswith("LD"):
                 self.add_cell_feature((tile_name, slice_site, "LATCH"))
 
-            if cell_type in ["FDRE", "FDCE"]:
+            if cell_type in ["FDRE", "FDSE"]:
                 self.add_cell_feature((tile_name, slice_site, "FFSYNC"))
 
             init_param = self.device_resources.get_parameter_definition(
@@ -600,6 +602,11 @@ class XC7FasmGenerator(FasmGenerator):
                 regex="(HCLK_CK_BUFHCLK[0-9]+)",
                 features=[""],
                 callback=lambda m: "ENABLE_BUFFER.{}".format(m.group(1))))
+        regexs.append(
+            ExtraFeatures(
+                regex="BRAM_CASCOUT_ADDR(ARD|BWR)ADDR",
+                features=[""],
+                callback=lambda m: "CASCOUT_{}_ACTIVE".format(m.group(1))))
 
         extra_wires = set()
         for tile_pips in extra_pip_features.values():
@@ -637,7 +644,7 @@ class XC7FasmGenerator(FasmGenerator):
         tile_types = [
             "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
             "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R", "CLK_HROW_BOT_R",
-            "CLK_BUFG_REBUF"
+            "CLK_BUFG_REBUF", "BRAM_L", "BRAM_R"
         ]
         extra_pip_features = dict(
             (tile_type, set()) for tile_type in tile_types)
