@@ -232,14 +232,16 @@ class PhysicalPip():
     wire1 (str) - Name of downstream wire from pip
     forward (bool) - For bidirectional pips, is the connection from wire0 to
                      wire1 (forward=True) or wire1 to wire0 (forward=False).
+    site (str) - name of site in case of Pseudo PIP
 
     """
 
-    def __init__(self, tile, wire0, wire1, forward=True):
+    def __init__(self, tile, wire0, wire1, forward=True, site=None):
         self.tile = tile
         self.wire0 = wire0
         self.wire1 = wire1
         self.forward = forward
+        self.site = site
 
         self.branches = []
 
@@ -275,11 +277,12 @@ class PhysicalPip():
         return ('pip', self.tile, self.wire0, self.wire1)
 
     def __str__(self):
-        return 'PhysicalPip({}, {}, {}, {})'.format(
+        return 'PhysicalPip({}, {}, {}, {}, {})'.format(
             repr(self.tile),
             repr(self.wire0),
             repr(self.wire1),
             repr(self.forward),
+            repr(self.site),
         )
 
 
