@@ -310,6 +310,41 @@ class FasmGenerator():
 
                     pip = tile_type.pip(wire0_id, wire1_id)
                     if pip.which() == "pseudoCells":
+                        for pcell in pip.pseudoCells:
+                            bel = self.device_resources.strs[pcell.bel]
+
+                            if bel not in avail_lut_thrus:
+                                continue
+
+                            pins = [
+                                self.device_resources.strs[pin]
+                                for pin in pcell.pins
+                            ]
+
+                            site = segment.site
+                            assert site
+
+                            site_type = list(self.device_resources.
+                                             site_name_to_site[site].keys())[0]
+                            _, lut_bel = self.lut_mapper.find_lut_bel(
+                                site_type, bel)
+
+                            pin = None
+                            for lut_bel_pin in lut_bel.pins:
+                                if lut_bel_pin in pins:
+                                    pin = lut_bel_pin
+                                    break
+
+                            assert pin
+
+                            key = (net.name, site, bel)
+                            assert key not in lut_thru_pips
+
+                            lut_thru_pips[key] = {
+                                "pin_name": pin,
+                                "is_valid": True
+                            }
+
                         site_thru_pips.append((tile, wire0, wire1))
                         continue
 
