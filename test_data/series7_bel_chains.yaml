@@ -6,9 +6,10 @@ belChains:
       - SLICEL
       - SLICEM
     cells:
-      - XORCY
-      - MUXCY
       - CARRY4
+    chainDrivers: # Place driver cell of S port to a proper BEL
+      - {ports: ["S[0]", "S[1]", "S[2]", "S[3]"],
+         bels: ["LUT6", "LUT_OR_MEM6"]}
     coordConfigs:
       - {coord: y, step: -1} # Default
       - {coord: y, step: -2} # When crossing clock region

@@ -1838,12 +1838,13 @@ def populate_chip_info(device, constids, device_config):
     bel_chains = {}
     for bel_chain in device.device_resource_capnp.belChainsDefinitions.belChains:
         assert bel_chain.name not in bel_chains.keys()
-        cfgs_present = bel_chain.which() == "coordConfigs"
+        drivers_present = bel_chain.which() == "chainDrivers"
         bel_chains[bel_chain.name] = BelChain(bel_chain.name,
                                             bel_chain.patterns,
                                             bel_chain.sites,
-                                            bel_chain.coordConfigs if cfgs_present else None,
-                                            bel_chain.cells)
+                                            bel_chain.coordConfigs,
+                                            bel_chain.cells,
+                                            bel_chain.chainDrivers if drivers_present else None)
 
         chip_info.bel_chains.append(bel_chains[bel_chain.name])
 

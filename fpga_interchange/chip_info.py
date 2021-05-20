@@ -698,6 +698,30 @@ class ChainPattern():
             bba.u32(1)
 
 
+class ChainDriver():
+    def __init__(self, ports, bels):
+        self.ports = ports
+        self.bels = bels
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}'.format(label_prefix, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        bba.label(self.field_label(label_prefix, 'ports'), 'constids')
+        for port in self.ports:
+            bba.str_id(port)
+        bba.label(self.field_label(label_prefix, 'bels'), 'constids')
+        for bel in self.bels:
+            bba.str_id(bel)
+
+    def append_bba(self, bba, label_prefix):
+        bba.ref(self.field_label(label_prefix, 'ports'))
+        bba.u32(len(self.ports))
+
+        bba.ref(self.field_label(label_prefix, 'bels'))
+        bba.u32(len(self.bels))
+
 class ChainCoordConfig():
     def __init__(self, coord, step):
         self.coord = ChainCoordinate[str(coord).upper()]
@@ -725,13 +749,13 @@ class ChainCell():
 
 class BelChain():
     children_fields = [
-        'patterns', 'coord_configs'
+        'patterns', 'coord_configs', 'chain_drivers'
     ]
     children_types = [
-        'ChainPatternPOD', 'ChainCoordConfigPOD'
+        'ChainPatternPOD', 'ChainCoordConfigPOD', 'ChainDriverPOD'
     ]
 
-    def __init__(self, name, patterns, sites, coord_configs, cells):
+    def __init__(self, name, patterns, sites, coord_configs, cells, chain_drivers):
         # Chain name
         self.name = name
 
@@ -746,12 +770,17 @@ class BelChain():
         # Coordinates configurations
         # which coordinate by what step should be incremented
         self.coord_configs = []
-        if coord_configs is not None:
-            for coord_config in coord_configs:
-                self.coord_configs.append(ChainCoordConfig(coord_config.coord, coord_config.step))
+        for coord_config in coord_configs:
+            self.coord_configs.append(ChainCoordConfig(coord_config.coord, coord_config.step))
 
         # Chain cells used in BEL chain
         self.cells = cells
+
+        # Optional drivers of the cells used in BEL chain
+        self.chain_drivers = []
+        if chain_drivers is not None:
+            for driver in chain_drivers:
+                self.chain_drivers.append(ChainDriver(driver.ports, driver.bels))
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
