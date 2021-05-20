@@ -170,6 +170,17 @@ class LutMapper():
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
 
+    def get_const_lut_init(self, const_init_value, site_type, bel):
+        """
+        Returns the LUTs physical INIT parameter mapping of a wire tied to
+        the constant net (GND or VCC).
+        """
+
+        lut_element, _ = self.find_lut_bel(site_type, bel)
+        width = lut_element.width
+
+        return "".rjust(width, str(const_init_value))
+
 
 class FasmGenerator():
     def __init__(self, interchange, device_resources, log_netlist_file,
