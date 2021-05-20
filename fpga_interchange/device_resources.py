@@ -231,12 +231,15 @@ class Bel():
         self.type = strs[bel.type]
         self.bel_pins = [bel_pin for bel_pin in bel.pins]
 
-    def get_pins(self, site):
+    def yield_pins(self, site, direction=None):
         for bel_pin in self.bel_pins:
             bel_name, bel_pin_name = self.site_type.bel_pin_index[bel_pin]
             assert bel_name == self.name
 
-            yield self.site_type.bel_pin(site, bel_name, bel_pin_name)
+            bel_pin = self.site_type.bel_pin(site, bel_name, bel_pin_name)
+
+            if direction and bel_pin.direction == direction:
+                yield bel_pin
 
 
 class SitePin():
@@ -941,6 +944,15 @@ class DeviceResources():
                     for bel in site_type.bels:
                         yield tile_name, site_name, tile.tile_type, \
                                 site.site_type_name, bel.name, bel.type
+
+    def get_bel_site_type(self, site_name, bel_name):
+        """ Returns site type and BEL objects corresponding to the given site and BEL names"""
+        for site_type, site in self.site_name_to_site[site_name].items():
+            site_type = self.get_site_type(site.site_type_index)
+
+            for bel in site_type.bels:
+                if bel.name == bel_name:
+                    return bel, site_type
 
     def get_primitive_library(self):
         from fpga_interchange.interchange_capnp import to_logical_netlist

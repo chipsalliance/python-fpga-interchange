@@ -390,7 +390,8 @@ class XC7FasmGenerator(FasmGenerator):
                     self.add_cell_feature((tile_name, site_prefix, feature))
 
     def handle_slice_routing_bels(self):
-        routing_bels = self.get_routing_bels("SLICE")
+        tile_types = ["CLBLL_L", "CLBLL_R", "CLBLM_L", "CLBLM_R"]
+        routing_bels = self.get_routing_bels(tile_types)
 
         used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
 
@@ -411,7 +412,8 @@ class XC7FasmGenerator(FasmGenerator):
                 self.add_cell_feature((tile_name, slice_prefix, bel, pin))
 
     def handle_bram_routing_bels(self):
-        routing_bels = self.get_routing_bels("RAMB")
+        tile_types = ["BRAM_L", "BRAM_R"]
+        routing_bels = self.get_routing_bels(tile_types)
 
         for site, bel, pin, is_inverting in routing_bels:
             tile_name, tile_type = self.get_tile_info_at_site(site)
@@ -665,12 +667,12 @@ class XC7FasmGenerator(FasmGenerator):
         self.handle_luts()
         self.handle_slice_ff()
 
+        # Handling PIPs and Route-throughs
+        self.handle_pips()
+
         # Handling routing BELs
         self.handle_slice_routing_bels()
         self.handle_bram_routing_bels()
-
-        # Handling PIPs and Route-throughs
-        self.handle_pips()
 
         # Emit LUT features. This needs to be done at last as
         # LUT features depend also on LUT route-thru
