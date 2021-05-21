@@ -42,6 +42,9 @@ callback: function to get the correct prefix for the feature, based on the
 """
 ExtraFeatures = namedtuple('ExtraFeatures', 'regex features callback')
 
+VCC_NET = "GLOBAL_LOGIC1"
+GND_NET = "GLOBAL_LOGIC0"
+
 
 class LutsEnum(Enum):
     LUT5 = 0
@@ -390,7 +393,8 @@ class XC7FasmGenerator(FasmGenerator):
                     self.add_cell_feature((tile_name, site_prefix, feature))
 
     def handle_slice_routing_bels(self):
-        routing_bels = self.get_routing_bels("SLICE")
+        tile_types = ["CLBLL_L", "CLBLL_R", "CLBLM_L", "CLBLM_R"]
+        routing_bels = self.get_routing_bels(tile_types)
 
         used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
 
@@ -411,7 +415,8 @@ class XC7FasmGenerator(FasmGenerator):
                 self.add_cell_feature((tile_name, slice_prefix, bel, pin))
 
     def handle_bram_routing_bels(self):
-        routing_bels = self.get_routing_bels("RAMB")
+        tile_types = ["BRAM_L", "BRAM_R"]
+        routing_bels = self.get_routing_bels(tile_types)
 
         for site, bel, pin, is_inverting in routing_bels:
             tile_name, tile_type = self.get_tile_info_at_site(site)
@@ -511,9 +516,17 @@ class XC7FasmGenerator(FasmGenerator):
             lut_enum = LutsEnum.from_str(lut_type)
             assert self.luts[lut_key][lut_enum] is None, (net_name, site, bel)
 
-            wire_lut_init = self.lut_mapper.get_phys_wire_lut_init(
-                2, site_type, "LUT1", bel, pin_name)
-            self.luts[lut_key][lut_enum] = wire_lut_init
+            if net_name == VCC_NET:
+                lut_init = self.lut_mapper.get_const_lut_init(
+                    1, site_type, bel)
+            elif net_name == GND_NET:
+                lut_init = self.lut_mapper.get_const_lut_init(
+                    0, site_type, bel)
+            else:
+                lut_init = self.lut_mapper.get_phys_wire_lut_init(
+                    2, site_type, "LUT1", bel, pin_name)
+
+            self.luts[lut_key][lut_enum] = lut_init
 
     def handle_extra_pip_features(self, extra_pip_features):
         """
@@ -665,12 +678,12 @@ class XC7FasmGenerator(FasmGenerator):
         self.handle_luts()
         self.handle_slice_ff()
 
+        # Handling PIPs and Route-throughs
+        self.handle_pips()
+
         # Handling routing BELs
         self.handle_slice_routing_bels()
         self.handle_bram_routing_bels()
-
-        # Handling PIPs and Route-throughs
-        self.handle_pips()
 
         # Emit LUT features. This needs to be done at last as
         # LUT features depend also on LUT route-thru

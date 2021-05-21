@@ -14,6 +14,7 @@ from math import log2
 from fpga_interchange import get_version
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, PhysicalSitePip, PhysicalBelPin
+from fpga_interchange.logical_netlist import Direction
 from fpga_interchange.chip_info_utils import LutCell, LutBel, LutElement
 
 PhysCellInstance = namedtuple(
@@ -81,6 +82,8 @@ class LutMapper():
             for lut_bel in lut_element.lut_bels:
                 if lut_bel.name == bel:
                     return lut_element, lut_bel
+
+        assert False
 
     def get_phys_lut_init(self, log_init, lut_element, lut_bel, lut_cell,
                           phys_to_log):
@@ -167,6 +170,17 @@ class LutMapper():
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
 
+    def get_const_lut_init(self, const_init_value, site_type, bel):
+        """
+        Returns the LUTs physical INIT parameter mapping of a wire tied to
+        the constant net (GND or VCC).
+        """
+
+        lut_element, _ = self.find_lut_bel(site_type, bel)
+        width = lut_element.width
+
+        return "".rjust(width, str(const_init_value))
+
 
 class FasmGenerator():
     def __init__(self, interchange, device_resources, log_netlist_file,
@@ -186,6 +200,8 @@ class FasmGenerator():
         self.build_log_cells_instances()
         self.build_phys_cells_instances()
         self.flatten_nets()
+
+        self.routing_bels = dict()
 
         self.pips_features = set()
         self.cells_features = set()
@@ -221,6 +237,15 @@ class FasmGenerator():
         tile_type = tile.tile_type
 
         return tile_name, tile_type
+
+    def get_routing_bels(self, tile_types):
+        routing_bels = list()
+
+        for tile_type, rbels in self.routing_bels.items():
+            if tile_type in tile_types:
+                routing_bels += rbels
+
+        return routing_bels
 
     def build_log_cells_instances(self):
         """
@@ -309,17 +334,64 @@ class FasmGenerator():
                     wire1_id = self.device_resources.string_index[wire1]
 
                     pip = tile_type.pip(wire0_id, wire1_id)
-                    if pip.which() == "pseudoCells":
-                        site_thru_pips.append((tile, wire0, wire1))
+                    if pip.which() != "pseudoCells":
+                        if tile_type_name in extra_pip_features:
+                            extra_pip_features[tile_type_name].add((tile,
+                                                                    wire0))
+                            extra_pip_features[tile_type_name].add((tile,
+                                                                    wire1))
+
+                        self.add_pip_feature((tile, wire0, wire1),
+                                             pip_feature_format)
+
                         continue
 
-                    if tile_type_name in extra_pip_features:
-                        extra_pip_features[tile_type_name].add((tile, wire0))
-                        extra_pip_features[tile_type_name].add((tile, wire1))
+                    # Store LUT-thrus and routing bels used by pseudo tile PIPs
+                    for pcell in pip.pseudoCells:
+                        site = segment.site
+                        assert site
 
-                    self.add_pip_feature((tile, wire0, wire1),
-                                         pip_feature_format)
+                        bel_name = self.device_resources.strs[pcell.bel]
+                        bel, site_type = self.device_resources.get_bel_site_type(
+                            site, bel_name)
+                        site_type_name = site_type.site_type
+                        site_info = self.device_resources.site_name_to_site[
+                            site][site_type_name]
 
+                        if bel.category == "sitePort":
+                            continue
+
+                        pin = None
+                        for bel_pin in bel.yield_pins(site_info,
+                                                      Direction.Input):
+                            if any(self.device_resources.strs[p] == bel_pin.
+                                   name for p in pcell.pins):
+                                pin = bel_pin.name
+
+                        assert pin
+
+                        if bel.category == "logic" and bel_name in avail_lut_thrus:
+                            _, lut_bel = self.lut_mapper.find_lut_bel(
+                                site_type_name, bel_name)
+
+                            key = (net.name, site, bel_name)
+                            assert key not in lut_thru_pips
+
+                            lut_thru_pips[key] = {
+                                "pin_name": pin,
+                                "is_valid": True
+                            }
+
+                        elif bel.category == "routing":
+                            if tile_type_name not in self.routing_bels:
+                                self.routing_bels[tile_type_name] = list()
+
+                            self.routing_bels[tile_type_name].append(
+                                (site, bel_name, pin, False))
+
+                    site_thru_pips.append((tile, wire0, wire1))
+
+                # Check and store for site LUT-thrus
                 elif isinstance(segment, PhysicalBelPin):
                     bel = segment.bel
 
@@ -348,26 +420,22 @@ class FasmGenerator():
                     elif lut_bel.out_pin == pin:
                         lut_thru_pips[key]["is_valid"] = True
 
-        return site_thru_pips, lut_thru_pips
-
-    def get_routing_bels(self, allowed_site):
-
-        routing_bels = list()
-
-        for net in self.physical_netlist.nets:
-            for segment in self.flattened_nets[net.name]:
-                if isinstance(segment, PhysicalSitePip):
+                # Store routing bels
+                elif isinstance(segment, PhysicalSitePip):
                     site = segment.site
-                    if not site.startswith(allowed_site):
-                        continue
+                    _, tile_type = self.get_tile_info_at_site(site)
 
                     bel = segment.bel
                     pin = segment.pin
                     is_inverting = segment.is_inverting
 
-                    routing_bels.append((site, bel, pin, is_inverting))
+                    if tile_type not in self.routing_bels:
+                        self.routing_bels[tile_type] = list()
 
-        return routing_bels
+                    self.routing_bels[tile_type].append((site, bel, pin,
+                                                         is_inverting))
+
+        return site_thru_pips, lut_thru_pips
 
     def fill_features(self):
         """

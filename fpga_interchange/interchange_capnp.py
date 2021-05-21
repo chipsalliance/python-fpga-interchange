@@ -747,11 +747,15 @@ def to_physical_netlist(phys_netlist_capnp):
         elif which == 'pip':
             # TODO: Shouldn't be discard isFixed field
             pip = route_segment_capnp.pip
+
+            site = strs[pip.site] if pip.which() == 'site' else None
+
             return PhysicalPip(
                 tile=strs[pip.tile],
                 wire0=strs[pip.wire0],
                 wire1=strs[pip.wire1],
-                forward=pip.forward)
+                forward=pip.forward,
+                site=site)
         else:
             assert which == 'sitePIP'
             # TODO: Shouldn't be discard isFixed and inverts, isInverting
