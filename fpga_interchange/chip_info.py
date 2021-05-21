@@ -792,12 +792,208 @@ class WireType():
         self.name = ''
         self.category = 0
 
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.u32(self.category)
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+
+class MacroParameter():
+    def __init__(self):
+        self.key = ''
+        self.value = ''
+
     def append_children_bba(self, bba, label_prefix):
         pass
 
     def append_bba(self, bba, label_prefix):
+        bba.str_id(self.key)
+        bba.str_id(self.value)
+
+
+class MacroParamRuleType(Enum):
+    COPY = 0
+    SLICE = 1
+    TABLE = 2
+
+
+class MacroParamMapRule():
+    def __init__(self):
+        self.prim_param = ''
+        self.inst_name = ''
+        self.inst_param = ''
+        self.rule_type = 0,
+        self.slice_bits = []
+        self.map_table = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}_{}_{}.{}'.format(label_prefix, self.prim_param,
+                                       self.inst_name, self.inst_param, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for table_entry in self.map_table:
+            table_entry.append_children_bba(
+                bba, self.field_label(label_prefix, 'map_table'))
+
+        bba.label(self.field_label(label_prefix, 'slice_bits'), 'uint32_t')
+        for bit in self.slice_bits:
+            bba.u32(bit)
+
+        bba.label(
+            self.field_label(label_prefix, 'map_table'), 'MacroParameterPOD')
+        for table_entry in self.map_table:
+            table_entry.append_bba(bba,
+                                   self.field_label(label_prefix, 'map_table'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.prim_param)
+        bba.str_id(self.inst_name)
+        bba.str_id(self.inst_param)
+        bba.u32(self.rule_type)
+
+        bba.ref(self.field_label(label_prefix, 'slice_bits'))
+        bba.u32(len(self.slice_bits))
+        bba.ref(self.field_label(label_prefix, 'map_table'))
+        bba.u32(len(self.map_table))
+
+
+class MacroCellInst():
+    def __init__(self):
+        self.name = ''
+        self.type = ''
+        self.parameters = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.name, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for param in self.parameters:
+            param.append_children_bba(
+                bba, self.field_label(label_prefix, 'parameters'))
+
+        bba.label(
+            self.field_label(label_prefix, 'parameters'), 'MacroParameterPOD')
+        for param in self.parameters:
+            param.append_bba(bba, self.field_label(label_prefix, 'parameters'))
+
+    def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
-        bba.u32(self.category)
+        bba.str_id(self.type)
+        bba.ref(self.field_label(label_prefix, 'parameters'))
+        bba.u32(len(self.parameters))
+
+
+class MacroPortInst():
+    def __init__(self):
+        self.instance = ''
+        self.port = ''
+        self.dir = 0
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.instance)
+        bba.str_id(self.port)
+        bba.u32(self.dir)
+
+
+class MacroNet():
+    def __init__(self):
+        self.name = ''
+        self.ports = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.name, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for port in self.ports:
+            port.append_children_bba(bba,
+                                     self.field_label(label_prefix, 'ports'))
+
+        bba.label(self.field_label(label_prefix, 'ports'), 'MacroPortInstPOD')
+        for port in self.ports:
+            port.append_bba(bba, self.field_label(label_prefix, 'ports'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.ref(self.field_label(label_prefix, 'ports'))
+        bba.u32(len(self.ports))
+
+
+class Macro():
+    def __init__(self):
+        self.name = ''
+        self.cell_insts = []
+        self.nets = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}.{}'.format(label_prefix, self.name, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for inst in self.cell_insts:
+            inst.append_children_bba(
+                bba, self.field_label(label_prefix, 'cell_insts'))
+        for net in self.nets:
+            net.append_children_bba(bba, self.field_label(
+                label_prefix, 'nets'))
+
+        bba.label(
+            self.field_label(label_prefix, 'cell_insts'), 'MacroCellInstPOD')
+        for inst in self.cell_insts:
+            inst.append_bba(bba, self.field_label(label_prefix, 'cell_insts'))
+        bba.label(self.field_label(label_prefix, 'nets'), 'MacroNetPOD')
+        for net in self.nets:
+            net.append_bba(bba, self.field_label(label_prefix, 'nets'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.ref(self.field_label(label_prefix, 'cell_insts'))
+        bba.u32(len(self.cell_insts))
+        bba.ref(self.field_label(label_prefix, 'nets'))
+        bba.u32(len(self.nets))
+
+
+class MacroExpansion():
+    def __init__(self):
+        self.prim_name = ''
+        self.macro_name = ''
+        self.param_matches = []
+        self.param_rules = []
+
+    def field_label(self, label_prefix, field):
+        return '{}.{}_{}.{}'.format(label_prefix, self.prim_name,
+                                    self.macro_name, field)
+
+    def append_children_bba(self, bba, label_prefix):
+        for param in self.param_matches:
+            param.append_children_bba(
+                bba, self.field_label(label_prefix, 'param_matches'))
+        for rule in self.param_rules:
+            rule.append_children_bba(
+                bba, self.field_label(label_prefix, 'param_rules'))
+
+        bba.label(
+            self.field_label(label_prefix, 'param_matches'),
+            'MacroParameterPOD')
+        for param in self.param_matches:
+            param.append_bba(bba,
+                             self.field_label(label_prefix, 'param_matches'))
+        bba.label(
+            self.field_label(label_prefix, 'param_rules'),
+            'MacroParamMapRulePOD')
+        for rule in self.param_rules:
+            rule.append_bba(bba, self.field_label(label_prefix, 'param_rules'))
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.prim_name)
+        bba.str_id(self.macro_name)
+        bba.ref(self.field_label(label_prefix, 'param_matches'))
+        bba.u32(len(self.param_matches))
+        bba.ref(self.field_label(label_prefix, 'param_rules'))
+        bba.u32(len(self.param_rules))
 
 
 class GlobalCellPin():
@@ -846,7 +1042,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema changes.
-        self.version = 9
+        self.version = 10
         self.width = 0
         self.height = 0
 
@@ -864,12 +1060,15 @@ class ChipInfo():
         self.cell_map = CellMap()
         self.constants = Constants()
 
+        self.macros = []
+        self.macro_rules = []
+
     def append_bba(self, bba, label_prefix):
         label = label_prefix
 
         children_fields = [
             'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types',
-            'global_cells'
+            'global_cells', 'macros', 'macro_rules'
         ]
         children_types = [
             'TileTypeInfoPOD',
@@ -879,6 +1078,8 @@ class ChipInfo():
             'PackagePOD',
             'WireTypePOD',
             'GlobalCellPOD',
+            'MacroPOD',
+            'MacroExpansionPOD',
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
