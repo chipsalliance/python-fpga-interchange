@@ -1276,8 +1276,12 @@ class ConstantNetworkGenerator():
         # Overwrite tile at 0,0 assuming that it is a NULL tile.
         null_tile_type = self.chip_info.tile_types[self.chip_info.
                                                    tiles[tile_idx].type]
+        # FIXME: Make these checks more robust and not dependant on
+        #        non-well-defined naming conventions.
         assert null_tile_type.name == 'NULL', null_tile_type.name
-        assert len(null_tile_type.wire_data) == 0, len(
+        contains_dummy_wires = all(
+            'DUMMY' in wire.name for wire in null_tile_type.wire_data)
+        assert len(null_tile_type.wire_data) == 0 or contains_dummy_wires, len(
             null_tile_type.wire_data)
 
         self.constants.gnd_bel_tile = tile_idx
