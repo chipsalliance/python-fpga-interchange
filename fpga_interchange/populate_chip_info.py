@@ -1274,9 +1274,11 @@ class ConstantNetworkGenerator():
         tile_idx = 0
 
         # Overwrite tile at 0,0 assuming that it is a NULL tile.
-        tile_type_name = self.chip_info.tile_types[self.chip_info.
-                                                   tiles[tile_idx].type].name
-        assert tile_type_name == 'NULL', tile_type_name
+        null_tile_type = self.chip_info.tile_types[self.chip_info.
+                                                   tiles[tile_idx].type]
+        assert null_tile_type.name == 'NULL', null_tile_type.name
+        assert len(null_tile_type.wire_data) == 0, len(
+            null_tile_type.wire_data)
 
         self.constants.gnd_bel_tile = tile_idx
         self.constants.vcc_bel_tile = tile_idx
