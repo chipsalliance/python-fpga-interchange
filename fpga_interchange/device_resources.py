@@ -97,8 +97,8 @@ def convert_wire_category(s):
 class Tile(
         namedtuple(
             'Tile',
-            'tile_index tile_name_index tile_type_index tile_type site_names')
-):
+            'tile_index tile_name_index tile_type_index tile_type site_names sub_tile_prefices'
+        )):
     pass
 
 
@@ -699,13 +699,23 @@ class DeviceResources():
             tile_type = self.device_resource_capnp.tileTypeList[
                 tile_type_index]
 
+            if len(tile.subTilesPrefices) > 0:
+                sub_tile_prefices = [
+                    self.strs[p] for p in tile.subTilesPrefices
+                ]
+            else:
+                sub_tile_prefices = [
+                    tile_name,
+                ]
+
             site_names = []
             self.tile_name_to_tile[tile_name] = Tile(
                 tile_index=tile_idx,
                 tile_name_index=tile_name_index,
                 tile_type_index=tile_type_index,
                 tile_type=self.strs[tile_type.name],
-                site_names=site_names)
+                site_names=site_names,
+                sub_tile_prefices=sub_tile_prefices)
 
             for site_idx, site in enumerate(tile.sites):
                 site_name = self.strs[site.name]
