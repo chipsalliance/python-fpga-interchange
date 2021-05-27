@@ -1,15 +1,26 @@
 belChains:
-  - name: carryChain
-    patterns: 
-      - {source: {type: "CARRY4", port: "CO[3]"}, sink: {type: "CARRY4", port: "CI"}}
-    sites:
-      - SLICEL
-      - SLICEM
+- name: carryChain
+  patterns:
+    - {source: {type: "CARRY4", port: "CO[3]"}, sink: {type: "CARRY4", port: "CI"}}
+  sites:
+    - SLICEL
+    - SLICEM
+  cells:
+    - CARRY4
+  chainDrivers: # Place driver cell of S port to a proper BEL
+  - ports:
+    - name: S[0]
+      bel: AFF
+    - name: S[1]
+      bel: BFF
+    - name: S[2]
+      bel: CFF
+    - name: S[3]
+      bel: DFF
     cells:
-      - CARRY4
-    chainDrivers: # Place driver cell of S port to a proper BEL
-      - {ports: ["S[0]", "S[1]", "S[2]", "S[3]"],
-         bels: ["LUT6", "LUT_OR_MEM6"]}
-    coordConfigs:
-      - {coord: y, step: -1} # Default
-      - {coord: y, step: -2} # When crossing clock region
+      - FDRE
+      - FDSE
+      - FDCE
+  coordConfigs:
+    - {coord: y, step: -1} # Default
+    - {coord: y, step: -2} # When crossing clock region

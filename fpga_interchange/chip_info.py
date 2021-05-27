@@ -698,29 +698,55 @@ class ChainPattern():
             bba.u32(1)
 
 
+class ChainDriverPortBel():
+    def __init__(self, name, bel):
+        self.name = name
+        self.bel = bel
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+        bba.str_id(self.bel)
+
+
 class ChainDriver():
-    def __init__(self, ports, bels):
-        self.ports = ports
-        self.bels = bels
+    def __init__(self, ports, cells):
+        self.ports = []
+        self.cells = cells
+
+        for port in ports:
+            self.ports.append(ChainDriverPortBel(port.name, port.bel))
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}'.format(label_prefix, field)
         return prefix
 
     def append_children_bba(self, bba, label_prefix):
-        bba.label(self.field_label(label_prefix, 'ports'), 'constids')
+        label = self.field_label(label_prefix, 'ports')
         for port in self.ports:
-            bba.str_id(port)
-        bba.label(self.field_label(label_prefix, 'bels'), 'constids')
-        for bel in self.bels:
-            bba.str_id(bel)
+            port.append_children_bba(bba, label)
+
+        bba.label(label, 'ChainDriverPortBelPOD')
+        for port in self.ports:
+            port.append_bba(bba, label)
+
+        bba.label(self.field_label(label_prefix, 'cells'), 'constids')
+        for cell in self.cells:
+            bba.str_id(cell)
 
     def append_bba(self, bba, label_prefix):
         bba.ref(self.field_label(label_prefix, 'ports'))
         bba.u32(len(self.ports))
 
-        bba.ref(self.field_label(label_prefix, 'bels'))
-        bba.u32(len(self.bels))
+        bba.ref(self.field_label(label_prefix, 'cells'))
+        bba.u32(len(self.cells))
+
 
 class ChainCoordConfig():
     def __init__(self, coord, step):
@@ -734,17 +760,6 @@ class ChainCoordConfig():
         bba.u8(self.coord.value)
         bba.u8(self.step)
         bba.u16(0)
-
-
-class ChainCell():
-    def __init__(self, cell, input_pins, output_pins):
-        self.cell = cell
-
-    def append_children_bba(self, bba, label_prefix):
-        pass
-
-    def append_bba(self, bba, label_prefix):
-        bba.str_id(self.cell)
 
 
 class BelChain():
@@ -780,7 +795,7 @@ class BelChain():
         self.chain_drivers = []
         if chain_drivers is not None:
             for driver in chain_drivers:
-                self.chain_drivers.append(ChainDriver(driver.ports, driver.bels))
+                self.chain_drivers.append(ChainDriver(driver.ports, driver.cells))
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
