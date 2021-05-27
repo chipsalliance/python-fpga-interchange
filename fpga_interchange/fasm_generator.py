@@ -12,6 +12,7 @@ import argparse
 
 from fpga_interchange.interchange_capnp import Interchange
 from fpga_interchange.fasm_generators.xc7 import XC7FasmGenerator
+from fpga_interchange.fasm_generators.nexus import NexusFasmGenerator
 
 
 def main():
@@ -34,6 +35,7 @@ def main():
 
     family_map = {
         "xc7": XC7FasmGenerator,
+        "nexus": NexusFasmGenerator,
     }
 
     device_resources = args.device_resources

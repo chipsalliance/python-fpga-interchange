@@ -334,6 +334,7 @@ class FasmGenerator():
                     wire1_id = self.device_resources.string_index[wire1]
 
                     pip = tile_type.pip(wire0_id, wire1_id)
+                    tile = tile_info.sub_tile_prefices[pip.subTile]
                     if pip.which() != "pseudoCells":
                         if tile_type_name in extra_pip_features:
                             extra_pip_features[tile_type_name].add((tile,
@@ -367,6 +368,10 @@ class FasmGenerator():
                             if any(self.device_resources.strs[p] == bel_pin.
                                    name for p in pcell.pins):
                                 pin = bel_pin.name
+
+                        if pin == None:
+                            # TODO: GND driver has no input pin
+                            continue
 
                         assert pin
 
