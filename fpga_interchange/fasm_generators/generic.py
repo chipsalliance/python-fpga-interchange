@@ -203,6 +203,7 @@ class FasmGenerator():
 
         self.routing_bels = dict()
 
+        self.annotations = dict()
         self.pips_features = set()
         self.cells_features = set()
 
@@ -213,6 +214,9 @@ class FasmGenerator():
 
         return "# Created by the FPGA Interchange FASM Generator (v{})".format(
             version)
+
+    def add_annotation(self, key, value):
+        self.annotations[key] = value
 
     def add_cell_feature(self, feature_parts):
         feature_str = ".".join(feature_parts)
@@ -457,6 +461,10 @@ class FasmGenerator():
 
         with open(fasm_file, "w") as f:
             print(self.get_origin_line(), file=f)
+            for key, value in sorted(
+                    self.annotations.items(), key=lambda x: x[0]):
+                print('{{ {}="{}" }}'.format(key, value), file=f)
+
             for cell_feature in sorted(list(self.cells_features)):
                 print(cell_feature, file=f)
 

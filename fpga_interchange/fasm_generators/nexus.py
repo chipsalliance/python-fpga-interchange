@@ -26,5 +26,8 @@ class NexusFasmGenerator(FasmGenerator):
             pip_feature_format, {}, {})
 
     def fill_features(self):
+        dev_name = self.device_resources.device_resource_capnp.name
+        self.add_annotation("oxide.device", dev_name)
+        self.add_annotation("oxide.device_variant", "ES")
         # Handling PIPs and Route-throughs
         self.handle_pips()
