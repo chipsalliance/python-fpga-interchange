@@ -380,6 +380,13 @@ class FasmGenerator():
                         if pin == None:
                             # GND/VCC driver LUT has no input pin
                             assert bel_name in avail_lut_thrus, bel_name
+                            key = (net.name, site, bel_name)
+                            assert key not in lut_thru_pips
+
+                            lut_thru_pips[key] = {
+                                "pin_name": None,
+                                "is_valid": True
+                            }
                             continue
 
                         assert pin
