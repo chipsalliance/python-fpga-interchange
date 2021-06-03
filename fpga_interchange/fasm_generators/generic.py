@@ -378,7 +378,8 @@ class FasmGenerator():
                                 pin = bel_pin.name
 
                         if pin == None:
-                            # TODO: GND driver has no input pin
+                            # GND/VCC driver LUT has no input pin
+                            assert bel_name in avail_lut_thrus, bel_name
                             continue
 
                         assert pin

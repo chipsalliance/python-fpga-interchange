@@ -22,8 +22,14 @@ from fpga_interchange.fasm_generators.generic import FasmGenerator
 class NexusFasmGenerator(FasmGenerator):
     def handle_pips(self):
         pip_feature_format = "{tile}.PIP.{wire1}.{wire0}"
+        avail_lut_thrus = list()
+        for _, _, _, _, bel, bel_type in self.device_resources.yield_bels():
+            if bel_type == "LUT4":
+                avail_lut_thrus.append(bel)
+
         site_thru_pips, lut_thru_pips = self.fill_pip_features(
-            pip_feature_format, {}, {},
+            pip_feature_format, {},
+            avail_lut_thrus,
             wire_rename=lambda x: x.replace(":", "__"))
 
     def handle_io(self):
