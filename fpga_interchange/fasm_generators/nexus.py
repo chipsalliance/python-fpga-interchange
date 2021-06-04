@@ -60,7 +60,7 @@ class NexusFasmGenerator(FasmGenerator):
                     0, site_type, bel)
             else:
                 lut_init = self.lut_mapper.get_phys_wire_lut_init(
-                    2, site_type, "LUT1", bel, pin_name)
+                    2, site_type, "LUT4", bel, pin_name, "A")
             self.write_lut(tile_name, bel, lut_init)
 
     def handle_luts(self):

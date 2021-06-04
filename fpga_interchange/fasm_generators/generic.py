@@ -153,8 +153,13 @@ class LutMapper():
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
 
-    def get_phys_wire_lut_init(self, logical_init_value, site_type, cell_type,
-                               bel, bel_pin):
+    def get_phys_wire_lut_init(self,
+                               logical_init_value,
+                               site_type,
+                               cell_type,
+                               bel,
+                               bel_pin,
+                               lut_pin=None):
         """
         Returns the LUTs physical INIT parameter mapping of a LUT-thru wire
 
@@ -163,9 +168,13 @@ class LutMapper():
 
         lut_element, lut_bel = self.find_lut_bel(site_type, bel)
         lut_cell = self.lut_cells[cell_type]
-        assert len(lut_cell.pins) == 1, (lut_cell.name, lut_cell.pins)
         phys_to_log = dict((pin, None) for pin in lut_bel.pins)
-        phys_to_log[bel_pin] = lut_cell.pins[0]
+
+        if lut_pin == None:
+            assert len(lut_cell.pins) == 1, (lut_cell.name, lut_cell.pins)
+            phys_to_log[bel_pin] = lut_cell.pins[0]
+        else:
+            phys_to_log[bel_pin] = lut_pin
 
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
