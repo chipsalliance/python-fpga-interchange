@@ -63,6 +63,27 @@ class NexusFasmGenerator(FasmGenerator):
                     2, site_type, "LUT4", bel, pin_name, "A")
             self.write_lut(tile_name, bel, lut_init)
 
+    def get_logic_tiletypes(self):
+        """
+        This function gets a list of tiletypes that can contain logic
+        """
+        logic_tiletypes = set()
+        for _, _, tile_type, _, _, bel_type in self.device_resources.yield_bels(
+        ):
+            if bel_type == "OXIDE_COMB":
+                logic_tiletypes.add(tile_type)
+        return logic_tiletypes
+
+    def handle_slice_routing_bels(self):
+        tile_types = self.get_logic_tiletypes()
+        routing_bels = self.get_routing_bels(tile_types)
+
+        for site, bel, pin, _ in routing_bels:
+            tile = site.replace("_PLC", "__PLC")
+            dst_wire = bel.replace("RBEL_", "")
+            feature = "{}.{}".format(dst_wire, pin)
+            self.add_cell_feature((tile, "PIP", feature))
+
     def handle_luts(self):
         """
         This function handles LUTs FASM features generation
@@ -105,3 +126,4 @@ class NexusFasmGenerator(FasmGenerator):
         self.handle_io()
         # Handling PIPs and Route-throughs
         self.handle_pips()
+        self.handle_slice_routing_bels()
