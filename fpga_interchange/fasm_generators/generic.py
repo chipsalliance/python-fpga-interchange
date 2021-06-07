@@ -153,8 +153,13 @@ class LutMapper():
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
 
-    def get_phys_wire_lut_init(self, logical_init_value, site_type, cell_type,
-                               bel, bel_pin):
+    def get_phys_wire_lut_init(self,
+                               logical_init_value,
+                               site_type,
+                               cell_type,
+                               bel,
+                               bel_pin,
+                               lut_pin=None):
         """
         Returns the LUTs physical INIT parameter mapping of a LUT-thru wire
 
@@ -163,9 +168,13 @@ class LutMapper():
 
         lut_element, lut_bel = self.find_lut_bel(site_type, bel)
         lut_cell = self.lut_cells[cell_type]
-        assert len(lut_cell.pins) == 1, (lut_cell.name, lut_cell.pins)
         phys_to_log = dict((pin, None) for pin in lut_bel.pins)
-        phys_to_log[bel_pin] = lut_cell.pins[0]
+
+        if lut_pin == None:
+            assert len(lut_cell.pins) == 1, (lut_cell.name, lut_cell.pins)
+            phys_to_log[bel_pin] = lut_cell.pins[0]
+        else:
+            phys_to_log[bel_pin] = lut_pin
 
         return self.get_phys_lut_init(logical_init_value, lut_element, lut_bel,
                                       lut_cell, phys_to_log)
@@ -203,6 +212,7 @@ class FasmGenerator():
 
         self.routing_bels = dict()
 
+        self.annotations = dict()
         self.pips_features = set()
         self.cells_features = set()
 
@@ -213,6 +223,9 @@ class FasmGenerator():
 
         return "# Created by the FPGA Interchange FASM Generator (v{})".format(
             version)
+
+    def add_annotation(self, key, value):
+        self.annotations[key] = value
 
     def add_cell_feature(self, feature_parts):
         feature_str = ".".join(feature_parts)
@@ -294,8 +307,11 @@ class FasmGenerator():
                 bel_pins=bel_pins,
                 attributes=cell_attr)
 
-    def fill_pip_features(self, pip_feature_format, extra_pip_features,
-                          avail_lut_thrus):
+    def fill_pip_features(self,
+                          pip_feature_format,
+                          extra_pip_features,
+                          avail_lut_thrus,
+                          wire_rename=lambda x: x):
         """
         This function generates all features corresponding to the physical routing
         PIPs present in the physical netlist.
@@ -334,6 +350,7 @@ class FasmGenerator():
                     wire1_id = self.device_resources.string_index[wire1]
 
                     pip = tile_type.pip(wire0_id, wire1_id)
+                    tile = tile_info.sub_tile_prefices[pip.subTile]
                     if pip.which() != "pseudoCells":
                         if tile_type_name in extra_pip_features:
                             extra_pip_features[tile_type_name].add((tile,
@@ -341,8 +358,9 @@ class FasmGenerator():
                             extra_pip_features[tile_type_name].add((tile,
                                                                     wire1))
 
-                        self.add_pip_feature((tile, wire0, wire1),
-                                             pip_feature_format)
+                        self.add_pip_feature(
+                            (tile, wire_rename(wire0), wire_rename(wire1)),
+                            pip_feature_format)
 
                         continue
 
@@ -367,6 +385,18 @@ class FasmGenerator():
                             if any(self.device_resources.strs[p] == bel_pin.
                                    name for p in pcell.pins):
                                 pin = bel_pin.name
+
+                        if pin == None:
+                            # GND/VCC driver LUT has no input pin
+                            assert bel_name in avail_lut_thrus, bel_name
+                            key = (net.name, site, bel_name)
+                            assert key not in lut_thru_pips
+
+                            lut_thru_pips[key] = {
+                                "pin_name": None,
+                                "is_valid": True
+                            }
+                            continue
 
                         assert pin
 
@@ -452,6 +482,10 @@ class FasmGenerator():
 
         with open(fasm_file, "w") as f:
             print(self.get_origin_line(), file=f)
+            for key, value in sorted(
+                    self.annotations.items(), key=lambda x: x[0]):
+                print('{{ {}="{}" }}'.format(key, value), file=f)
+
             for cell_feature in sorted(list(self.cells_features)):
                 print(cell_feature, file=f)
 
