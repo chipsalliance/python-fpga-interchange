@@ -1,5 +1,19 @@
 # Which BEL names are global buffers for nextpnr?
-global_buffer_bels: []
+global_buffer_bels:
+- DCC
+# Which cell names are global buffers, and which pins should use dedicated routing resources
+global_buffer_cells:
+  - cell: DCC
+    pins: # list of pins that use global resources
+     - name: CLKI # pin name
+       guide_placement: true # attempt to place so that this pin can use dedicated resources
+       max_hops: 10 # max hops of interconnect to search (10 is for test purposes and may need to be refined)
+     - name: CLKO
+       force_dedicated_routing: true # the net connected to this pin _must_ use dedicated routing only
+  - cell: OSC_CORE
+    pins: # list of pins that use global resources
+     - name: HFCLKOUT
+       force_dedicated_routing: true # the net connected to this pin _must_ use dedicated routing only
 # How should nextpnr lump BELs during analytic placement?
 buckets:
 - bucket: LUTS
@@ -15,3 +29,9 @@ buckets:
   cells:
    - IB
    - OB
+- bucket: BRAMs
+  cells:
+   - DP16K_MODE
+   - PDP16K_MODE
+   - PDPSC16K_MODE
+
