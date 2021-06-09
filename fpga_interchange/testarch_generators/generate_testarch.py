@@ -92,25 +92,35 @@ class TestArchGenerator():
         site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"))
 
     def make_iob_site_type(self):
-        
+
         # The site
         site_type = self.device.add_site_type("IOPAD")
-        
+
         # Site pins (with BELs added automatically)
         site_type.add_pin("I", Direction.Output)
         site_type.add_pin("O", Direction.Input)
 
         # IPAD bel
+        bel_ib = site_type.add_bel("IB", "IB", BelCategory.LOGIC)
+        bel_ib.add_pin("I", Direction.Output)
+        bel_ib.add_pin("P", Direction.Input)
+
         bel_ipad = site_type.add_bel("IPAD", "IPAD", BelCategory.SITE_PORT)
         bel_ipad.add_pin("I", Direction.Output)
 
         # OPAD bel
+        bel_ob = site_type.add_bel("OB", "OB", BelCategory.LOGIC)
+        bel_ob.add_pin("O", Direction.Input)
+        bel_ob.add_pin("P", Direction.Output)
+
         bel_opad = site_type.add_bel("OPAD", "OPAD", BelCategory.SITE_PORT)
         bel_opad.add_pin("O", Direction.Input)
 
         # Wires
-        site_type.add_wire("I", [("IPAD", "I"), ("I", "I")])
-        site_type.add_wire("O", [("OPAD", "O"), ("O", "O")])
+        site_type.add_wire("I", [("IB", "I"), ("I", "I")])
+        site_type.add_wire("O", [("OB", "O"), ("O", "O")])
+        site_type.add_wire("OP", [("IB", "P"), ("IPAD", "I")])
+        site_type.add_wire("IP", [("OB", "P"), ("OPAD", "O")])
 
     def make_power_site_type(self):
 
@@ -371,21 +381,23 @@ class TestArchGenerator():
                                 }))
         self.device.add_cell_bel_mapping(mapping)
 
-        mapping = CellBelMapping("IPAD")
+        mapping = CellBelMapping("IB")
         mapping.entries.append(
             CellBelMappingEntry(site_type="IOPAD",
-                                bel="IPAD",
+                                bel="IB",
                                 pin_map={
                                     "I": "I",
+                                    "P": "P",
                                 }))
         self.device.add_cell_bel_mapping(mapping)
 
-        mapping = CellBelMapping("OPAD")
+        mapping = CellBelMapping("OB")
         mapping.entries.append(
             CellBelMappingEntry(site_type="IOPAD",
-                                bel="OPAD",
+                                bel="OB",
                                 pin_map={
                                     "O": "O",
+                                    "P": "P",
                                 }))
         self.device.add_cell_bel_mapping(mapping)
 
