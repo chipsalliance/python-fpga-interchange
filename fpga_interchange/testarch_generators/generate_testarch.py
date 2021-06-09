@@ -79,12 +79,12 @@ class TestArchGenerator():
         w = site_type.add_wire("LUT_O")
         w.connect_to_bel_pin("LUT", "O")
         w.connect_to_bel_pin("FFMUX", "I0")
+        w.connect_to_bel_pin("O","O")
 
         w = site_type.add_wire("MUX_O")
         w.connect_to_bel_pin("FFMUX", "O")
         w.connect_to_bel_pin("FF", "D")
 
-        w = site_type.add_wire("LUT_OUT", [("LUT", "O"), ("O", "O")])
         w = site_type.add_wire("FF_OUT", [("FF", "Q"), ("Q", "Q")])
 
         # Site PIPs
@@ -111,6 +111,27 @@ class TestArchGenerator():
         # Wires
         site_type.add_wire("I", [("IPAD", "I"), ("I", "I")])
         site_type.add_wire("O", [("OPAD", "O"), ("O", "O")])
+
+    def make_power_site_type(self):
+
+        # The site
+        site_type = self.device.add_site_type("POWER")
+
+        # Site pins (with BELs added automatically)
+        site_type.add_pin("V", Direction.Output)
+        site_type.add_pin("G", Direction.Output)
+
+        # IPAD bel
+        bel_ipad = site_type.add_bel("VCC", "VCC", BelCategory.SITE_PORT)
+        bel_ipad.add_pin("V", Direction.Output)
+
+        # OPAD bel
+        bel_opad = site_type.add_bel("GND", "GND", BelCategory.SITE_PORT)
+        bel_opad.add_pin("G", Direction.Output)
+
+        # Wires
+        site_type.add_wire("V", [("VCC", "V"), ("V", "V")])
+        site_type.add_wire("G", [("GND", "G"), ("G", "G")])
 
     def make_tile_type(self, tile_type_name, site_types):
         """
@@ -140,6 +161,8 @@ class TestArchGenerator():
                 tile_type.add_wire(wire_name)
                 site.primary_pins_to_tile_wires[pin.name] = wire_name
 
+        if tile_type_name == "NULL":
+            return
         # Add tile wires for intra nodes
         for i in range(self.num_intra_nodes):
             name = "INTRA_{}".format(i)
@@ -186,17 +209,23 @@ class TestArchGenerator():
         # TODO: const. wires
 
     def make_device_grid(self):
-        
+
         for y in range(self.grid_size[1]):
             for x in range(self.grid_size[0]):
 
+                is_0_0 = x ==0 and y == 0
                 is_perimeter = y in [0, self.grid_size[1] - 1] or \
                                x in [0, self.grid_size[0] - 1]
+                is_centre = y == self.grid_size[1] // 2 and x == self.grid_size[0] // 2
 
                 suffix = "_X{}Y{}".format(x, y)
 
-                if is_perimeter:
+                if is_0_0:
+                    self.device.add_tile("NULL", "NULL", (x,y))
+                elif is_perimeter:
                     self.device.add_tile("IOB" + suffix, "IOB", (x, y))
+                elif is_centre:
+                    self.device.add_tile("PWR" + suffix, "PWR", (x,y))
                 else:
                     self.device.add_tile("CLB" + suffix, "CLB", (x, y))
 
@@ -221,6 +250,8 @@ class TestArchGenerator():
             return (pos[0] + ofs[0], pos[1] + ofs[1])
 
         for loc, tile_id in self.device.tiles_by_loc.items():
+            if loc == (0,0):
+                continue
             tile = self.device.tiles[tile_id]
             tile_type = self.device.tile_types[tile.type]
 
@@ -243,6 +274,8 @@ class TestArchGenerator():
                     wire_ids = [self.device.get_wire_id(tile.name, wire_name)]
 
                     other_loc = offset_loc(loc, offset)
+                    if other_loc == (0,0):
+                        continue
                     if other_loc[0] >= 0 and other_loc[0] < self.grid_size[0] and \
                        other_loc[1] >= 0 and other_loc[1] < self.grid_size[1]:
 
@@ -290,6 +323,22 @@ class TestArchGenerator():
         cell.add_port("Q", Direction.Output)
         library.add_cell(cell)
 
+        cell = Cell("IPAD")
+        cell.add_port("I", Direction.Input)
+        library.add_cell(cell)
+
+        cell = Cell("OPAD")
+        cell.add_port("O", Direction.Output)
+        library.add_cell(cell)
+
+        cell = Cell("VCC")
+        cell.add_port("V", Direction.Output)
+        library.add_cell(cell)
+
+        cell = Cell("GND")
+        cell.add_port("G", Direction.Output)
+        library.add_cell(cell)
+
         # Macros library
         library = Library("macros")
         self.device.cell_libraries["macros"] = library
@@ -298,38 +347,75 @@ class TestArchGenerator():
 
         # TODO: Pass all the information via device.add_cell_bel_mapping()
         mapping = CellBelMapping("LUT")
-        mapping.entries.append(CellBelMappingEntry(
-            site_type="SLICE",
-            bel="LUT",
-            pin_map={
-                "A0": "I0",
-                "A1": "I1",
-                "A2": "I2",
-                "A3": "I3",
-                "O": "O",
-            }
-        ))
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="SLICE",
+                                bel="LUT",
+                                pin_map={
+                                    "A0": "I0",
+                                    "A1": "I1",
+                                    "A2": "I2",
+                                    "A3": "I3",
+                                    "O": "O",
+                                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("DFF")
-        mapping.entries.append(CellBelMappingEntry(
-            site_type="SLICE",
-            bel="FF",
-            pin_map={
-                "D": "D",
-                "R": "R",
-                "C": "C",
-                "Q": "Q",
-            }
-        ))
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="SLICE",
+                                bel="FF",
+                                pin_map={
+                                    "D": "D",
+                                    "R": "R",
+                                    "C": "C",
+                                    "Q": "Q",
+                                }))
+        self.device.add_cell_bel_mapping(mapping)
+
+        mapping = CellBelMapping("IPAD")
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="IOPAD",
+                                bel="IPAD",
+                                pin_map={
+                                    "I": "I",
+                                }))
+        self.device.add_cell_bel_mapping(mapping)
+
+        mapping = CellBelMapping("OPAD")
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="IOPAD",
+                                bel="OPAD",
+                                pin_map={
+                                    "O": "O",
+                                }))
+        self.device.add_cell_bel_mapping(mapping)
+
+        mapping = CellBelMapping("GND")
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="POWER",
+                                bel="GND",
+                                pin_map={
+                                    "G": "G",
+                                }))
+        self.device.add_cell_bel_mapping(mapping)
+
+        mapping = CellBelMapping("VCC")
+        mapping.entries.append(
+            CellBelMappingEntry(site_type="POWER",
+                                bel="VCC",
+                                pin_map={
+                                    "V": "V",
+                                }))
         self.device.add_cell_bel_mapping(mapping)
 
     def generate(self):
         self.make_iob_site_type()
         self.make_slice_site_type()
+        self.make_power_site_type()
 
         self.make_tile_type("CLB", ["SLICE"])
         self.make_tile_type("IOB", ["IOPAD"])
+        self.make_tile_type("PWR", ["POWER"])
+        self.make_tile_type("NULL", [])
 
         self.make_device_grid()
         self.make_wires_and_nodes()

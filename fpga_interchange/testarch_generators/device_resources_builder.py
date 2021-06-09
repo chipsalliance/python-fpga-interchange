@@ -891,8 +891,20 @@ class DeviceResourcesCapnp():
                 assert pin.bel_name in site_type.bels, pin.bel_name
                 bel = site_type.bels[pin.bel_name]
 
+                pin_capnp.packagePin = self.get_string_id(pin.name)
                 pin_capnp.site.site = self.get_string_id(site.name)
                 pin_capnp.bel.bel = self.get_string_id(bel.name)
+
+    def write_constants(self, device):
+        """
+        Packs all node objects to the cap'n'proto schema
+        """
+
+        device.constants.defaultBestConstant = "noPreference"
+        device.constants.gndCellType = self.get_string_id("GND")
+        device.constants.gndCellPin = self.get_string_id("G")
+        device.constants.vccCellType = self.get_string_id("VCC")
+        device.constants.vccCellPin = self.get_string_id("V")
 
     def write_cell_bel_mappings(self, device):
         """
@@ -972,6 +984,8 @@ class DeviceResourcesCapnp():
         self.write_nodes(device)
         # Device packages
         self.write_packages(device)
+        # Constants
+        self.write_constants(device)
 
         # Cell <-> BEL mappings
         self.write_cell_bel_mappings(device)
