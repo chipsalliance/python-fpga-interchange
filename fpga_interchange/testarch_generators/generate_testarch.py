@@ -32,7 +32,7 @@ class TestArchGenerator():
 
         # The site
         site_type = self.device.add_site_type("SLICE")
-        
+
         # Site pins (with BELs added automatically)
         site_type.add_pin("L0", Direction.Input)
         site_type.add_pin("L1", Direction.Input)
@@ -105,7 +105,7 @@ class TestArchGenerator():
         bel_ib.add_pin("I", Direction.Output)
         bel_ib.add_pin("P", Direction.Input)
 
-        bel_ipad = site_type.add_bel("IPAD", "IPAD", BelCategory.SITE_PORT)
+        bel_ipad = site_type.add_bel("IPAD", "IPAD", BelCategory.LOGIC)
         bel_ipad.add_pin("I", Direction.Output)
 
         # OPAD bel
@@ -113,7 +113,7 @@ class TestArchGenerator():
         bel_ob.add_pin("O", Direction.Input)
         bel_ob.add_pin("P", Direction.Output)
 
-        bel_opad = site_type.add_bel("OPAD", "OPAD", BelCategory.SITE_PORT)
+        bel_opad = site_type.add_bel("OPAD", "OPAD", BelCategory.LOGIC)
         bel_opad.add_pin("O", Direction.Input)
 
         # Wires
@@ -333,12 +333,14 @@ class TestArchGenerator():
         cell.add_port("Q", Direction.Output)
         library.add_cell(cell)
 
-        cell = Cell("IPAD")
-        cell.add_port("I", Direction.Input)
+        cell = Cell("IB")
+        cell.add_port("I", Direction.Output)
+        cell.add_port("P", Direction.Input)
         library.add_cell(cell)
 
-        cell = Cell("OPAD")
-        cell.add_port("O", Direction.Output)
+        cell = Cell("OB")
+        cell.add_port("O", Direction.Input)
+        cell.add_port("P", Direction.Output)
         library.add_cell(cell)
 
         cell = Cell("VCC")
