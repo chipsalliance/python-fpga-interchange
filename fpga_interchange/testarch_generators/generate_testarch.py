@@ -132,11 +132,11 @@ class TestArchGenerator():
         site_type.add_pin("G", Direction.Output)
 
         # IPAD bel
-        bel_ipad = site_type.add_bel("VCC", "VCC", BelCategory.SITE_PORT)
+        bel_ipad = site_type.add_bel("VCC", "VCC", BelCategory.LOGIC)
         bel_ipad.add_pin("V", Direction.Output)
 
         # OPAD bel
-        bel_opad = site_type.add_bel("GND", "GND", BelCategory.SITE_PORT)
+        bel_opad = site_type.add_bel("GND", "GND", BelCategory.LOGIC)
         bel_opad.add_pin("G", Direction.Output)
 
         # Wires
@@ -446,7 +446,7 @@ class TestArchGenerator():
 
 def main():
 
-    parser = argparse.ArgumentParser(description="Does stuff")
+    parser = argparse.ArgumentParser(description="Generates testarch FPGA")
     parser.add_argument(
         "--schema_dir",
         required=True,

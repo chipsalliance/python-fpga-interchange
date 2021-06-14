@@ -994,9 +994,16 @@ class DeviceResourcesCapnp():
         device.primLibs = output_logical_netlist(
             logical_netlist_schema=self.logical_netlist_schema,
             libraries=self.device.cell_libraries,
-            name="name",
+            name="Testarch_primitives",
             top_instance_name=None,
             top_instance=None,
         )
+
+        # Fix names, as logical network should use string IDs from global string table, see issue #47
+        for port in device.primLibs.portList:
+            port.name = self.get_string_id(device.primLibs.strList[port.name])
+        for cell in device.primLibs.cellDecls:
+            cell.name = self.get_string_id(device.primLibs.strList[cell.name])
+        device.primLibs.strList = []
 
         return device
