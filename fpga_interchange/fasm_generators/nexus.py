@@ -127,6 +127,49 @@ class NexusFasmGenerator(FasmGenerator):
                 init_value, cell_data)
             self.write_lut(cell_data.tile_name, cell_data.bel, phys_lut_init)
 
+    def handle_brams(self):
+        """
+        This function handles BRAMs FASM features generation
+        """
+
+        # WID (write IDs) are used to match init data to BRAM instances
+        curr_wid = 2
+
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            if cell_data.cell_type not in ("PDPSC16K_MODE", "PDP16K_MODE",
+                                           "DP16K_MODE"):
+                continue
+            # Not yet supported
+            assert cell_data.cell_type != "DP16K_MODE", cell_instance
+            site = cell_data.site_name
+            bel = cell_data.bel
+            mode = cell_data.cell_type
+            self.add_cell_feature((site, bel, "MODE.{}".format(mode)))
+            for param in ("ASYNC_RST_RELEASE", "DATA_WIDTH_W", "DATA_WIDTH_R",
+                          "OUTREG", "RESETMODE"):
+                if param not in cell_data.attributes:
+                    continue
+                self.add_cell_feature((site, bel, "{}.{}.{}".format(
+                    mode, param, cell_data.attributes[param])))
+            self.add_cell_feature((site, bel,
+                                   "{}.CSDECODE_R[2:0] = 3'b000".format(mode)))
+            self.add_cell_feature((site, bel,
+                                   "{}.CSDECODE_W[2:0] = 3'b000".format(mode)))
+            self.add_cell_feature((site, bel, "DP16K_MODE.CLKAMUX.CLKA"))
+            self.add_cell_feature((site, bel, "DP16K_MODE.CLKBMUX.CLKB"))
+            self.add_cell_feature((site, bel, "INIT_DATA.STATIC"))
+            self.add_cell_feature((site, bel,
+                                   "WID[10:0] = 11'b{:011b}".format(curr_wid)))
+            for i in range(0x40):
+                param = "INITVAL_{:02X}".format(i)
+                if param not in cell_data.attributes:
+                    continue
+                self.add_cell_feature(
+                    ("IP_EBR_WID{}".format(curr_wid), "{}[319:0] = {}".format(
+                        param, cell_data.attributes[param].replace(
+                            "0x", "320'h"))))
+            curr_wid += 1
+
     def handle_io(self):
         allowed_io_types = {
             "OB": [
@@ -149,6 +192,7 @@ class NexusFasmGenerator(FasmGenerator):
         self.add_annotation("oxide.device", dev_name)
         self.add_annotation("oxide.device_variant", "ES")
         self.handle_luts()
+        self.handle_brams()
         self.handle_io()
         # Handling PIPs and Route-throughs
         self.handle_pips()
