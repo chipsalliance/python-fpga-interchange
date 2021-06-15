@@ -40,6 +40,7 @@ Interchange - Class that handles loading capnp schemas.
 """
 import capnp
 import capnp.lib.capnp
+
 capnp.remove_import_hook()
 import enum
 import gzip

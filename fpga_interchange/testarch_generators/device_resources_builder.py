@@ -16,30 +16,33 @@ from fpga_interchange.interchange_capnp import output_logical_netlist
 
 # =============================================================================
 
+
 class BelCategory(Enum):
     LOGIC = 0
     ROUTING = 1
     SITE_PORT = 2
+
 
 class ConstantType(Enum):
     NO_PREFERENCE = 0
     GND = 1
     VCC = 2
 
+
 OPPOSITE_DIRECTION = {
-    Direction.Input : Direction.Output,
-    Direction.Output : Direction.Input,
+    Direction.Input: Direction.Output,
+    Direction.Output: Direction.Input,
 }
 
-class PackagePin():
 
+class PackagePin():
     def __init__(self, name, site_name, bel_name):
         self.name = name
         self.site_name = site_name
         self.bel_name = bel_name
 
-class Package():
 
+class Package():
     def __init__(self, name):
         self.name = name
         self.pins = {}
@@ -52,8 +55,8 @@ class Package():
         assert name not in self.pins, name
         self.pins[name] = PackagePin(name, site_name, bel_name)
 
-class CellBelMappingEntry():
 
+class CellBelMappingEntry():
     def __init__(self, site_type, bel, pin_map):
         self.site_type = site_type
         self.bel = bel
@@ -61,14 +64,12 @@ class CellBelMappingEntry():
 
 
 class CellBelMapping():
-
     def __init__(self, cell_type):
         self.cell_type = cell_type
         self.entries = []
 
 
 class BelPin():
-
     def __init__(self, name, direction):
         self.name = name
         self.direction = direction
@@ -76,15 +77,15 @@ class BelPin():
     def __repr__(self):
         return "BelPin(\"{}\", {})".format(self.name, self.direction.name)
 
-class Bel():
 
+class Bel():
     def __init__(self, name, type, category):
         self.name = name
         self.type = type
         self.category = category
-        self.is_inverting = False # TODO: FIXME:
+        self.is_inverting = False  # TODO: FIXME:
 
-        self.pins = {}      # dict(name) -> BelPin
+        self.pins = {}  # dict(name) -> BelPin
 
     def add_pin(self, name, direction):
         """
@@ -96,11 +97,11 @@ class Bel():
         return self.pins[name]
 
     def __repr__(self):
-        return "Bel(\"{}\", \"{}\", {})".format(
-            self.name, self.type, self.category.name)
+        return "Bel(\"{}\", \"{}\", {})".format(self.name, self.type,
+                                                self.category.name)
+
 
 class SitePin():
-
     def __init__(self, name, direction, bel_name):
         self.name = name
         self.direction = direction
@@ -110,8 +111,8 @@ class SitePin():
         return "SitePin(\"{}\", {}, bel=\"{}\")".format(
             self.name, self.direction.name, self.bel_name)
 
-class SiteWire():
 
+class SiteWire():
     def __init__(self, name):
         self.name = name
         self.bel_pins = set()
@@ -125,8 +126,8 @@ class SiteWire():
         assert bel_pin not in self.bel_pins, bel_pin
         self.bel_pins.add(bel_pin)
 
-class SitePip():
 
+class SitePip():
     def __init__(self, src_bel_pin, dst_bel_pin):
         self.src_bel_pin = src_bel_pin
         self.dst_bel_pin = dst_bel_pin
@@ -134,14 +135,15 @@ class SitePip():
     def __repr__(self):
         return "SitePip({}, {})".format(self.src_bel_pin, self.dst_bel_pin)
 
-class SiteType():
 
+class SiteType():
     def __init__(self, name):
         self.name = name
-        self.pins = {}      # dict(name) -> SitePin
-        self.bels = {}      # dict(name) -> Bel
+        self.pins = {}  # dict(name) -> SitePin
+        self.bels = {}  # dict(name) -> Bel
         self.pips = set()
-        self.wires = {}     # dict(name) -> SiteWire
+        self.wires = {}  # dict(name) -> SiteWire
+
 
 #        self.alt_site_types = []
 
@@ -202,8 +204,8 @@ class SiteType():
 
         return pip
 
-class SiteTypeInTileType():
 
+class SiteTypeInTileType():
     def __init__(self, ref, type):
         self.ref = ref
         self.type = type
@@ -211,28 +213,28 @@ class SiteTypeInTileType():
         self.primary_pins_to_tile_wires = {}
         self.alt_pins_to_primary_pins = {}
 
-class PIP():
 
+class PIP():
     def __init__(self, wire0, wire1):
         self.wire0 = wire0
         self.wire1 = wire1
 
         self.is_directional = True
-        self.is_buffered20 = True # TODO:
+        self.is_buffered20 = True  # TODO:
         self.is_buffered21 = True
 
         # TODO: Pseudo cells
 
-class TileType():
 
+class TileType():
     def __init__(self, name):
 
         self.name = name
 
-        self.site_types = {}    # dict(name) -> SiteTypeInTileType
+        self.site_types = {}  # dict(name) -> SiteTypeInTileType
         self.wires = set()
         self.pips = set()
-        self.constants = {}     # dict(constant) -> set(wire_name)
+        self.constants = {}  # dict(constant) -> set(wire_name)
 
     def add_site(self, type):
         """
@@ -280,45 +282,42 @@ class TileType():
         assert wire not in self.constants[constant], (constant, wire)
         self.constants[constant].add(wire)
 
-class Site():
 
+class Site():
     def __init__(self, name, type, ref):
         self.name = name
         self.type = type
         self.ref = ref
 
-class Tile():
 
+class Tile():
     def __init__(self, name, tile_type, loc):
         self.name = name
         self.type = tile_type.name
-        self.loc = loc # as (col, row)
+        self.loc = loc  # as (col, row)
 
         # Add site instances of site types from the tile type
         self.sites = {}
         for site_type_in_tile_type in tile_type.site_types.values():
 
             # Make a globally unique site name
-            site_name = "{}_X{}Y{}".format(
-                site_type_in_tile_type.ref,
-                loc[0],
-                loc[1]
-            )
+            site_name = "{}_X{}Y{}".format(site_type_in_tile_type.ref, loc[0],
+                                           loc[1])
 
             # Add the site
-            site = Site(site_name,
-                        site_type_in_tile_type.type,
+            site = Site(site_name, site_type_in_tile_type.type,
                         site_type_in_tile_type.ref)
 
             assert site.ref not in self.sites
             self.sites[site.ref] = site
 
+
 Wire = namedtuple("Wire", "tile wire")
 
 # =============================================================================
 
-class DeviceResources():
 
+class DeviceResources():
     def __init__(self):
         self.name = ""
 
@@ -327,17 +326,17 @@ class DeviceResources():
         self.tile_types = {}
 
         # Tiles (instances)
-        self.tiles = {}         # dict(id(tile)) -> tile
+        self.tiles = {}  # dict(id(tile)) -> tile
         self.tiles_by_loc = {}  # dict(loc) -> id(tile)
-        self.tiles_by_name = {} # dict(tile_name) -> id(tile)
+        self.tiles_by_name = {}  # dict(tile_name) -> id(tile)
 
         # Site (instances)
-        self.sites = {}         # dict(id(site)) -> site
-        self.sites_by_name = {} # dict(site_name) -> id(site)
+        self.sites = {}  # dict(id(site)) -> site
+        self.sites_by_name = {}  # dict(site_name) -> id(site)
 
         # Wires
         self.wires = []
-        self.wires_by_tile = {} # dict(tile_name) -> list(wire_idx)
+        self.wires_by_tile = {}  # dict(tile_name) -> list(wire_idx)
 
         # Special string map for wires to save memory
         self.wire_str_list = []
@@ -350,7 +349,7 @@ class DeviceResources():
         self.nodes = []
 
         # Physical chip packages
-        self.packages = {}      # dict(name) -> Package 
+        self.packages = {}  # dict(name) -> Package
 
         # Cell libraries. There should be "primitives" and "macros"
         self.cell_libraries = {}
@@ -425,10 +424,7 @@ class DeviceResources():
             return self.wire_str_map[s]
 
         # Create the wire, map strings
-        wire = Wire(
-            tile = add_string(tile_name),
-            wire = add_string(wire_name)
-        )
+        wire = Wire(tile=add_string(tile_name), wire=add_string(wire_name))
         wire_id = len(self.wires)
 
         # Add the wire
@@ -453,8 +449,8 @@ class DeviceResources():
         assert wire_id < len(self.wires), wire_id
 
         wire = Wire(
-            tile = get_string(self.wires[wire_id].tile),
-            wire = get_string(self.wires[wire_id].wire),
+            tile=get_string(self.wires[wire_id].tile),
+            wire=get_string(self.wires[wire_id].wire),
         )
 
         return wire
@@ -533,12 +529,13 @@ class DeviceResources():
         print("wires:      {}".format(len(self.wires)))
         print("nodes:      {}".format(len(self.nodes)))
 
+
 # =============================================================================
 
 
 class DeviceResourcesCapnp():
-
-    def __init__(self, device, device_resources_schema, logical_netlist_schema):
+    def __init__(self, device, device_resources_schema,
+                 logical_netlist_schema):
         self.device = device
         self.device_resources_schema = device_resources_schema
         self.logical_netlist_schema = logical_netlist_schema
@@ -581,7 +578,6 @@ class DeviceResourcesCapnp():
         """
         assert id < len(self.string_list), id
         return self.string_list[id]
-
 
     def build_string_index(self):
         """
@@ -690,7 +686,10 @@ class DeviceResourcesCapnp():
                 bel_capnp.category = bel.category.value
 
                 # Bel pin indices
-                indices = [bel_pin_map[(bel.name, pin.name)] for pin in bel.pins.values()]
+                indices = [
+                    bel_pin_map[(bel.name, pin.name)]
+                    for pin in bel.pins.values()
+                ]
                 assert len(bel.pins) == len(indices)
                 bel_capnp.init("pins", len(indices))
                 for i, j in enumerate(indices):
@@ -700,11 +699,11 @@ class DeviceResourcesCapnp():
 
             # Index and write site pins. Sort them so that input pins are
             # first.
-            site_pins = sorted(site_type.pins.values(),
+            site_pins = sorted(
+                site_type.pins.values(),
                 key=lambda p: p.direction != Direction.Input)
 
-            self.site_pin_list[site_type.name] = [
-                p.name for p in site_pins]
+            self.site_pin_list[site_type.name] = [p.name for p in site_pins]
 
             # Find index of the last input pin
             last_input = 0
@@ -738,7 +737,8 @@ class DeviceResourcesCapnp():
                 for j, (bel_name, bel_pin_name) in enumerate(wire.bel_pins):
                     bel = site_type.bels[bel_name]
                     bel_pin = bel.pins[bel_pin_name]
-                    site_wire_capnp.pins[j] = bel_pin_map[(bel.name, bel_pin.name)]
+                    site_wire_capnp.pins[j] = bel_pin_map[(bel.name,
+                                                           bel_pin.name)]
 
             # Write site PIPs
             site_type_capnp.init("sitePIPs", len(site_type.pips))
@@ -778,7 +778,10 @@ class DeviceResourcesCapnp():
             tile_wire_list = [self.get_string_id(w) for w in tile_type.wires]
             # Build a map of tile wires to their positions on the tile wire
             # list
-            tile_wire_map = {self.get_string(w): i for i, w in enumerate(tile_wire_list)}
+            tile_wire_map = {
+                self.get_string(w): i
+                for i, w in enumerate(tile_wire_list)
+            }
 
             # Tile wires
             tile_type_capnp.init("wires", len(tile_wire_list))
@@ -801,22 +804,27 @@ class DeviceResourcesCapnp():
             site_type_list = list(tile_type.site_types.values())
 
             self.tile_site_list[tile_type.name] = [
-                s.ref for s in site_type_list]
+                s.ref for s in site_type_list
+            ]
 
             # Site type instances
             tile_type_capnp.init("siteTypes", len(site_type_list))
             for i, site_type in enumerate(site_type_list):
                 site_type_capnp = tile_type_capnp.siteTypes[i]
-                site_type_capnp.primaryType = self.site_type_map[site_type.type]
+                site_type_capnp.primaryType = self.site_type_map[site_type.
+                                                                 type]
 
                 # Site pins to tile wires map
                 site_pin_list = self.site_pin_list[site_type.type]
-                site_type_capnp.init("primaryPinsToTileWires", len(site_pin_list))
+                site_type_capnp.init("primaryPinsToTileWires",
+                                     len(site_pin_list))
                 for i, pin in enumerate(site_pin_list):
-                    assert pin in site_type.primary_pins_to_tile_wires, "Unmapped site pin {}.{}".format(site_type.type, pin)
+                    assert pin in site_type.primary_pins_to_tile_wires, "Unmapped site pin {}.{}".format(
+                        site_type.type, pin)
                     wire_name = site_type.primary_pins_to_tile_wires[pin]
                     assert wire_name in tile_type.wires, wire_name
-                    site_type_capnp.primaryPinsToTileWires[i] = self.get_string_id(wire_name)
+                    site_type_capnp.primaryPinsToTileWires[
+                        i] = self.get_string_id(wire_name)
 
                 # Alt site pins to primary site pins map
                 # TODO:
@@ -944,7 +952,8 @@ class DeviceResourcesCapnp():
         device.init("cellBelMap", len(cell_bel_mappings))
         for i, cell_bel_mapping in enumerate(cell_bel_mappings):
             cell_bel_mapping_capnp = device.cellBelMap[i]
-            cell_bel_mapping_capnp.cell = self.get_string_id(cell_bel_mapping.cell_type)
+            cell_bel_mapping_capnp.cell = self.get_string_id(
+                cell_bel_mapping.cell_type)
 
             # TODO: Parameter-dependent mapping
 
@@ -969,18 +978,23 @@ class DeviceResourcesCapnp():
                 # Pin map
                 common_pins_capnp.init("pins", len(pin_map))
                 for k, (cell_pin, bel_pin) in enumerate(pin_map):
-                    common_pins_capnp.pins[k].cellPin = self.get_string_id(cell_pin)
-                    common_pins_capnp.pins[k].belPin = self.get_string_id(bel_pin)
+                    common_pins_capnp.pins[k].cellPin = self.get_string_id(
+                        cell_pin)
+                    common_pins_capnp.pins[k].belPin = self.get_string_id(
+                        bel_pin)
 
                 # Site types an bels
                 common_pins_capnp.init("siteTypes", len(bels_by_site_type))
-                for k, (site_type, bels) in enumerate(bels_by_site_type.items()):
+                for k, (site_type,
+                        bels) in enumerate(bels_by_site_type.items()):
                     site_type_bel_entry_capnp = common_pins_capnp.siteTypes[k]
-                    site_type_bel_entry_capnp.siteType = self.get_string_id(site_type)
+                    site_type_bel_entry_capnp.siteType = self.get_string_id(
+                        site_type)
 
                     site_type_bel_entry_capnp.init("bels", len(bels))
                     for m, bel in enumerate(bels):
-                        site_type_bel_entry_capnp.bels[m] = self.get_string_id(bel)
+                        site_type_bel_entry_capnp.bels[m] = self.get_string_id(
+                            bel)
 
     def to_capnp(self):
         """

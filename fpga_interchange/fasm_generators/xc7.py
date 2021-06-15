@@ -472,11 +472,11 @@ class XC7FasmGenerator(FasmGenerator):
                 regex="[LR]IOI_ILOGIC([01])_D",
                 features=["ZINV_D"],
                 callback=lambda m: "ILOGIC_Y{}".format(m.group(1))))
-        site_thru_features.append(ExtraFeatures(
-            regex="CLK_HROW_CK_MUX_OUT_([LR])([0-9]+)",
-            features=["IN_USE", "ZINV_CE"],
-            callback=lambda m: "BUFHCE.BUFHCE_X{}Y{}".format(0 if m.group(1) == "L" else 1, m.group(2))
-            ))
+        site_thru_features.append(
+            ExtraFeatures(
+                regex="CLK_HROW_CK_MUX_OUT_([LR])([0-9]+)",
+                features=["IN_USE", "ZINV_CE"],
+                callback=lambda m: "BUFHCE.BUFHCE_X{}Y{}".format(0 if m.group(1) == "L" else 1, m.group(2))))
         #TODO: Better handle BUFGCTRL route-through depending on the
         #      used input pin
         site_thru_features.append(

@@ -88,7 +88,7 @@ class TestArchGenerator():
         w = site_type.add_wire("LUT_O")
         w.connect_to_bel_pin("LUT", "O")
         w.connect_to_bel_pin("FFMUX", "I0")
-        w.connect_to_bel_pin("O","O")
+        w.connect_to_bel_pin("O", "O")
 
         w = site_type.add_wire("MUX_O")
         w.connect_to_bel_pin("FFMUX", "O")
@@ -237,19 +237,20 @@ class TestArchGenerator():
         for y in range(self.grid_size[1]):
             for x in range(self.grid_size[0]):
 
-                is_0_0 = x ==0 and y == 0
+                is_0_0 = x == 0 and y == 0
                 is_perimeter = y in [0, self.grid_size[1] - 1] or \
                                x in [0, self.grid_size[0] - 1]
-                is_centre = y == self.grid_size[1] // 2 and x == self.grid_size[0] // 2
+                is_centre = y == self.grid_size[
+                    1] // 2 and x == self.grid_size[0] // 2
 
                 suffix = "_X{}Y{}".format(x, y)
 
                 if is_0_0:
-                    self.device.add_tile("NULL", "NULL", (x,y))
+                    self.device.add_tile("NULL", "NULL", (x, y))
                 elif is_perimeter:
                     self.device.add_tile("IOB" + suffix, "IOB", (x, y))
                 elif is_centre:
-                    self.device.add_tile("PWR" + suffix, "PWR", (x,y))
+                    self.device.add_tile("PWR" + suffix, "PWR", (x, y))
                 else:
                     self.device.add_tile("CLB" + suffix, "CLB", (x, y))
 
@@ -274,7 +275,7 @@ class TestArchGenerator():
             return (pos[0] + ofs[0], pos[1] + ofs[1])
 
         for loc, tile_id in self.device.tiles_by_loc.items():
-            if loc == (0,0):
+            if loc == (0, 0):
                 continue
             tile = self.device.tiles[tile_id]
             tile_type = self.device.tile_types[tile.type]
@@ -286,19 +287,15 @@ class TestArchGenerator():
                 "W": "E",
             }
 
-            for direction, offset in [
-                    ("N", (0, +1)),
-                    ("S", (0, -1)),
-                    ("E", (-1, 0)),
-                    ("W", (+1, 0))
-                ]:
+            for direction, offset in [("N", (0, +1)), ("S", (0, -1)),
+                                      ("E", (-1, 0)), ("W", (+1, 0))]:
 
                 for i in range(self.num_inter_nodes):
                     wire_name = "INP_{}_{}".format(direction, i)
                     wire_ids = [self.device.get_wire_id(tile.name, wire_name)]
 
                     other_loc = offset_loc(loc, offset)
-                    if other_loc == (0,0):
+                    if other_loc == (0, 0):
                         continue
                     if other_loc[0] >= 0 and other_loc[0] < self.grid_size[0] and \
                        other_loc[1] >= 0 and other_loc[1] < self.grid_size[1]:
@@ -308,9 +305,9 @@ class TestArchGenerator():
                         other_wire_name = "OUT_{}_{}".format(
                             OPPOSITE[direction], i)
 
-                        wire_ids.append(self.device.get_wire_id(
-                            other_tile.name, other_wire_name))
-
+                        wire_ids.append(
+                            self.device.get_wire_id(other_tile.name,
+                                                    other_wire_name))
 
                     self.device.add_node(wire_ids)
 
@@ -324,7 +321,6 @@ class TestArchGenerator():
                 package.add_pin("A{}".format(pad_id), site.name, "IPAD")
                 package.add_pin("B{}".format(pad_id), site.name, "OPAD")
                 pad_id += 1
-
 
     def make_primitives_library(self):
 
@@ -374,65 +370,63 @@ class TestArchGenerator():
         # TODO: Pass all the information via device.add_cell_bel_mapping()
         mapping = CellBelMapping("LUT")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="SLICE",
-                                bel="LUT",
-                                pin_map={
-                                    "A0": "I0",
-                                    "A1": "I1",
-                                    "A2": "I2",
-                                    "A3": "I3",
-                                    "O": "O",
-                                }))
+            CellBelMappingEntry(
+                site_type="SLICE",
+                bel="LUT",
+                pin_map={
+                    "A0": "I0",
+                    "A1": "I1",
+                    "A2": "I2",
+                    "A3": "I3",
+                    "O": "O",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("DFF")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="SLICE",
-                                bel="FF",
-                                pin_map={
-                                    "D": "D",
-                                    "R": "R",
-                                    "C": "C",
-                                    "Q": "Q",
-                                }))
+            CellBelMappingEntry(
+                site_type="SLICE",
+                bel="FF",
+                pin_map={
+                    "D": "D",
+                    "R": "R",
+                    "C": "C",
+                    "Q": "Q",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("IB")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="IOPAD",
-                                bel="IB",
-                                pin_map={
-                                    "I": "I",
-                                    "P": "P",
-                                }))
+            CellBelMappingEntry(
+                site_type="IOPAD", bel="IB", pin_map={
+                    "I": "I",
+                    "P": "P",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("OB")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="IOPAD",
-                                bel="OB",
-                                pin_map={
-                                    "O": "O",
-                                    "P": "P",
-                                }))
+            CellBelMappingEntry(
+                site_type="IOPAD", bel="OB", pin_map={
+                    "O": "O",
+                    "P": "P",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("GND")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="POWER",
-                                bel="GND",
-                                pin_map={
-                                    "G": "G",
-                                }))
+            CellBelMappingEntry(
+                site_type="POWER", bel="GND", pin_map={
+                    "G": "G",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("VCC")
         mapping.entries.append(
-            CellBelMappingEntry(site_type="POWER",
-                                bel="VCC",
-                                pin_map={
-                                    "V": "V",
-                                }))
+            CellBelMappingEntry(
+                site_type="POWER", bel="VCC", pin_map={
+                    "V": "V",
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
     def generate(self):
@@ -455,6 +449,7 @@ class TestArchGenerator():
 
         self.device.print_stats()
 
+
 # =============================================================================
 
 
@@ -464,8 +459,7 @@ def main():
     parser.add_argument(
         "--schema_dir",
         required=True,
-        help="Path to FPGA interchange capnp schema files"
-    )
+        help="Path to FPGA interchange capnp schema files")
 
     args = parser.parse_args()
 
@@ -484,10 +478,12 @@ def main():
     # Serialize
     device_resources = writer.to_capnp()
     with open("device_resources.device.gz", "wb") as fp:
-        write_capnp_file(device_resources, fp)#, compression_format=CompressionFormat.UNCOMPRESSED)
+        write_capnp_file(
+            device_resources,
+            fp)  #, compression_format=CompressionFormat.UNCOMPRESSED)
+
 
 # =============================================================================
-
 
 if __name__ == "__main__":
     main()

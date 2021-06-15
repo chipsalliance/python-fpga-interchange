@@ -409,8 +409,9 @@ class Constraints():
          - Ensure all cell constraints reference either a tag or routed_tag.
 
         """
-        assert len(self.tags.keys() | self.routed_tags.keys()) == (
-            len(self.tags) + len(self.routed_tags))
+        assert len(self.tags.keys()
+                   | self.routed_tags.keys()) == (
+                       len(self.tags) + len(self.routed_tags))
 
         for routing_tag in self.routed_tags.values():
             for bel_pin in routing_tag.bel_pins:
