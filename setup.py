@@ -16,7 +16,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-fpga-interchange",
-    version="0.0.14",
+    version="0.0.15",
     author="SymbiFlow Authors",
     author_email="symbiflow@lists.librecores.org",
     description="Python library for reading and writing FPGA interchange files",
