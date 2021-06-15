@@ -95,7 +95,7 @@ class NexusFasmGenerator(FasmGenerator):
             regset = "SET" if cell_data.cell_type in ("FD1P3BX",
                                                       "FD1P3JX") else "RESET"
             self.add_cell_feature((bel_tile, bel_prefix,
-                                   "USED.{}".format(regset)))
+                                   "REGSET.{}".format(regset)))
             self.add_cell_feature((bel_tile, bel_prefix, "LSRMODE.LSR"))
             self.add_cell_feature((bel_tile, bel_prefix,
                                    "SEL.DF"))  # TODO: LUT->FF path
