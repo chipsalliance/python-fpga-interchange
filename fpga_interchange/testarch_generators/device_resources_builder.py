@@ -334,6 +334,9 @@ class DeviceResources():
         self.wire_str_list = []
         self.wire_str_map = {}
 
+        # Constant generators
+        self.constants = {}
+
         # Nodes
         self.nodes = []
 
@@ -482,6 +485,12 @@ class DeviceResources():
         # Add all wires
         for wire in tile_type.wires:
             self.add_wire(tile_name, wire)
+
+    def add_const_source(self, site_name, bel_name, bel_port, constant):
+        assert (site_name, bel_name,
+                bel_port) not in self.constants, (site_name, bel_name,
+                                                  bel_port)
+        self.constants[(site_name, bel_name, bel_port)] = constant
 
     def add_node(self, wire_ids):
         """
@@ -897,10 +906,18 @@ class DeviceResourcesCapnp():
 
     def write_constants(self, device):
         """
-        Packs all node objects to the cap'n'proto schema
+        Packs all constant sources/bels objects to the cap'n'proto schema
         """
 
         device.constants.defaultBestConstant = "noPreference"
+        device.constants.init("siteSources", len(self.device.constants))
+        for i, (key, const) in enumerate(self.device.constants.items()):
+            device.constants.siteSources[i].siteType = self.get_string_id(
+                key[0])
+            device.constants.siteSources[i].bel = self.get_string_id(key[1])
+            device.constants.siteSources[i].belPin = self.get_string_id(key[2])
+            device.constants.siteSources[
+                i].constant = "vcc" if const == "VCC" else "gnd"
         device.constants.gndCellType = self.get_string_id("GND")
         device.constants.gndCellPin = self.get_string_id("G")
         device.constants.vccCellType = self.get_string_id("VCC")

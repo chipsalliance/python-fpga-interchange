@@ -5,7 +5,7 @@ import argparse
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.interchange_capnp import Interchange, CompressionFormat, write_capnp_file
 
-from device_resources_builder import BelCategory
+from device_resources_builder import BelCategory, ConstantType
 from device_resources_builder import DeviceResources, DeviceResourcesCapnp
 
 from device_resources_builder import CellBelMapping, CellBelMappingEntry
@@ -131,13 +131,15 @@ class TestArchGenerator():
         site_type.add_pin("V", Direction.Output)
         site_type.add_pin("G", Direction.Output)
 
-        # IPAD bel
-        bel_ipad = site_type.add_bel("VCC", "VCC", BelCategory.LOGIC)
-        bel_ipad.add_pin("V", Direction.Output)
+        # VCC bel
+        bel_vcc = site_type.add_bel("VCC", "VCC", BelCategory.LOGIC)
+        bel_vcc.add_pin("V", Direction.Output)
+        self.device.add_const_source(site_type.name, bel_vcc.name, 'V', 'VCC')
 
-        # OPAD bel
-        bel_opad = site_type.add_bel("GND", "GND", BelCategory.LOGIC)
-        bel_opad.add_pin("G", Direction.Output)
+        # GND bel
+        bel_gnd = site_type.add_bel("GND", "GND", BelCategory.LOGIC)
+        bel_gnd.add_pin("G", Direction.Output)
+        self.device.add_const_source(site_type.name, bel_gnd.name, 'G', 'GND')
 
         # Wires
         site_type.add_wire("V", [("VCC", "V"), ("V", "V")])
@@ -216,6 +218,9 @@ class TestArchGenerator():
                     src_wire = "INTRA_{}".format(j)
                     tile_type.add_pip(src_wire, dst_wire)
 
+        if tile_type_name == "PWR":
+            tile_type.add_const_source(ConstantType.VCC, "FROM_POWER0_V")
+            tile_type.add_const_source(ConstantType.GND, "FROM_POWER0_G")
         # TODO: const. wires
 
     def make_device_grid(self):
