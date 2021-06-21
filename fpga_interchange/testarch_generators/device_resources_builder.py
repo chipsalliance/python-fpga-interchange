@@ -215,13 +215,15 @@ class SiteTypeInTileType():
 
 
 class PIP():
-    def __init__(self, wire0, wire1):
+    def __init__(self, wire0, wire1, delay_type):
         self.wire0 = wire0
         self.wire1 = wire1
 
         self.is_directional = True
         self.is_buffered20 = True  # TODO:
         self.is_buffered21 = True
+
+        self.delay_type = delay_type
 
         # TODO: Pseudo cells
 
@@ -259,11 +261,11 @@ class TileType():
 
         return name
 
-    def add_pip(self, wire0, wire1):
+    def add_pip(self, wire0, wire1, delay_type):
         """
         Adds a new PIP to the tile type
         """
-        pip = PIP(wire0, wire1)
+        pip = PIP(wire0, wire1, delay_type)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 
@@ -347,6 +349,10 @@ class DeviceResources():
 
         # Nodes
         self.nodes = []
+
+        # Timing
+        self.node_delay_types = {}
+        self.pip_delay_types = {}
 
         # Physical chip packages
         self.packages = {}  # dict(name) -> Package
@@ -436,6 +442,27 @@ class DeviceResources():
 
         return wire_id
 
+    def add_nodeTiming(self, delay_type, R, C):
+        """
+        Adds new node delay_type to device based on resistance R and capacitance C
+        """
+
+        assert delay_type not in self.node_delay_types, delay_type
+        self.node_delay_types[delay_type] = (R,C)
+
+    def add_PIPTiming(self, delay_type, iC, itC, itD, oR, oC):
+        """
+        Adds new pip delay_type to device based on input capacitance iC,
+        internal capacitance itC, internal delay itD,
+        output resistance oR and output capacitance oC.
+
+        Internal capacitances are taken into account only if PIP is taken,
+        input capacitance is always added to node capacitance.
+        """
+
+        assert delay_type not in self.pip_delay_types, delay_type
+        self.pip_delay_types[delay_type] = (iC, itC, itD, oR, oC)
+
     def get_wire(self, wire_id):
         """
         Returns a Wire object containing string literals which refer to the
@@ -497,11 +524,11 @@ class DeviceResources():
                                                   bel_port)
         self.constants[(site_name, bel_name, bel_port)] = constant
 
-    def add_node(self, wire_ids):
+    def add_node(self, wire_ids, node_type):
         """
         Adds a new node that spans the given wire ids.
         """
-        self.nodes.append(wire_ids)
+        self.nodes.append((wire_ids, node_type))
 
     def add_package(self, name):
         """
@@ -548,6 +575,25 @@ class DeviceResourcesCapnp():
 
         self.tile_type_map = {}
         self.tile_site_list = {}
+
+    def populate_corner_model(self, corner_model,
+                              slow_min=None, slow_typ=None, slow_max=None,
+                              fast_min=None, fast_typ=None, fast_max=None):
+        fields = ['min', 'typ', 'max']
+        slow = [slow_min, slow_typ, slow_max]
+        fast = [fast_min, fast_typ, fast_max]
+        if any(x is not None for x in slow):
+            corner_model.slow.init("slow")
+        if any(x is not None for x in fast):
+            corner_model.fast.init("fast")
+        for i, field in enumerate(fields):
+            if slow[i] is not None:
+                x = getattr(corner_model.slow.slow, field)
+                setattr(x, field, slow[i])
+        for i, field in enumerate(fields):
+            if fast[i] is not None:
+                x = getattr(corner_model.fast.fast, field)
+                setattr(x, field, fast[i])
 
     def add_string_id(self, s):
         """
@@ -632,6 +678,25 @@ class DeviceResourcesCapnp():
                 self.add_string_id(cell.name)
                 for port_name in cell.ports.keys():
                     self.add_string_id(port_name)
+
+    def write_timings(self, device):
+        self.node_timing_map = {}
+        self.pip_timing_map = {}
+        device.init("nodeTimings", len(self.device.node_delay_types))
+        for i, node_timing in enumerate(self.device.node_delay_types.items()):
+            key, value = node_timing
+            self.node_timing_map[key] = i
+            self.populate_corner_model(device.nodeTimings[i].resistance, slow_typ=value[0])
+            self.populate_corner_model(device.nodeTimings[i].capacitance, slow_typ=value[1])
+        device.init("pipTimings", len(self.device.pip_delay_types))
+        for i, pip_timing in enumerate(self.device.pip_delay_types.items()):
+            key, value = pip_timing
+            self.pip_timing_map[key] = i
+            self.populate_corner_model(device.pipTimings[i].inputCapacitance, slow_typ=value[0])
+            self.populate_corner_model(device.pipTimings[i].internalCapacitance, slow_typ=value[1])
+            self.populate_corner_model(device.pipTimings[i].internalDelay, slow_typ=value[2])
+            self.populate_corner_model(device.pipTimings[i].outputResistance, slow_typ=value[3])
+            self.populate_corner_model(device.pipTimings[i].outputCapacitance, slow_typ=value[4])
 
     def write_site_types(self, device):
         """
@@ -797,6 +862,7 @@ class DeviceResourcesCapnp():
                 pip_capnp.directional = pip.is_directional
                 pip_capnp.buffered20 = pip.is_buffered20
                 pip_capnp.buffered21 = pip.is_buffered21
+                pip_capnp.timing = self.pip_timing_map[pip.delay_type]
 
                 # TODO: Pseudo cells
 
@@ -892,8 +958,9 @@ class DeviceResourcesCapnp():
         for i, node in enumerate(self.device.nodes):
             node_capnp = device.nodes[i]
             node_capnp.init("wires", len(node))
-            for j, wire_id in enumerate(node):
+            for j, wire_id in enumerate(node[0]):
                 node_capnp.wires[j] = wire_id
+            node_capnp.nodeTiming = self.node_timing_map[node[1]]
 
     def write_packages(self, device):
         """
@@ -1011,6 +1078,9 @@ class DeviceResourcesCapnp():
         device.init("strList", len(self.string_list))
         for i, s in enumerate(self.string_list):
             device.strList[i] = s
+
+        # Node and PIP timings
+        self.write_timings(device)
 
         # Site types
         self.write_site_types(device)

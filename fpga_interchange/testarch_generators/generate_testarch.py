@@ -30,7 +30,7 @@ class TestArchGenerator():
     def __init__(self):
         self.device = DeviceResources()
 
-        self.grid_size = (6, 6)
+        self.grid_size = (10, 10)
         self.num_intra_nodes = 8
         self.num_inter_nodes = 8
 
@@ -206,13 +206,13 @@ class TestArchGenerator():
         for dst_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 src_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire)
+                tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
         wires_for_site = [w for w in tile_type.wires if w.startswith("FROM_")]
         for src_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 dst_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire)
+                tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
         # Input tile wires to intra wires and vice-versa
         for direction in ["N", "S", "E", "W"]:
@@ -221,12 +221,12 @@ class TestArchGenerator():
                 src_wire = "INP_{}_{}".format(direction, i)
                 for j in range(self.num_intra_nodes):
                     dst_wire = "INTRA_{}".format(j)
-                    tile_type.add_pip(src_wire, dst_wire)
+                    tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
                 dst_wire = "OUT_{}_{}".format(direction, i)
                 for j in range(self.num_intra_nodes):
                     src_wire = "INTRA_{}".format(j)
-                    tile_type.add_pip(src_wire, dst_wire)
+                    tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
         if tile_type_name == "PWR":
             tile_type.add_const_source(ConstantType.VCC, "FROM_POWER0_V")
@@ -266,10 +266,12 @@ class TestArchGenerator():
             tile_type = self.device.tile_types[tile.type]
 
             for wire in tile_type.wires:
-                if wire.startswith("TO_") or wire.startswith("FROM_") or \
-                   wire.startswith("INTRA_"):
+                if wire.startswith("TO_") or wire.startswith("FROM_"):
                     wire_id = self.device.get_wire_id(tile.name, wire)
-                    self.device.add_node([wire_id])
+                    self.device.add_node([wire_id], "toSite")
+                elif wire.startswith("INTRA_"):
+                    wire_id = self.device.get_wire_id(tile.name, wire)
+                    self.device.add_node([wire_id], "internal")
 
         # Add nodes for inter-tile connections.
         def offset_loc(pos, ofs):
@@ -310,7 +312,7 @@ class TestArchGenerator():
                             self.device.get_wire_id(other_tile.name,
                                                     other_wire_name))
 
-                    self.device.add_node(wire_ids)
+                    self.device.add_node(wire_ids, "external")
 
     def make_package_data(self):
 
@@ -447,6 +449,19 @@ class TestArchGenerator():
 
         self.make_primitives_library()
         self.make_cell_bel_mappings()
+
+        # Add pip imings
+        # Values are taken at random, resisitance, input and output capacitance are chosen
+        # to be samewhat inline with values calculated from skaywater PDK
+        self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 0.1, 0.5, 4e-16)
+
+        # Add node timing
+        # Value taken from skywater PDK for metal layer 1,
+        # Tile-to-Tile length 30 um, internal 15 um and to site 2 um
+        # Wire width of 0.14 um
+        self.device.add_nodeTiming("external", 26.8, 1.14e-14)
+        self.device.add_nodeTiming("internal", 13.4, 5.7e-15)
+        self.device.add_nodeTiming("toSite", 1.8, 7.6e-16)
 
         self.device.print_stats()
 
