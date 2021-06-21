@@ -398,8 +398,11 @@ class XC7FasmGenerator(FasmGenerator):
 
         used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
 
-        excluded_bels = ["{}USED".format(bel) for bel in "ABCD"]
-        excluded_bels += ["CLKINV"]
+        excluded_bels = [
+            "{}USED".format(bel) for bel in ["A", "B", "C", "D", "COUT"]
+        ]
+        excluded_bels += ["{}CY0".format(bel) for bel in ["A", "B", "C", "D"]]
+        excluded_bels += ["CLKINV", "PRECYINIT"]
 
         for site, bel, pin, _ in routing_bels:
             if bel in excluded_bels:
@@ -425,6 +428,23 @@ class XC7FasmGenerator(FasmGenerator):
             if not is_inverting:
                 zinv_feature = "ZINV_{}".format(pin)
                 self.add_cell_feature((tile_name, bram_prefix, zinv_feature))
+
+    def handle_slice_bel_pins(self):
+        """
+        This function handles the addition of special features when specific BEL
+        pins are used
+        """
+        tile_types = ["CLBLL_L", "CLBLL_R", "CLBLM_L", "CLBLM_R"]
+        bel_pins = self.get_bel_pins_annotation(tile_types)
+
+        for site, bel, pin in bel_pins:
+
+            tile_name, tile_type = self.get_tile_info_at_site(site)
+            slice_prefix = self.get_slice_prefix(site, tile_type)
+
+            if bel == "CARRY4" and pin == "CIN":
+                self.add_cell_feature((tile_name, slice_prefix,
+                                       "PRECYINIT.CIN"))
 
     def handle_site_thru(self, site_thru_pips):
         """
@@ -640,7 +660,7 @@ class XC7FasmGenerator(FasmGenerator):
             for extra_feature in regexs:
                 run_regex_match(extra_feature, tile, wire, extra_wires, False)
 
-    def handle_pips(self):
+    def handle_routes(self):
         """
         Handles all the FASM features corresponding to PIPs
 
@@ -654,6 +674,8 @@ class XC7FasmGenerator(FasmGenerator):
             if bel_type in ["LUT5", "LUT6"]:
                 avail_lut_thrus.append(bel)
 
+        bel_pins = [("CARRY4", "CIN")]
+
         tile_types = [
             "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
             "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R", "CLK_HROW_BOT_R",
@@ -664,7 +686,7 @@ class XC7FasmGenerator(FasmGenerator):
 
         pip_feature_format = "{tile}.{wire1}.{wire0}"
         site_thru_pips, lut_thru_pips = self.fill_pip_features(
-            pip_feature_format, extra_pip_features, avail_lut_thrus)
+            pip_feature_format, extra_pip_features, avail_lut_thrus, bel_pins)
 
         self.handle_extra_pip_features(extra_pip_features)
         self.handle_site_thru(site_thru_pips)
@@ -679,11 +701,14 @@ class XC7FasmGenerator(FasmGenerator):
         self.handle_slice_ff()
 
         # Handling PIPs and Route-throughs
-        self.handle_pips()
+        self.handle_routes()
 
         # Handling routing BELs
         self.handle_slice_routing_bels()
         self.handle_bram_routing_bels()
+
+        # Handling bel pins
+        self.handle_slice_bel_pins()
 
         # Emit LUT features. This needs to be done at last as
         # LUT features depend also on LUT route-thru
