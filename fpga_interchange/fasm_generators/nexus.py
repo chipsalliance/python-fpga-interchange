@@ -187,6 +187,19 @@ class NexusFasmGenerator(FasmGenerator):
                 self.add_cell_feature((cell_data.site_name, cell_data.bel,
                                        feature))
 
+    def handle_osc(self):
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            if cell_data.cell_type != "OSC_CORE":
+                continue
+            site = cell_data.site_name
+            bel = cell_data.bel
+            self.add_cell_feature((site, bel, "HF_OSC_EN.ENABLED"))
+            self.add_cell_feature((site, bel, "HFDIV_FABRIC_EN.ENABLED"))
+            self.add_cell_feature((site, bel, "DEBUG_N.DISABLED"))
+            self.add_cell_feature(
+                (site, bel, "HF_CLK_DIV[7:0] = 8'b{:08b}".format(
+                    int(cell_data.attributes.get("HF_CLK_DIV", "1")))))
+
     def fill_features(self):
         dev_name = self.device_resources.device_resource_capnp.name
         self.add_annotation("oxide.device", dev_name)
@@ -194,6 +207,7 @@ class NexusFasmGenerator(FasmGenerator):
         self.handle_luts()
         self.handle_brams()
         self.handle_io()
+        self.handle_osc()
         # Handling PIPs and Route-throughs
         self.handle_pips()
         self.handle_slice_ff()
