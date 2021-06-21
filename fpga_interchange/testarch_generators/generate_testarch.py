@@ -109,6 +109,7 @@ class TestArchGenerator():
         site_type.add_pin("I", Direction.Output)
         site_type.add_pin("O", Direction.Input)
 
+        # TODO Change to use one pad for both input and output buffers
         # IPAD bel
         bel_ib = site_type.add_bel("IB", "IB", BelCategory.LOGIC)
         bel_ib.add_pin("I", Direction.Output)
