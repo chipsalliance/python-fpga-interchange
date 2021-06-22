@@ -311,7 +311,6 @@ class TestArchGenerator():
                         wire_ids.append(
                             self.device.get_wire_id(other_tile.name,
                                                     other_wire_name))
-
                     self.device.add_node(wire_ids, "external")
 
     def make_package_data(self):
@@ -371,7 +370,13 @@ class TestArchGenerator():
     def make_cell_bel_mappings(self):
 
         # TODO: Pass all the information via device.add_cell_bel_mapping()
-        mapping = CellBelMapping("LUT")
+        delay_mapping = [
+            ('I0', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I1', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I2', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I3', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+        ]
+        mapping = CellBelMapping("LUT", delay_mapping)
         mapping.entries.append(
             CellBelMappingEntry(
                 site_type="SLICE",
@@ -385,7 +390,16 @@ class TestArchGenerator():
                 }))
         self.device.add_cell_bel_mapping(mapping)
 
-        mapping = CellBelMapping("DFF")
+        delay_mapping = [
+            ('D', ('C', 'rise'), (None, 5e-12, None, None, None, None),
+             'setup'),
+            ('D', ('C', 'rise'), (None, 8e-12, None, None, None, None),
+             'hold'),
+            ('Q', ('C', 'rise'), (None, 6e-12, None, None, None, None),
+             'clk2q'),
+            ('R', 'Q', (None, 24e-12, None, None, None, None), 'comb'),
+        ]
+        mapping = CellBelMapping("DFF", delay_mapping)
         mapping.entries.append(
             CellBelMappingEntry(
                 site_type="SLICE",
@@ -395,6 +409,22 @@ class TestArchGenerator():
                     "R": "R",
                     "C": "C",
                     "Q": "Q",
+                }))
+        self.device.add_cell_bel_mapping(mapping)
+
+        delay_mapping = [
+            ('I0', 'O', (None, 5e-12, None, None, None, None), 'comb'),
+            ('I1', 'O', (None, 5e-12, None, None, None, None), 'comb'),
+        ]
+        mapping = CellBelMapping("FFMUX", delay_mapping)
+        mapping.entries.append(
+            CellBelMappingEntry(
+                site_type="SLICE",
+                bel="FFMUX",
+                pin_map={
+                    "I0": "I0",
+                    "I1": "I1",
+                    "O": "O",
                 }))
         self.device.add_cell_bel_mapping(mapping)
 
@@ -453,7 +483,7 @@ class TestArchGenerator():
         # Add pip imings
         # Values are taken at random, resisitance, input and output capacitance are chosen
         # to be samewhat inline with values calculated from skaywater PDK
-        self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 0.1, 0.5, 4e-16)
+        self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 5e-10, 0.5, 4e-16)
 
         # Add node timing
         # Value taken from skywater PDK for metal layer 1,

@@ -64,9 +64,10 @@ class CellBelMappingEntry():
 
 
 class CellBelMapping():
-    def __init__(self, cell_type):
+    def __init__(self, cell_type, delay_mapping=[]):
         self.cell_type = cell_type
         self.entries = []
+        self.delay_mapping = delay_mapping
 
 
 class BelPin():
@@ -957,8 +958,9 @@ class DeviceResourcesCapnp():
         device.init("nodes", len(self.device.nodes))
         for i, node in enumerate(self.device.nodes):
             node_capnp = device.nodes[i]
-            node_capnp.init("wires", len(node))
+            node_capnp.init("wires", len(node[0]))
             for j, wire_id in enumerate(node[0]):
+                wire = self.device.get_wire(wire_id)
                 node_capnp.wires[j] = wire_id
             node_capnp.nodeTiming = self.node_timing_map[node[1]]
 
@@ -1062,6 +1064,22 @@ class DeviceResourcesCapnp():
                     for m, bel in enumerate(bels):
                         site_type_bel_entry_capnp.bels[m] = self.get_string_id(
                             bel)
+
+            cell_bel_mapping_capnp.init("pinsDelay", len(cell_bel_mapping.delay_mapping))
+            for k, delay in enumerate(cell_bel_mapping.delay_mapping):
+                pin_delay = cell_bel_mapping_capnp.pinsDelay[k]
+                pin_delay.pinsDelayType = delay[3]
+                self.populate_corner_model(pin_delay.cornerModel, *delay[2])
+                if isinstance(delay[0], tuple):
+                    pin_delay.firstPin.pin = self.get_string_id(delay[0][0])
+                    pin_delay.firstPin.clockEdge = delay[0][1]
+                else:
+                    pin_delay.firstPin.pin = self.get_string_id(delay[0])
+                if isinstance(delay[1], tuple):
+                    pin_delay.secondPin.pin = self.get_string_id(delay[1][0])
+                    pin_delay.secondPin.clockEdge = delay[1][1]
+                else:
+                    pin_delay.secondPin.pin = self.get_string_id(delay[1])
 
     def to_capnp(self):
         """
