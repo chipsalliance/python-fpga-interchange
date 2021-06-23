@@ -26,6 +26,26 @@ class TimingAnalyzer():
         with open(netlist_path, "rb") as netlist:
             self.phy_netlist = interchange.read_physical_netlist_raw(netlist)
 
+        self.timing_to_all_ends = {}
+
+        # mapping form physical netlist strList to device strList
+        self.net_dev_string_map = {}
+
+        # mappig from tile name and wire name to node_id
+        self.node_map = {}
+        # mapping from node_id to node
+        self.node_id_map = {}
+        # mapping from wire in node to list of pips connected to node
+        self.node_pip_map = {}
+        # mapping from (tile,wire0,wire1) to pip
+        self.pip_map = {}
+        # mapping from tile name to tile type
+        self.site_map = {}
+        # mapping from site name to site type
+        self.tile_map = {}
+        # mappinf from (siteType, bel) to bel delays
+        self.bel_delays = {}
+
     def create_net_string_to_dev_string_map(self):
         dev_string = {}
         for i, s in enumerate(self.device.strList):
@@ -33,7 +53,6 @@ class TimingAnalyzer():
         net_string = []
         for i, s in enumerate(self.phy_netlist.strList):
             net_string.append((s, i))
-        self.net_dev_string_map = {}
         for t in net_string:
             if t[0] in dev_string:
                 self.net_dev_string_map[t[1]] = dev_string[t[0]]
@@ -41,8 +60,6 @@ class TimingAnalyzer():
                 self.net_dev_string_map[t[1]] = None
 
     def create_wire_to_node_map(self):
-        self.node_map = {}
-        self.node_id_map = {}
         for i, node in enumerate(self.device.nodes):
             for wire in node.wires:
                 wire_data = self.device.wires[wire]
@@ -50,8 +67,6 @@ class TimingAnalyzer():
                 self.node_id_map[i] = node
 
     def create_node_to_pip_map(self):
-        self.node_pip_map = {}
-
         wire_to_id_map = {}
         wire_id_to_pip = {}
         for i, tileType in enumerate(self.device.tileTypeList):
@@ -73,7 +88,6 @@ class TimingAnalyzer():
                 self.node_pip_map[i] += wire_id_to_pip[(tile_type, wire_id)]
 
     def create_wires_to_pip_map(self):
-        self.pip_map = {}
         for i, tileType in enumerate(self.device.tileTypeList):
             for pip in tileType.pips:
                 wire0 = tileType.wires[pip.wire0]
@@ -81,8 +95,6 @@ class TimingAnalyzer():
                 self.pip_map[(i, wire0, wire1)] = pip
 
     def create_site_and_tile_map(self):
-        self.site_map = {}
-        self.tile_map = {}
         for tile in self.device.tileList:
             self.tile_map[tile.name] = tile.type
             for site in tile.sites:
@@ -91,7 +103,6 @@ class TimingAnalyzer():
                 self.site_map[site.name] = t
 
     def create_PinDelay_map(self):
-        self.bel_delays = {}
         for cell in self.device.cellBelMap:
             if len(cell.pinsDelay) == 0:
                 continue
@@ -105,7 +116,7 @@ class TimingAnalyzer():
 
     def traverse_net(self, net):
 
-        self.timing_to_all_ends = {}
+        ends_array = []
 
         def get_value_from_model(model, prefered_sub_model, prefered_value):
             prefered = getattr(model, prefered_sub_model)
@@ -204,6 +215,7 @@ class TimingAnalyzer():
 
                 if pip.buffered21 and vertex.routeSegment.pip.forward or\
                    pip.buffered20 and not vertex.routeSegment.pip.forward:
+                    print('kupa', pip)
                     delay += resistance * get_value_from_model(
                         pip_timing.internalCapacitance, 'slow', 'typ')
 
@@ -252,13 +264,14 @@ class TimingAnalyzer():
                     dfs_traverse(branch, resistance, delay + temp_delay,
                                  in_site), return_value)
             if last:
-                self.timing_to_all_ends[net].append((site, bel, pin, delay))
+                ends_array.append((site, bel, pin, delay))
             return return_value
 
         self.timing_to_all_ends[net] = []
 
         return_value = 0
         for source in net.sources:
+            ends_array = []
             which = source.routeSegment.which()
             if which == "belPin":
                 t = self.site_map[self.net_dev_string_map[source.routeSegment.
@@ -276,6 +289,8 @@ class TimingAnalyzer():
                         return_value)
             else:
                 raise
+            self.timing_to_all_ends[net].append((source.routeSegment.belPin,
+                                                 ends_array))
         return return_value
 
 
@@ -318,12 +333,17 @@ def main():
                 analyzer.net_name(net),
                 analyzer.traverse_net(net) * 1e9))
             if args.detail:
-                print("Detail raport:")
-                for end in analyzer.timing_to_all_ends[net]:
-                    print("Site {}, BEL {}, BELpin {} time delay {} ns".format(
-                        analyzer.device.strList[end[0]],
-                        analyzer.device.strList[end[1]],
-                        analyzer.device.strList[end[2]], end[3]))
+                print("\tDetail raport:")
+                for source, ends in analyzer.timing_to_all_ends[net]:
+                    for end in ends:
+                        print(
+                            "\t\t(Source) Site {}, BEL {}, BELpin {} -> (Sink) Site {}, BEL {}, BELpin {}\n\t\t\t time delay {} ns"
+                            .format(analyzer.phy_netlist.strList[source.site],
+                                    analyzer.phy_netlist.strList[source.bel],
+                                    analyzer.phy_netlist.strList[source.pin],
+                                    analyzer.device.strList[end[0]],
+                                    analyzer.device.strList[end[1]],
+                                    analyzer.device.strList[end[2]], end[3]))
 
 
 # =============================================================================

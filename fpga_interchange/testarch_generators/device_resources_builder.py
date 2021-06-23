@@ -221,8 +221,8 @@ class PIP():
         self.wire1 = wire1
 
         self.is_directional = True
-        self.is_buffered20 = True  # TODO:
-        self.is_buffered21 = True
+        self.is_buffered20 = False  #True  # TODO:
+        self.is_buffered21 = False  #True
 
         self.delay_type = delay_type
 
