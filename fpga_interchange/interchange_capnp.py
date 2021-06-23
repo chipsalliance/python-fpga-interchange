@@ -28,7 +28,7 @@ output_logical_netlist - Implements conversion of classes from logical_netlist
 PhysicalNetlistBuilder - Internal helper class for constructing physical
                          netlist format.
 
-output_logical_netlist - Implements conversion of classes from physicla
+output_physical_netlist - Implements conversion of classes from physicla
                          module to FPGA interchange physical netlist format.
                          This function requires PhysicalNetlist schema loaded,
                          recommend to use Interchange class to load schemas
@@ -40,6 +40,7 @@ Interchange - Class that handles loading capnp schemas.
 """
 import capnp
 import capnp.lib.capnp
+
 capnp.remove_import_hook()
 import enum
 import gzip

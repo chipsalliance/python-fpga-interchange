@@ -312,16 +312,19 @@ def to_writer(struct_reader,
             inner_key = group.which()
             value = getattr(group, inner_key)
 
-            set_value = lambda value_which, value: writer.set_value_inner_key(key, inner_key, value_which, value)
+            set_value = lambda value_which, value: writer.set_value_inner_key(
+                key, inner_key, value_which, value)
             field_proto_data = field.get_group_proto(inner_key)
         else:
             assert which == 'slot', which
             value = getattr(struct_reader, key)
-            set_value = lambda value_which, value: writer.set_value(key, value_which, value)
+            set_value = lambda value_which, value: writer.set_value(
+                key, value_which, value)
             field_proto_data = field.get_field_proto()
 
         if field_proto_data.ref_annotation is not None:
-            deference_fun = lambda value: writer.dereference_value(field_proto_data.ref_annotation, value, root, parent)
+            deference_fun = lambda value: writer.dereference_value(
+                field_proto_data.ref_annotation, value, root, parent)
         else:
             deference_fun = lambda value: value
 
@@ -434,7 +437,8 @@ def from_reader(message,
             continue
 
         if field_proto_data.ref_annotation is not None:
-            reference_fun = lambda value: reader.reference_value(field_proto_data.ref_annotation, value, root, parent)
+            reference_fun = lambda value: reader.reference_value(
+                field_proto_data.ref_annotation, value, root, parent)
         else:
             reference_fun = lambda value: value
 

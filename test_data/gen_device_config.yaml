@@ -1,0 +1,10 @@
+global_buffer_bels:
+- VCC
+- GND
+buckets:
+- bucket: LUTS
+  cells:
+    - LUT
+- bucket: FFS
+  cells:
+    - DFF

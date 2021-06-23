@@ -22,8 +22,9 @@ jobs:
 
     - name: Install
       run: |
-        sudo apt-get install libyaml-dev libyaml-cpp-dev swig
-        pip install --upgrade -r requirements.txt
+        sudo apt-get update
+        sudo apt-get install libyaml-dev libyaml-cpp-dev swig cmake default-jdk -y
+        pip3 install --upgrade -r requirements.txt
 
     - name: Check formatting
       run: ./.github/workflows/format.sh
@@ -35,6 +36,9 @@ jobs:
         make -C "$GITHUB_WORKSPACE/env/RapidWright" update_jars
         git clone https://github.com/capnproto/capnproto-java.git $GITHUB_WORKSPACE/env/capnproto-java
         git clone https://github.com/SymbiFlow/fpga-interchange-schema.git $GITHUB_WORKSPACE/env/fpga-interchange-schema
+
+    - name: Test testarch
+      run: ./.github/workflows/testarch_device.sh
 
     - name: Test
       run: ./.github/workflows/test.sh

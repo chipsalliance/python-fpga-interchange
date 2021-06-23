@@ -6,6 +6,7 @@
 #
 # SPDX-License-Identifier: ISC
 SHELL=bash
+PYTHON?=python3
 
 ALL_EXCLUDE = third_party .git env build
 FORMAT_EXCLUDE = $(foreach x,$(ALL_EXCLUDE),-and -not -path './$(x)/*')
@@ -14,7 +15,7 @@ PYTHON_SRCS=$(shell find . -name "*py" $(FORMAT_EXCLUDE))
 
 IN_ENV = if [ -e env/bin/activate ]; then . env/bin/activate; fi;
 env:
-	python3 -mvenv env
+	$(PYTHON) -mvenv env
 	$(IN_ENV) pip install --upgrade -r requirements.txt
 
 format: ${PYTHON_SRCS}
