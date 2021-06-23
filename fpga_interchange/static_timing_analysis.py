@@ -104,6 +104,9 @@ class TimingAnalyzer():
         return self.phy_netlist.strList[net.name]
 
     def traverse_net(self, net):
+
+        self.timing_to_all_ends = {}
+
         def get_value_from_model(model, prefered_sub_model, prefered_value):
             prefered = getattr(model, prefered_sub_model)
             if prefered.which() == prefered_sub_model:
@@ -196,14 +199,24 @@ class TimingAnalyzer():
                                             resistance)
 
                 # delay on PIP
-                pip_timing = self.device.pipTimings[self.pip_map[(
-                    self.tile_map[tile], wire0, wire1)].timing]
-                delay += resistance * get_value_from_model(
-                    pip_timing.internalCapacitance, 'slow', 'typ')
+                pip = self.pip_map[(self.tile_map[tile], wire0, wire1)]
+                pip_timing = self.device.pipTimings[pip.timing]
+
+                if pip.buffered21 and vertex.routeSegment.pip.forward or\
+                   pip.buffered20 and not vertex.routeSegment.pip.forward:
+                    delay += resistance * get_value_from_model(
+                        pip_timing.internalCapacitance, 'slow', 'typ')
+
                 delay += get_value_from_model(pip_timing.internalDelay, 'slow',
                                               'typ')
-                resistance = get_value_from_model(pip_timing.outputResistance,
-                                                  'slow', 'typ')
+                if pip.buffered21 and vertex.routeSegment.pip.forward or\
+                   pip.buffered20 and not vertex.routeSegment.pip.forward:
+                    resistance = get_value_from_model(
+                        pip_timing.outputResistance, 'slow', 'typ')
+                else:
+                    resistance += get_value_from_model(
+                        pip_timing.outputResistance, 'slow', 'typ')
+
                 delay += get_value_from_model(pip_timing.outputCapacitance,
                                               'slow', 'typ') * resistance * 0.5
 
@@ -238,7 +251,11 @@ class TimingAnalyzer():
                 return_value = max(
                     dfs_traverse(branch, resistance, delay + temp_delay,
                                  in_site), return_value)
+            if last:
+                self.timing_to_all_ends[net].append((site, bel, pin, delay))
             return return_value
+
+        self.timing_to_all_ends[net] = []
 
         return_value = 0
         for source in net.sources:
@@ -278,6 +295,10 @@ def main():
         required=True,
         help="Path to physical netlist for timing analysis")
     parser.add_argument("--device", required=True, help="Path to device capnp")
+    parser.add_argument(
+        "--detail",
+        action='store_true',
+        help="If set analyze will print timing to Net ends")
 
     args = parser.parse_args()
     analyzer = TimingAnalyzer(args.schema_dir, args.physical_netlist,
@@ -293,9 +314,16 @@ def main():
         array.append(net)
     for i, net in enumerate(array):
         if net.type == "signal":
-            print("Net {} time: {} ns".format(
+            print("Net {} max time delay: {} ns".format(
                 analyzer.net_name(net),
                 analyzer.traverse_net(net) * 1e9))
+            if args.detail:
+                print("Detail raport:")
+                for end in analyzer.timing_to_all_ends[net]:
+                    print("Site {}, BEL {}, BELpin {} time delay {} ns".format(
+                        analyzer.device.strList[end[0]],
+                        analyzer.device.strList[end[1]],
+                        analyzer.device.strList[end[2]], end[3]))
 
 
 # =============================================================================

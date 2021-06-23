@@ -449,7 +449,7 @@ class DeviceResources():
         """
 
         assert delay_type not in self.node_delay_types, delay_type
-        self.node_delay_types[delay_type] = (R,C)
+        self.node_delay_types[delay_type] = (R, C)
 
     def add_PIPTiming(self, delay_type, iC, itC, itD, oR, oC):
         """
@@ -577,9 +577,14 @@ class DeviceResourcesCapnp():
         self.tile_type_map = {}
         self.tile_site_list = {}
 
-    def populate_corner_model(self, corner_model,
-                              slow_min=None, slow_typ=None, slow_max=None,
-                              fast_min=None, fast_typ=None, fast_max=None):
+    def populate_corner_model(self,
+                              corner_model,
+                              slow_min=None,
+                              slow_typ=None,
+                              slow_max=None,
+                              fast_min=None,
+                              fast_typ=None,
+                              fast_max=None):
         fields = ['min', 'typ', 'max']
         slow = [slow_min, slow_typ, slow_max]
         fast = [fast_min, fast_typ, fast_max]
@@ -687,17 +692,24 @@ class DeviceResourcesCapnp():
         for i, node_timing in enumerate(self.device.node_delay_types.items()):
             key, value = node_timing
             self.node_timing_map[key] = i
-            self.populate_corner_model(device.nodeTimings[i].resistance, slow_typ=value[0])
-            self.populate_corner_model(device.nodeTimings[i].capacitance, slow_typ=value[1])
+            self.populate_corner_model(
+                device.nodeTimings[i].resistance, slow_typ=value[0])
+            self.populate_corner_model(
+                device.nodeTimings[i].capacitance, slow_typ=value[1])
         device.init("pipTimings", len(self.device.pip_delay_types))
         for i, pip_timing in enumerate(self.device.pip_delay_types.items()):
             key, value = pip_timing
             self.pip_timing_map[key] = i
-            self.populate_corner_model(device.pipTimings[i].inputCapacitance, slow_typ=value[0])
-            self.populate_corner_model(device.pipTimings[i].internalCapacitance, slow_typ=value[1])
-            self.populate_corner_model(device.pipTimings[i].internalDelay, slow_typ=value[2])
-            self.populate_corner_model(device.pipTimings[i].outputResistance, slow_typ=value[3])
-            self.populate_corner_model(device.pipTimings[i].outputCapacitance, slow_typ=value[4])
+            self.populate_corner_model(
+                device.pipTimings[i].inputCapacitance, slow_typ=value[0])
+            self.populate_corner_model(
+                device.pipTimings[i].internalCapacitance, slow_typ=value[1])
+            self.populate_corner_model(
+                device.pipTimings[i].internalDelay, slow_typ=value[2])
+            self.populate_corner_model(
+                device.pipTimings[i].outputResistance, slow_typ=value[3])
+            self.populate_corner_model(
+                device.pipTimings[i].outputCapacitance, slow_typ=value[4])
 
     def write_site_types(self, device):
         """
@@ -1065,7 +1077,8 @@ class DeviceResourcesCapnp():
                         site_type_bel_entry_capnp.bels[m] = self.get_string_id(
                             bel)
 
-            cell_bel_mapping_capnp.init("pinsDelay", len(cell_bel_mapping.delay_mapping))
+            cell_bel_mapping_capnp.init("pinsDelay",
+                                        len(cell_bel_mapping.delay_mapping))
             for k, delay in enumerate(cell_bel_mapping.delay_mapping):
                 pin_delay = cell_bel_mapping_capnp.pinsDelay[k]
                 pin_delay.pinsDelayType = delay[3]
