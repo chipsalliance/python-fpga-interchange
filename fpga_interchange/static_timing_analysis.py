@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 #
-# Copyright (C) 2020 The SymbiFlow Authors.
+# Copyright (C) 2021 The SymbiFlow Authors.
 #
 # Use this source code is governed by a ISC-style
 # license that can be found in LICENSE file or at
@@ -329,21 +329,20 @@ def main():
         array.append(net)
     for i, net in enumerate(array):
         if net.type == "signal":
-            print("Net {} max time delay: {} ns".format(
-                analyzer.net_name(net),
-                analyzer.traverse_net(net) * 1e9))
+            print(
+                f"Net {analyzer.net_name(net)} max time delay: {analyzer.traverse_net(net) * 1e9} ns"
+            )
             if args.detail:
-                print("\tDetail raport:")
+                print("\tDetail report:")
                 for source, ends in analyzer.timing_to_all_ends[net]:
+                    print(
+                        f"\t\t(Source) Site {analyzer.phy_netlist.strList[source.site]}, BEL {analyzer.phy_netlist.strList[source.bel]}, BELpin{analyzer.phy_netlist.strList[source.pin]}"
+                    )
                     for end in ends:
                         print(
-                            "\t\t(Source) Site {}, BEL {}, BELpin {} -> (Sink) Site {}, BEL {}, BELpin {}\n\t\t\t time delay {} ns"
-                            .format(analyzer.phy_netlist.strList[source.site],
-                                    analyzer.phy_netlist.strList[source.bel],
-                                    analyzer.phy_netlist.strList[source.pin],
-                                    analyzer.device.strList[end[0]],
-                                    analyzer.device.strList[end[1]],
-                                    analyzer.device.strList[end[2]], end[3]))
+                            f"\t\t\t -> (Sink) Site {analyzer.device.strList[end[0]]}, BEL {analyzer.device.strList[end[1]]}, BELpin {analyzer.device.strList[end[2]]}"
+                        )
+                        print(f"\t\t\t\t time delay {end[3]} ns")
 
 
 # =============================================================================
