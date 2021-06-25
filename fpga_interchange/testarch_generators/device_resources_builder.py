@@ -216,13 +216,18 @@ class SiteTypeInTileType():
 
 
 class PIP():
-    def __init__(self, wire0, wire1, delay_type):
+    def __init__(self,
+                 wire0,
+                 wire1,
+                 delay_type,
+                 is_buffered20=True,
+                 is_buffered21=True):
         self.wire0 = wire0
         self.wire1 = wire1
 
         self.is_directional = True
-        self.is_buffered20 = False  #True  # TODO:
-        self.is_buffered21 = False  #True
+        self.is_buffered20 = is_buffered20  # TODO:
+        self.is_buffered21 = is_buffered21
 
         self.delay_type = delay_type
 
@@ -262,11 +267,16 @@ class TileType():
 
         return name
 
-    def add_pip(self, wire0, wire1, delay_type):
+    def add_pip(self,
+                wire0,
+                wire1,
+                delay_type,
+                is_buffered20=True,
+                is_buffered21=True):
         """
         Adds a new PIP to the tile type
         """
-        pip = PIP(wire0, wire1, delay_type)
+        pip = PIP(wire0, wire1, delay_type, is_buffered20, is_buffered21)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 

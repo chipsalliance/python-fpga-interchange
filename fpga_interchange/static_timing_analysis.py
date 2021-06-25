@@ -215,7 +215,6 @@ class TimingAnalyzer():
 
                 if pip.buffered21 and vertex.routeSegment.pip.forward or\
                    pip.buffered20 and not vertex.routeSegment.pip.forward:
-                    print('kupa', pip)
                     delay += resistance * get_value_from_model(
                         pip_timing.internalCapacitance, 'slow', 'typ')
 

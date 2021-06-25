@@ -206,13 +206,15 @@ class TestArchGenerator():
         for dst_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 src_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire, "tilePIP")
+                tile_type.add_pip(
+                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
 
         wires_for_site = [w for w in tile_type.wires if w.startswith("FROM_")]
         for src_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 dst_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire, "tilePIP")
+                tile_type.add_pip(
+                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
 
         # Input tile wires to intra wires and vice-versa
         for direction in ["N", "S", "E", "W"]:
