@@ -1,0 +1,118 @@
+# Which BEL names are global buffers for nextpnr?
+global_buffer_bels:
+- BUFG
+- BUFGCTRL
+- VCC
+- GND
+# Which cell names are global buffers, and which pins should use dedicated routing resources
+global_buffer_cells:
+  - cell: BUFG
+    pins: # list of pins that use global resources
+     - name: I # pin name
+       guide_placement: true # attempt to place so that this pin can use dedicated resources
+       max_hops: 10 # max hops of interconnect to search (10 is for test purposes and may need to be refined)
+     - name: O
+       force_dedicated_routing: true # the net connected to this pin _must_ use dedicated routing only
+  - cell: BUFGCTRL
+    pins:
+      - name: I0
+        guide_placement: true
+        max_hops: 10
+      - name: I1
+        guide_placement: true
+        max_hops: 10
+      - name: O
+        force_dedicated_routing: true
+# How should nextpnr lump BELs during analytic placement?
+buckets:
+- bucket: FLIP_FLOPS
+  cells:
+   - FDRE
+- bucket: LUTS
+  cells:
+   - LUT1
+- bucket: BRAMS
+  cells:
+   - RAMB18E2
+   - RAMB36E2
+   - FIFO18E2
+   - FIFO36E2
+- bucket: URAMS
+  cells:
+   - URAM288_BASE
+- bucket: BUFG
+  cells:
+   - BUFGCE
+   - BUFGCTRL
+- bucket: IBUFs
+  cells:
+   - INBUF
+   - DIFFINBUF
+- bucket: IBUFCTRLs
+  cells:
+   - IBUFCTRL
+- bucket: OBUFs
+  cells:
+   - OBUF
+   - OBUFTDS
+- bucket: OBUF_GTs
+  cells:
+   - OBUFDS_GTE4_ADV
+- bucket: MMCM
+  cells:
+   - MMCME4_ADV
+- bucket: PLL
+  cells:
+   - PLLE4_ADV
+- bucket: PULLs
+  cells:
+   - PULLDOWN
+- bucket: CARRY
+  cells:
+   - CARRY8
+- bucket: IDELAYCTRL
+  cells:
+   - IDELAYCTRL
+- bucket: ISERDES
+  cells:
+   - ISERDESE3
+# don't route through the following cells
+disabled_routethroughs:
+  - BUFGCTRL
+  - BUFCE
+  - OUTINV
+# Do not allow cells to be placed at BELs
+disabled_cell_bel_map:
+  - cell: FDRE
+    bels:
+     - TFF
+     - IPFF
+     - OPFF
+     - OUT_FF
+     - IN_FF
+  - cell: FDCE
+    bels:
+     - TFF
+     - IPFF
+     - OPFF
+     - OUT_FF
+     - IN_FF
+  - cell: FDPE
+    bels:
+     - TFF
+     - IPFF
+     - OPFF
+     - OUT_FF
+     - IN_FF
+disabled_site_pips:
+  - bels:
+     - A6LUT
+     - B6LUT
+     - C6LUT
+     - D6LUT
+     - E6LUT
+     - F6LUT
+     - G6LUT
+     - H6LUT
+    ipin: A6
+    opin: O6
