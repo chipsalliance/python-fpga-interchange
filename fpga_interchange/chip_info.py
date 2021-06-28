@@ -904,7 +904,7 @@ class MacroParameter():
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.key)
-        bba.str_id(self.value)
+        bba.str_id(str(self.value))
 
 
 class MacroParamRuleType(Enum):
