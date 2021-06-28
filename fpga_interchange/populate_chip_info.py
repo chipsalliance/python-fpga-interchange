@@ -1296,7 +1296,6 @@ class ConstantNetworkGenerator():
                                                    tiles[tile_idx].type]
         # FIXME: Make these checks more robust and not dependant on
         #        non-well-defined naming conventions.
-        assert null_tile_type.name == 'NULL', null_tile_type.name
         contains_dummy_wires = all(
             'DUMMY' in wire.name for wire in null_tile_type.wire_data)
         assert len(null_tile_type.wire_data) == 0 or contains_dummy_wires, len(
