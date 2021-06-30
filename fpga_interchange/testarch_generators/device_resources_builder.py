@@ -57,17 +57,17 @@ class Package():
 
 
 class CellBelMappingEntry():
-    def __init__(self, site_type, bel, pin_map):
+    def __init__(self, site_type, bel, pin_map, delay_mapping=[]):
         self.site_type = site_type
         self.bel = bel
         self.pin_map = pin_map  # dict(cell_pin) -> bel_pin
+        self.delays = delay_mapping
 
 
 class CellBelMapping():
-    def __init__(self, cell_type, delay_mapping=[]):
+    def __init__(self, cell_type):
         self.cell_type = cell_type
         self.entries = []
-        self.delay_mapping = delay_mapping
 
 
 class BelPin():
@@ -763,7 +763,7 @@ class DeviceResourcesCapnp():
                 bel_pin_capnp = site_type_capnp.belPins[i]
                 bel_pin_capnp.name = self.get_string_id(bel_pin.name)
                 bel_pin_capnp.dir = bel_pin.direction.value
-                bel_pin_capnp.bel = bel_map[bel.name]
+                bel_pin_capnp.bel = self.get_string_id(bel.name)
 
             # Write BELs
             site_type_capnp.init("bels", len(bel_list))
@@ -1036,6 +1036,15 @@ class DeviceResourcesCapnp():
         Packs all cell <-> bel mapping objects to the cap'n'proto schema
         """
 
+        site_name_siteType = {}
+        for i, site in enumerate(self.device.site_types.keys()):
+            site_name_siteType[site] = i
+
+        site_type_bel_belpin_id = {}
+        for i, site in enumerate(device.siteTypeList):
+            for j, belpin in enumerate(site.belPins):
+                site_type_bel_belpin_id[(i, belpin.bel, belpin.name)] = j
+
         # Make a cell-bel mapping list
         cell_bel_mappings = list(self.device.cell_bel_mappings.values())
 
@@ -1051,6 +1060,7 @@ class DeviceResourcesCapnp():
             # Rearrange entries so that they can be encoded according to the
             # schema.
             entries = {}
+            delays = []
             for entry in cell_bel_mapping.entries:
                 key = tuple(entry.pin_map.items())
 
@@ -1060,6 +1070,9 @@ class DeviceResourcesCapnp():
                     entries[key][entry.site_type] = []
 
                 entries[key][entry.site_type].append(entry.bel)
+                site_type = site_name_siteType[entry.site_type]
+                delays.extend(
+                    [(site_type, entry.bel, delay) for delay in entry.delays])
 
             # Encode
             cell_bel_mapping_capnp.init("commonPins", len(entries))
@@ -1087,22 +1100,42 @@ class DeviceResourcesCapnp():
                         site_type_bel_entry_capnp.bels[m] = self.get_string_id(
                             bel)
 
-            cell_bel_mapping_capnp.init("pinsDelay",
-                                        len(cell_bel_mapping.delay_mapping))
-            for k, delay in enumerate(cell_bel_mapping.delay_mapping):
+            cell_bel_mapping_capnp.init("pinsDelay", len(delays))
+            for k, pins_delay in enumerate(delays):
                 pin_delay = cell_bel_mapping_capnp.pinsDelay[k]
+                site_type = pins_delay[0]
+                bel = pins_delay[1]
+                delay = pins_delay[2]
                 pin_delay.pinsDelayType = delay[3]
                 self.populate_corner_model(pin_delay.cornerModel, *delay[2])
                 if isinstance(delay[0], tuple):
-                    pin_delay.firstPin.pin = self.get_string_id(delay[0][0])
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[0][0]))]
                     pin_delay.firstPin.clockEdge = delay[0][1]
                 else:
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[0]))]
                     pin_delay.firstPin.pin = self.get_string_id(delay[0])
+                pin_delay.firstPin.pin = index
+
                 if isinstance(delay[1], tuple):
-                    pin_delay.secondPin.pin = self.get_string_id(delay[1][0])
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[1][0]))]
                     pin_delay.secondPin.clockEdge = delay[1][1]
                 else:
-                    pin_delay.secondPin.pin = self.get_string_id(delay[1])
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[1]))]
+                pin_delay.secondPin.pin = index
+
+                pin_delay.site = site_type
 
     def to_capnp(self):
         """

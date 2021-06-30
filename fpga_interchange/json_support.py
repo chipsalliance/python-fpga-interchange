@@ -22,6 +22,8 @@ class JsonWriter(AbstractWriter):
         self.obj_id_cache = {}
 
     def get_object_with_id(self, field, value):
+        if field not in self.out.keys():
+            return {'_id': None}
         item = self.out[field][value]
 
         if id(item) not in self.obj_id_cache:

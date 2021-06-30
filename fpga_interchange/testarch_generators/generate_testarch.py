@@ -378,7 +378,7 @@ class TestArchGenerator():
             ('I2', 'O', (None, 50e-12, None, None, None, None), 'comb'),
             ('I3', 'O', (None, 50e-12, None, None, None, None), 'comb'),
         ]
-        mapping = CellBelMapping("LUT", delay_mapping)
+        mapping = CellBelMapping("LUT")
         mapping.entries.append(
             CellBelMappingEntry(
                 site_type="SLICE",
@@ -389,7 +389,8 @@ class TestArchGenerator():
                     "A2": "I2",
                     "A3": "I3",
                     "O": "O",
-                }))
+                },
+                delay_mapping=delay_mapping))
         self.device.add_cell_bel_mapping(mapping)
 
         delay_mapping = [
@@ -397,11 +398,11 @@ class TestArchGenerator():
              'setup'),
             ('D', ('C', 'rise'), (None, 8e-12, None, None, None, None),
              'hold'),
-            ('Q', ('C', 'rise'), (None, 6e-12, None, None, None, None),
+            (('C', 'rise'), 'Q', (None, 6e-12, None, None, None, None),
              'clk2q'),
             ('R', 'Q', (None, 24e-12, None, None, None, None), 'comb'),
         ]
-        mapping = CellBelMapping("DFF", delay_mapping)
+        mapping = CellBelMapping("DFF")
         mapping.entries.append(
             CellBelMappingEntry(
                 site_type="SLICE",
@@ -411,14 +412,15 @@ class TestArchGenerator():
                     "R": "R",
                     "C": "C",
                     "Q": "Q",
-                }))
+                },
+                delay_mapping=delay_mapping))
         self.device.add_cell_bel_mapping(mapping)
 
         delay_mapping = [
             ('I0', 'O', (None, 5e-12, None, None, None, None), 'comb'),
             ('I1', 'O', (None, 5e-12, None, None, None, None), 'comb'),
         ]
-        mapping = CellBelMapping("FFMUX", delay_mapping)
+        mapping = CellBelMapping("FFMUX")
         mapping.entries.append(
             CellBelMappingEntry(
                 site_type="SLICE",
@@ -427,7 +429,8 @@ class TestArchGenerator():
                     "I0": "I0",
                     "I1": "I1",
                     "O": "O",
-                }))
+                },
+                delay_mapping=delay_mapping))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("IB")
