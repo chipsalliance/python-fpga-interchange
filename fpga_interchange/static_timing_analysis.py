@@ -49,6 +49,10 @@ class TimingAnalyzer():
         self.pip_map = {}
         # mapping from phy_netlist site name to device site type
         self.site_map = {}
+        # mapping from (siteType, sitePin) to cornermodel
+        self.sitePin_map = {}
+        # mapping for sitePIPs from (siteType, belpinidx) to cornermodel
+        self.sitePIP_map = {}
         # mapping from tile name to tile type
         self.tile_map = {}
         # mapping from device (siteType, bel, pin) to device BELPin in siteType of site
@@ -158,6 +162,21 @@ class TimingAnalyzer():
             for bel in placed.otherBels:
                 self.placment_check.add((placed.site,
                                          self.net_dev_string_map[bel]))
+
+    def create_siteType_pin_cornermodel_map(self):
+        for i, siteType in enumerate(self.device.siteTypeList):
+            for pin in siteType.pins:
+                model = None
+                if pin.dir == "input":
+                    model = pin.capacitance
+                else:
+                    model = pin.resistance
+                self.sitePin_map[(i, pin.name)] = (pin.dir, model)
+
+    def create_siteType_belpin_sitePIP_cornermodel_map(self):
+        for i, siteType in enumerate(self.device.siteTypeList):
+            for pip in siteType.sitePIPs:
+                self.sitePIP_map[(i, pip.inpin)] = pip.delay
 
     def net_name(self, net):
         return self.phy_netlist.strList[net.name]
@@ -408,7 +427,6 @@ class TimingAnalyzer():
                     temp_delay += get_value_from_model(
                         pip_timing.outputCapacitance, 'slow',
                         'typ') * resistance * 0.5
-
                 # Calculate delay for next node
                 node_id = self.node_map[(tile, wire1)]
                 node = self.node_id_map[node_id]
@@ -431,10 +449,14 @@ class TimingAnalyzer():
                             ) * 0.5
             elif which == "sitePIP":
                 obj = vertex.routeSegment.sitePIP
-                key = (obj.site, obj.bel)
-                if key in self.cell_map.keys():
-                    delays = self.cell_map[key]
-                    temp_delay = get_largest_delay(delays, "comb", obj.sitePIP)
+                siteType = self.site_map[obj.site]
+                bel = self.net_dev_string_map[obj.bel]
+                belPinName = self.net_dev_string_map[obj.pin]
+                index = self.BELPin_map[(siteType, bel, belPinName)]
+                key = (siteType, index)
+                if key in self.sitePIP_map.keys():
+                    model = self.sitePIP_map[key]
+                    temp_delay = get_value_from_model(model, 'slow', 'typ')
             for branch in vertex.branches:
                 return_value = max(
                     dfs_traverse(branch, resistance, delay + temp_delay,
@@ -504,6 +526,8 @@ def main():
     analyzer.create_siteType_bel_pin_to_BELPin_map()
     analyzer.create_siteType_belpin_to_siteWire_map()
     analyzer.create_site_bel_placment_check()
+    analyzer.create_siteType_pin_cornermodel_map()
+    analyzer.create_siteType_belpin_sitePIP_cornermodel_map()
     array = []
     for net in analyzer.phy_netlist.physNets:
         array.append(net)

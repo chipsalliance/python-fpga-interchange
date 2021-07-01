@@ -103,10 +103,16 @@ class Bel():
 
 
 class SitePin():
-    def __init__(self, name, direction, bel_name):
+    def __init__(self,
+                 name,
+                 direction,
+                 bel_name,
+                 corner_model=(0, 0, 0, 0, 0, 0)):
+
         self.name = name
         self.direction = direction
         self.bel_name = bel_name
+        self.corner_model = corner_model
 
     def __repr__(self):
         return "SitePin(\"{}\", {}, bel=\"{}\")".format(
@@ -129,9 +135,13 @@ class SiteWire():
 
 
 class SitePip():
-    def __init__(self, src_bel_pin, dst_bel_pin):
+    def __init__(self,
+                 src_bel_pin,
+                 dst_bel_pin,
+                 corner_model=(0, 0, 0, 0, 0, 0)):
         self.src_bel_pin = src_bel_pin
         self.dst_bel_pin = dst_bel_pin
+        self.corner_model = corner_model
 
     def __repr__(self):
         return "SitePip({}, {})".format(self.src_bel_pin, self.dst_bel_pin)
@@ -148,7 +158,7 @@ class SiteType():
 
 #        self.alt_site_types = []
 
-    def add_pin(self, name, direction):
+    def add_pin(self, name, direction, corner_model=(0, 0, 0, 0, 0, 0)):
         """
         Adds a pin to the site type along with its corresponding BEL
         """
@@ -164,7 +174,7 @@ class SiteType():
 
         # Add the site pin
         assert name not in self.pins, name
-        self.pins[name] = SitePin(name, direction, bel_name)
+        self.pins[name] = SitePin(name, direction, bel_name, corner_model)
 
         return self.pins[name]
 
@@ -195,11 +205,14 @@ class SiteType():
 
         return wire
 
-    def add_pip(self, src_bel_pin, dst_bel_pin):
+    def add_pip(self,
+                src_bel_pin,
+                dst_bel_pin,
+                corner_model=(0, 0, 0, 0, 0, 0)):
         """
         Adds a new site PIP to the site type
         """
-        pip = SitePip(src_bel_pin, dst_bel_pin)
+        pip = SitePip(src_bel_pin, dst_bel_pin, corner_model)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 
@@ -812,6 +825,15 @@ class DeviceResourcesCapnp():
                 bel_pin = next(iter(bel.pins.values()))
 
                 pin_capnp.belpin = bel_pin_map[(bel.name, bel_pin.name)]
+                model = None
+
+                if pin.direction.value == 0:
+                    pin_capnp.init('capacitance')
+                    model = pin_capnp.capacitance
+                else:
+                    pin_capnp.init('resistance')
+                    model = pin_capnp.resistance
+                self.populate_corner_model(model, *pin.corner_model)
 
             # Write site wires
             site_wire_list = list(site_type.wires.values())
@@ -840,6 +862,9 @@ class DeviceResourcesCapnp():
                 bel = site_type.bels[pip.dst_bel_pin[0]]
                 bel_pin = bel.pins[pip.dst_bel_pin[1]]
                 site_pip_capnp.outpin = bel_pin_map[(bel.name, bel_pin.name)]
+
+                self.populate_corner_model(site_pip_capnp.delay,
+                                           *pip.corner_model)
 
             # TODO: Alt site types
 

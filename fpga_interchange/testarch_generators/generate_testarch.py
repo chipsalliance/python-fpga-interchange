@@ -97,8 +97,10 @@ class TestArchGenerator():
         w = site_type.add_wire("FF_OUT", [("FF", "Q"), ("Q", "Q")])
 
         # Site PIPs
-        site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"))
-        site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"))
+        site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"),
+                          (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
 
@@ -416,10 +418,6 @@ class TestArchGenerator():
                 delay_mapping=delay_mapping))
         self.device.add_cell_bel_mapping(mapping)
 
-        delay_mapping = [
-            ('I0', 'O', (None, 5e-12, None, None, None, None), 'comb'),
-            ('I1', 'O', (None, 5e-12, None, None, None, None), 'comb'),
-        ]
         mapping = CellBelMapping("FFMUX")
         mapping.entries.append(
             CellBelMappingEntry(
@@ -429,8 +427,7 @@ class TestArchGenerator():
                     "I0": "I0",
                     "I1": "I1",
                     "O": "O",
-                },
-                delay_mapping=delay_mapping))
+                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("IB")
