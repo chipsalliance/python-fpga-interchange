@@ -43,16 +43,25 @@ class TestArchGenerator():
         site_type = self.device.add_site_type("SLICE")
 
         # Site pins (with BELs added automatically)
-        site_type.add_pin("L0", Direction.Input)
-        site_type.add_pin("L1", Direction.Input)
-        site_type.add_pin("L2", Direction.Input)
-        site_type.add_pin("L3", Direction.Input)
-        site_type.add_pin("O", Direction.Output)
+        site_type.add_pin("L0", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L2", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L3", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("O", Direction.Output,
+                          (None, 1.7, None, None, None, None))
 
-        site_type.add_pin("R", Direction.Input)
-        site_type.add_pin("C", Direction.Input)
-        site_type.add_pin("D", Direction.Input)
-        site_type.add_pin("Q", Direction.Output)
+        site_type.add_pin("R", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("C", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("D", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("Q", Direction.Output,
+                          (None, 1.9, None, None, None, None))
 
         # LUT4 BEL
         bel_lut = site_type.add_bel("LUT", "LUT4", BelCategory.LOGIC)

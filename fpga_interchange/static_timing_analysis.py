@@ -376,6 +376,19 @@ class TimingAnalyzer():
                         return_value += temp_delay
             elif which == "sitePin":
                 obj = vertex.routeSegment.sitePin
+                siteType = self.site_map[obj.site]
+                pinName = self.net_dev_string_map[obj.pin]
+                key = (siteType, pinName)
+                if key in self.sitePin_map.keys():
+                    direction, model = self.sitePin_map[key]
+                    if direction == "output":
+                        resistance += get_value_from_model(
+                            model, 'slow', 'typ')
+                    elif direction == "input":
+                        temp_delay = resistance * get_value_from_model(
+                            model, 'slow', 'typ')
+                    else:
+                        raise
                 in_site = True
             elif which == "pip":
                 obj = vertex.routeSegment.pip
