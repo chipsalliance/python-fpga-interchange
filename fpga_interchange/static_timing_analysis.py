@@ -16,7 +16,7 @@ from fpga_interchange.interchange_capnp import Interchange
 
 SECOND_CHOICE = {'slow': 'fast', 'fast': 'slow'}
 
-ALL_POSSIBLE_VALUES = ['min', 'typ', 'max']
+ALL_POSSIBLE_VALUES = ['max', 'typ', 'min']
 
 indent = 0
 
@@ -167,11 +167,14 @@ class TimingAnalyzer():
         for i, siteType in enumerate(self.device.siteTypeList):
             for pin in siteType.pins:
                 model = None
-                if pin.dir == "input":
-                    model = pin.capacitance
+                which = pin.model.which()
+                if which == "capacitance":
+                    model = pin.model.capacitance
+                elif which == "resistance":
+                    model = pin.model.resistance
                 else:
-                    model = pin.resistance
-                self.sitePin_map[(i, pin.name)] = (pin.dir, model)
+                    model = None
+                self.sitePin_map[(i, pin.name)] = (pin.dir, model, pin.delay)
 
     def create_siteType_belpin_sitePIP_cornermodel_map(self):
         for i, siteType in enumerate(self.device.siteTypeList):
@@ -315,15 +318,17 @@ class TimingAnalyzer():
                 if prefered_v.which() == prefered_value:
                     return getattr(prefered_v, prefered_value)
                 for value in ALL_POSSIBLE_VALUES:
-                    if getattr(prefered, value) == value:
+                    if getattr(prefered, value).which() == value:
                         return getattr(getattr(prefered, value), value)
-            else:
+            elif prefered.which() == SECOND_CHOICE[prefered_sub_model]:
                 prefered = getattr(
                     getattr(model, SECOND_CHOICE[prefered_sub_model]),
                     SECOND_CHOICE[prefered_sub_model])
                 for value in ALL_POSSIBLE_VALUES:
-                    if getattr(prefered, value) == value:
+                    if getattr(prefered, value).which() == value:
                         return getattr(getattr(prefered, value), value)
+            else:
+                return 0
 
         def get_largest_delay(delays, dType, BELPin, first_wire=True):
             if len(delays) == 0:
@@ -380,7 +385,7 @@ class TimingAnalyzer():
                 pinName = self.net_dev_string_map[obj.pin]
                 key = (siteType, pinName)
                 if key in self.sitePin_map.keys():
-                    direction, model = self.sitePin_map[key]
+                    direction, model, _delay = self.sitePin_map[key]
                     if direction == "output":
                         resistance += get_value_from_model(
                             model, 'slow', 'typ')
@@ -389,6 +394,8 @@ class TimingAnalyzer():
                             model, 'slow', 'typ')
                     else:
                         raise
+                    temp_delay += get_value_from_model(
+                        _delay, 'slow', 'typ')
                 in_site = True
             elif which == "pip":
                 obj = vertex.routeSegment.pip
@@ -405,6 +412,7 @@ class TimingAnalyzer():
 
                 # Calculate delay from slice to tile
                 if in_site:
+                    in_site = False
                     node_id = self.node_map[(tile, wire0)]
                     node = self.node_id_map[node_id]
                     if len(self.device.nodeTimings) > 0:
@@ -415,8 +423,9 @@ class TimingAnalyzer():
                             node_model.capacitance, 'slow', 'typ')
                         resistance += node_resistance
                         temp_delay += resistance * (node_capacitance) * 0.5
-                        temp_delay += get_pips_delay(
-                            self.node_pip_map[node_id], resistance)
+                        if len(self.device.pipTimings) > 0:
+                            temp_delay += get_pips_delay(
+                                self.node_pip_map[node_id], resistance)
 
                 # delay on PIP
                 if len(self.device.pipTimings) > 0:
@@ -451,15 +460,16 @@ class TimingAnalyzer():
                         node_model.capacitance, 'slow', 'typ')
                     resistance += node_resistance
                     temp_delay += resistance * (node_capacitance) * 0.5
-                    temp_delay += get_pips_delay(self.node_pip_map[node_id],
-                                                 resistance)
-                    # Remove delay of PIP we are in
-                    temp_delay -= get_value_from_model(pip_timing.outputCapacitance, 'slow', 'typ') *\
-                            (resistance + get_value_from_model(
-                                pip_timing.outputResistance,
-                                'slow',
-                                'typ')
-                            ) * 0.5
+                    if len(self.device.pipTimings) > 0:
+                        temp_delay += get_pips_delay(self.node_pip_map[node_id],
+                                                     resistance)
+                        # Remove delay of PIP we are in
+                        temp_delay -= get_value_from_model(pip_timing.outputCapacitance, 'slow', 'typ') *\
+                                (resistance + get_value_from_model(
+                                    pip_timing.outputResistance,
+                                    'slow',
+                                    'typ')
+                                ) * 0.5
             elif which == "sitePIP":
                 obj = vertex.routeSegment.sitePIP
                 siteType = self.site_map[obj.site]
@@ -473,7 +483,8 @@ class TimingAnalyzer():
             for branch in vertex.branches:
                 return_value = max(
                     dfs_traverse(branch, resistance, delay + temp_delay,
-                                 in_site), return_value)
+                                 in_site),
+                    return_value)
             if last:
                 ends_array.append((self.net_dev_string_map[obj.site],
                                    self.net_dev_string_map[obj.bel],
@@ -547,7 +558,6 @@ def main():
     print("\t" * indent + "Patching physical netlist")
     for net in array:
         analyzer.fix_netlist(net)
-
     for net in array:
         analyzer.calculate_delays_for_net(net)
     for i, net in enumerate(array):

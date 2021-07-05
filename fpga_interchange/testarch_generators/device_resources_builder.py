@@ -828,11 +828,11 @@ class DeviceResourcesCapnp():
                 model = None
 
                 if pin.direction.value == 0:
-                    pin_capnp.init('capacitance')
-                    model = pin_capnp.capacitance
+                    pin_capnp.model.init('capacitance')
+                    model = pin_capnp.model.capacitance
                 else:
-                    pin_capnp.init('resistance')
-                    model = pin_capnp.resistance
+                    pin_capnp.model.init('resistance')
+                    model = pin_capnp.model.resistance
                 self.populate_corner_model(model, *pin.corner_model)
 
             # Write site wires
