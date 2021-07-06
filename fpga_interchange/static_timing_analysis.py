@@ -536,6 +536,10 @@ def main():
         "--detail",
         action='store_true',
         help="If set analyze will print timing to Net ends")
+    parser.add_argument(
+        "--compact",
+        action='store_true',
+        help="If set analyze will print timings as net_anme and value in ps")
 
     args = parser.parse_args()
     analyzer = TimingAnalyzer(args.schema_dir, args.physical_netlist,
@@ -555,13 +559,17 @@ def main():
     array = []
     for net in analyzer.phy_netlist.physNets:
         array.append(net)
-    print("\t" * indent + "Patching physical netlist")
+    if args.detail:
+        print("\t" * indent + "Patching physical netlist")
     for net in array:
         analyzer.fix_netlist(net)
     for net in array:
         analyzer.calculate_delays_for_net(net)
     for i, net in enumerate(array):
         if net.type == "signal":
+            if args.compact:
+                print(f"{analyzer.net_name(net)} {analyzer.longest_path[net] * 1e12}")
+                continue
             print(
                 "\t" * indent +
                 f"Net {analyzer.net_name(net)} max time delay: {analyzer.longest_path[net] * 1e9} ns"

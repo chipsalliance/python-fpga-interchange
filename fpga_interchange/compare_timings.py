@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2021 The SymbiFlow Authors.
+#
+# Use this source code is governed by a ISC-style
+# license that can be found in LICENSE file or at
+# https://opensource.org/licenses/ISC
+#
+# SPDX-License-Identifier: ISC
+
+import argparse
+
+# ============================================================================
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description="Performs static timing analysis")
+    parser.add_argument(
+        "--base_timing",
+        required=True,
+        help="Path to file with base timings")
+    parser.add_argument(
+        "--compare_timing",
+        required=True,
+        help="Path to file with timings to compare")
+    parser.add_argument(
+        "--name_mapping",
+        help="Path to file with mappings from compare_timing net name to base_timings net name")
+
+    args = parser.parse_args()
+
+    baseline = {}
+    with open(args.base_timing, 'r') as f:
+        for line in f.readlines():
+            line = line.split()
+            baseline[line[0]] = int(line[1])
+
+    comp = {}
+    with open(args.compare_timing, 'r') as f:
+        for line in f.readlines():
+            line = line.split()
+            comp[line[0]] = int(float(line[1]))
+
+    map_net = {}
+    if args.name_mapping is not None:
+        with open(args.name_mapping, 'r') as f:
+            for line in f.readlines():
+                line = line.split()
+                map_net[line[0]] = line[1]
+
+    not_found = {}
+    net_compare = {}
+
+    for key, value in comp.items():
+        n_key = key
+        if key in map_net.keys():
+            n_key = map_net[key]
+        if n_key not in baseline.keys():
+            not_found[key] = value
+            continue
+        base_v = baseline[n_key]
+        if base_v != 0:
+            net_compare[(n_key, key)] = (value / base_v, base_v, value)
+        elif value == 0:
+            net_compare[(n_key, key)] = (1, base_v, value)
+        else:
+            net_compare[(n_key, key)] = (value, base_v, value)
+        baseline.pop(n_key)
+
+    for key, value in net_compare.items():
+        print(key, value)
+
+    print("Nets not mapped:")
+    for key, value in not_found.items():
+        print("\t", key, value)
+
+    print("Nets not used:")
+    for key, value in baseline.items():
+        print("\t", key, value)
+
+
+# =============================================================================
+
+if __name__ == "__main__":
+    main()
