@@ -19,16 +19,16 @@ def main():
     parser = argparse.ArgumentParser(
         description="Performs static timing analysis")
     parser.add_argument(
-        "--base_timing",
-        required=True,
-        help="Path to file with base timings")
+        "--base_timing", required=True, help="Path to file with base timings")
     parser.add_argument(
         "--compare_timing",
         required=True,
         help="Path to file with timings to compare")
     parser.add_argument(
         "--name_mapping",
-        help="Path to file with mappings from compare_timing net name to base_timings net name")
+        help=
+        "Path to file with mappings from compare_timing net name to base_timings net name"
+    )
 
     args = parser.parse_args()
 

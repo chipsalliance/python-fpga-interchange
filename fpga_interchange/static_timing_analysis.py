@@ -273,6 +273,7 @@ class TimingAnalyzer():
         if self.detail:
             indent += 1
             print("\t" * indent + f"{self.phy_netlist.strList[net.name]}")
+            indent += 1
         for i, source in enumerate(net.sources):
             ends_array = []
             which = source.routeSegment.which()
@@ -280,6 +281,9 @@ class TimingAnalyzer():
                 obj = source.routeSegment.belPin
                 sources_array.append((i, (obj.site, obj.bel, obj.pin)))
                 dfs_traverse(source, True)
+            elif which == "pip":
+                sources_array.append((i, None))
+                dfs_traverse(source, False)
             else:
                 raise
             sinks_array.extend(ends_array)
@@ -291,7 +295,8 @@ class TimingAnalyzer():
         for sink in sinks_array:
             match = []
             for source in sources_array:
-                if source[1][0] == sink[1][0]\
+                if source[1] is not None\
+                   and source[1][0] == sink[1][0]\
                    and source[1][1] == sink [1][1]\
                    and source[1][2] != sink [1][2]:
                     match.append(source)
@@ -304,7 +309,7 @@ class TimingAnalyzer():
         for i, source in enumerate(sources_array):
             net.sources[i] = old_sources.get()[source[0]]
         if self.detail:
-            indent -= 1
+            indent -= 2
 
     def calculate_delays_for_net(self, net):
 
@@ -394,8 +399,7 @@ class TimingAnalyzer():
                             model, 'slow', 'typ')
                     else:
                         raise
-                    temp_delay += get_value_from_model(
-                        _delay, 'slow', 'typ')
+                    temp_delay += get_value_from_model(_delay, 'slow', 'typ')
                 in_site = True
             elif which == "pip":
                 obj = vertex.routeSegment.pip
@@ -403,7 +407,12 @@ class TimingAnalyzer():
                 tile_type = self.tile_map[tile]
                 wire0 = self.net_dev_string_map[obj.wire0]
                 wire1 = self.net_dev_string_map[obj.wire1]
-                pip = self.pip_map[(tile_type, wire0, wire1)]
+                key = (tile_type, wire0, wire1)
+                if key in self.pip_map.keys():
+                    pip = self.pip_map[key]
+                else:
+                    key = (key[0], key[2], key[1])
+                    pip = self.pip_map[key]
 
                 if not pip.directional and not obj.forward:
                     temp = wire0
@@ -461,8 +470,8 @@ class TimingAnalyzer():
                     resistance += node_resistance
                     temp_delay += resistance * (node_capacitance) * 0.5
                     if len(self.device.pipTimings) > 0:
-                        temp_delay += get_pips_delay(self.node_pip_map[node_id],
-                                                     resistance)
+                        temp_delay += get_pips_delay(
+                            self.node_pip_map[node_id], resistance)
                         # Remove delay of PIP we are in
                         temp_delay -= get_value_from_model(pip_timing.outputCapacitance, 'slow', 'typ') *\
                                 (resistance + get_value_from_model(
@@ -483,8 +492,7 @@ class TimingAnalyzer():
             for branch in vertex.branches:
                 return_value = max(
                     dfs_traverse(branch, resistance, delay + temp_delay,
-                                 in_site),
-                    return_value)
+                                 in_site), return_value)
             if last:
                 ends_array.append((self.net_dev_string_map[obj.site],
                                    self.net_dev_string_map[obj.bel],
@@ -496,17 +504,22 @@ class TimingAnalyzer():
         return_value = 0
         for source in net.sources:
             ends_array = []
+            temp_delay = 0
             which = source.routeSegment.which()
             if which == "belPin":
                 obj = source.routeSegment.belPin
                 key = (obj.site, obj.bel)
-                temp_delay = 0
                 if key in self.cell_map.keys():
                     delays = self.cell_map[key]
                     temp_delay = get_largest_delay(delays, "clk2q", obj, False)
                 for branch in source.branches:
                     return_value = max(
                         dfs_traverse(branch, 0, temp_delay, True),
+                        return_value)
+            elif which == 'pip':
+                for branch in source.branches:
+                    return_value = max(
+                        dfs_traverse(branch, 0, temp_delay, False),
                         return_value)
             else:
                 raise
@@ -568,7 +581,9 @@ def main():
     for i, net in enumerate(array):
         if net.type == "signal":
             if args.compact:
-                print(f"{analyzer.net_name(net)} {analyzer.longest_path[net] * 1e12}")
+                print(
+                    f"{analyzer.net_name(net)} {analyzer.longest_path[net] * 1e12}"
+                )
                 continue
             print(
                 "\t" * indent +

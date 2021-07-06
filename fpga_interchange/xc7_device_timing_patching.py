@@ -23,10 +23,11 @@ def create_wire_to_node_map(device):
     wire_map = {}
     node_to_model = {}
     for node in device.nodes:
-        node_to_model[node] = (0,0)
+        node_to_model[node] = (0, 0)
         for wire in node.wires:
             wire_map[wire] = node
     return node_to_model, wire_map
+
 
 def create_tileType_wireName_to_wire_list(device):
     tile_tileType_map = {}
@@ -41,17 +42,20 @@ def create_tileType_wireName_to_wire_list(device):
         tileType_wireName_wireList_map[key].append(i)
     return tileType_wireName_wireList_map
 
+
 def create_string_to_dev_string_map(device):
     string_map = {}
     for i, string in enumerate(device.strList):
         string_map[string] = i
     return string_map
 
+
 def create_tileType_name_to_tileType(device):
     tileType_name_tileType_map = {}
     for i, tile in enumerate(device.tileTypeList):
         tileType_name_tileType_map[tile.name] = i
     return tileType_name_tileType_map
+
 
 def create_tileType_wire0_wire1_pip_map(device):
     tileType_wires_pip_map = {}
@@ -63,21 +67,25 @@ def create_tileType_wire0_wire1_pip_map(device):
             tileType_wires_pip_map[key] = pip
     return tileType_wires_pip_map
 
+
 def create_siteName_to_siteType_map(device):
     siteName_siteType_map = {}
     for i, site in enumerate(device.siteTypeList):
         siteName_siteType_map[site.name] = i
     return siteName_siteType_map
 
+
 def create_siteType_name_to_sitePin_map(device):
     siteType_name_sitePin = {}
     for i, site in enumerate(device.siteTypeList):
         for sitePin in site.pins:
-            siteType_name_sitePin[(i,sitePin.name)] = sitePin
+            siteType_name_sitePin[(i, sitePin.name)] = sitePin
     return siteType_name_sitePin
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Add timing information to Xilinx 7 series ")
+    parser = argparse.ArgumentParser(
+        description="Add timing information to Xilinx 7 series ")
 
     parser.add_argument("--schema_dir", required=True)
     parser.add_argument("--timing_dir", required=True)
@@ -94,7 +102,8 @@ def main():
     dev = dev.as_builder()
 
     node_model_map, wire_node_map = create_wire_to_node_map(dev)
-    tileType_wire_name_wire_list_map = create_tileType_wireName_to_wire_list(dev)
+    tileType_wire_name_wire_list_map = create_tileType_wireName_to_wire_list(
+        dev)
     string_map = create_string_to_dev_string_map(dev)
     tile_name_tileType_map = create_tileType_name_to_tileType(dev)
     tileType_wires_pip_map = create_tileType_wire0_wire1_pip_map(dev)
@@ -109,7 +118,8 @@ def main():
     pip_models = {}
 
     for i, _file in enumerate(os.listdir(timing_dir)):
-        if os.path.isfile(os.path.join(timing_dir, _file)) and 'tile_type_' in _file:
+        if os.path.isfile(os.path.join(timing_dir,
+                                       _file)) and 'tile_type_' in _file:
             with open(os.path.join(timing_dir, _file), 'r') as f:
                 tile_data = json.load(f)
             print(_file, tile_data["tile_type"])
@@ -121,7 +131,8 @@ def main():
                 if data is None:
                     continue
                 wire_name = string_map[name]
-                for wire in tileType_wire_name_wire_list_map[(tileType, wire_name)]:
+                for wire in tileType_wire_name_wire_list_map[(tileType,
+                                                              wire_name)]:
                     if wire not in wire_node_map:
                         continue
                     node = wire_node_map[wire]
@@ -150,18 +161,21 @@ def main():
             for site in tile_data['sites']:
                 siteType = siteName_siteType_map[string_map[site['type']]]
                 for sitePin, dic in site['site_pins'].items():
-                    sitePin_obj = siteType_name_sitePin_map[(siteType, string_map[sitePin])]
+                    sitePin_obj = siteType_name_sitePin_map[(
+                        siteType, string_map[sitePin])]
                     if dic is None:
                         dic = {}
                         dic['delay'] = [0, 0, 0, 0]
                     elif 'res' in dic.keys():
                         sitePin_obj.model.init('resistance')
                         sitePin_obj.model.resistance.slow.init('slow')
-                        sitePin_obj.model.resistance.slow.slow.typ.typ = float(dic['res']) * 1e-6
+                        sitePin_obj.model.resistance.slow.slow.typ.typ = float(
+                            dic['res']) * 1e-6
                     else:
                         sitePin_obj.model.init('capacitance')
                         sitePin_obj.model.capacitance.slow.init('slow')
-                        sitePin_obj.model.capacitance.slow.slow.typ.typ = float(dic['cap']) * 1e-6
+                        sitePin_obj.model.capacitance.slow.slow.typ.typ = float(
+                            dic['cap']) * 1e-6
                     sitePin_obj.init('delay')
                     corner_model = sitePin_obj.delay
                     for i, delay in enumerate(dic['delay']):
@@ -226,6 +240,7 @@ def main():
 
     with open(args.patched_device, "wb") as fp:
         write_capnp_file(dev, fp)
+
 
 if __name__ == "__main__":
     main()
