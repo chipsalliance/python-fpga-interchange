@@ -686,7 +686,8 @@ class Cluster():
     fields = ['chainable_ports', 'cluster_cell_ports']
     field_types = ['ChainablePortPOD', 'ClusterCellPortPOD']
 
-    def __init__(self, name, chainable_ports, root_cell_types, cluster_cells):
+    def __init__(self, name, chainable_ports, root_cell_types, cluster_cells,
+                 out_of_site_clusters):
         # Chain name
         self.name = name
 
@@ -706,6 +707,8 @@ class Cluster():
         for cell in cluster_cells:
             for cell, port in product(cell["cells"], cell["ports"]):
                 self.cluster_cell_ports.append(ClusterCellPort(cell, port))
+
+        self.out_of_site_clusters = out_of_site_clusters
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -738,6 +741,8 @@ class Cluster():
         for field in self.fields:
             bba.ref(self.field_label(label_prefix, field))
             bba.u32(len(getattr(self, field)))
+
+        bba.u32(1 if self.out_of_site_clusters else 0)
 
 
 class PackagePin():
