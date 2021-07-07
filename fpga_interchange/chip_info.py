@@ -1141,7 +1141,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema or the nextpnr chip database structure changes.
-        self.version = 11
+        self.version = 12
         self.width = 0
         self.height = 0
 
