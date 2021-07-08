@@ -94,6 +94,11 @@ disabled_cell_bel_map:
      - TFF
      - IFF
      - OUTFF
+  - cell: FDSE
+    bels:
+     - TFF
+     - IFF
+     - OUTFF
 disabled_site_pips:
   - bels:
      - A6LUT
@@ -152,3 +157,12 @@ clusters:
         - LUT6
       ports:
         - D
+- name: IDELAY_ISERDES
+  root_cell_types:
+    - IDELAYE2
+  out_of_site_clusters: true
+  cluster_cells:
+    - cells:
+        - ISERDESE2
+      ports:
+        - DATAOUT
