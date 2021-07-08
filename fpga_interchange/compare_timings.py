@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 
 import argparse
+import sys
 
 # ============================================================================
 
@@ -29,8 +30,15 @@ def main():
         help=
         "Path to file with mappings from compare_timing net name to base_timings net name"
     )
+    parser.add_argument(
+        "--output_file", help="Path to file with results", default=None)
 
     args = parser.parse_args()
+
+    if args.output_file is not None:
+        output_file = open(args.output_file, 'w')
+    else:
+        output_file = sys.stdout
 
     baseline = {}
     with open(args.base_timing, 'r') as f:
@@ -71,15 +79,15 @@ def main():
         baseline.pop(n_key)
 
     for key, value in net_compare.items():
-        print(key, value)
+        print(key, value, file=output_file)
 
-    print("Nets not mapped:")
+    print("Nets not mapped:", file=output_file)
     for key, value in not_found.items():
-        print("\t", key, value)
+        print("\t", key, value, file=output_file)
 
-    print("Nets not used:")
+    print("Nets not used:", file=output_file)
     for key, value in baseline.items():
-        print("\t", key, value)
+        print("\t", key, value, file=output_file)
 
 
 # =============================================================================
