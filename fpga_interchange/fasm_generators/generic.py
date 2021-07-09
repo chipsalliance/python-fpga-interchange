@@ -141,7 +141,23 @@ class FasmGenerator():
 
             bel = placement.bel
             bel_pins = placement.pins
+
             cell_attr = self.logical_cells_instances.get(cell_name, None)
+
+            if cell_attr is None:
+                # If no attrs were found, this cell may be part of a macro
+                # expansion. Check if this may be the case
+                for _, _, macro_cell_name in self.device_resources.get_macro_instances(
+                ):
+                    if cell_type != macro_cell_name:
+                        continue
+
+                    orig_cell_name = cell_name.split("/")[0]
+                    cell_attr = self.logical_cells_instances.get(
+                        orig_cell_name, None)
+
+                    assert cell_attr, cell_name
+                    break
 
             self.physical_cells_instances[cell_name] = PhysCellInstance(
                 cell_type=cell_type,

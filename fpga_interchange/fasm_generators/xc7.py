@@ -29,6 +29,7 @@ from enum import Enum
 from itertools import product
 
 from fpga_interchange.fasm_generators.generic import FasmGenerator, PhysCellInstance, invert_bitstring
+from fpga_interchange.fasm_generators.xc7_iobs import iob_settings
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, Pin
 """
@@ -190,31 +191,51 @@ class XC7FasmGenerator(FasmGenerator):
         in the 7-Series database format.
         """
 
+        import sys
+
         # FIXME: Need to make this dynamic, and find a suitable way to add FASM annotations to the device resources.
         #        In addition, a reformat of the database might be required to have an easier handling of these
         #        features.
-        allowed_io_types = {
-            "OBUF": [
-                "LVCMOS12_LVCMOS15_LVCMOS18_LVCMOS25_LVCMOS33_LVTTL_SSTL135_SSTL15.SLEW.SLOW",
-                "LVCMOS33_LVTTL.DRIVE.I12_I16", "PULLTYPE.NONE"
-            ],
-            "IBUF": [
-                "LVCMOS12_LVCMOS15_LVCMOS18_LVCMOS25_LVCMOS33_LVTTL.SLEW.FAST",
-                "LVCMOS12_LVCMOS15_LVCMOS18_LVCMOS25_LVCMOS33_LVDS_25_LVTTL_SSTL135_SSTL15_TMDS_33.IN_ONLY",
-                "LVCMOS25_LVCMOS33_LVTTL.IN", "PULLTYPE.NONE"
-            ]
-        }
+        allowed_io_types = ["IBUF", "OBUF", "OBUFT", "OBUFTDS"]
 
         iob_sites = ["IOB_Y0", "IOB_Y1"]
         iob_re = re.compile("IOB_X[0-9]+Y([0-9]+)")
 
-        for cell_instance, cell_data in self.physical_cells_instances.items():
-            if cell_data.cell_type not in allowed_io_types:
+        iob_instances = {}
+
+        for cell_data in self.physical_cells_instances.values():
+            cell_type = cell_data.cell_type
+            if cell_type not in allowed_io_types:
                 continue
 
+            site_name = cell_data.site_name
             tile_name = cell_data.tile_name
+            attrs = cell_data.attributes
 
-            m = iob_re.match(cell_data.site_name)
+            if site_name not in iob_instances:
+                iob_instances[site_name] = (attrs, tile_name, False, False)
+
+            attrs, tile_name, is_input, is_output = iob_instances[site_name]
+
+            if cell_type.startswith("O"):
+                is_output = True
+
+            if cell_type.startswith("I"):
+                is_input = True
+
+            iob_instances[site_name] = (attrs, tile_name, is_input, is_output)
+
+        for site_name, (attrs, tile_name, is_input,
+                        is_output) in iob_instances.items():
+
+            iostandard = attrs.get("IOSTANDARD", "LVCMOS33")
+            drive = int(attrs.get("DRIVE", "12"))
+            slew = attrs.get("SLEW", "SLOW")
+
+            is_inout = is_input and is_output
+            is_only_in = is_input and not is_output
+
+            m = iob_re.match(site_name)
             assert m, site_name
 
             y_coord = int(m.group(1))
@@ -227,8 +248,37 @@ class XC7FasmGenerator(FasmGenerator):
 
             iob_site = iob_sites[iob_sites_idx]
 
-            for feature in allowed_io_types[cell_data.cell_type]:
+            for feature, settings in iob_settings.items():
+                if feature.endswith("IN_ONLY") and is_output:
+                    continue
+
+                if ("DRIVE" in feature or "SLEW" in feature) and is_only_in:
+                    continue
+
+                if (feature.endswith("IN")
+                        or feature.endswith("IN_DIFF")) and not is_input:
+                    continue
+
+                iostandards = settings["iostandards"]
+                slews = settings["slews"]
+
+                if len(iostandards) != 0 and iostandard not in iostandards:
+                    continue
+
+                drives = iostandards[iostandard]
+                if len(drives) != 0 and drive not in drives:
+                    continue
+
+                if len(slews) != 0 and slew not in slews:
+                    continue
+
                 self.add_cell_feature((tile_name, iob_site, feature))
+
+            pulltype = attrs.get("PULLTYPE", "NONE")
+            self.add_cell_feature((tile_name, iob_site, "PULLTYPE", pulltype))
+
+            if iostandard.startswith("DIFF_") and is_output:
+                self.add_cell_feature((tile_name, "OUT_DIFF"))
 
     @staticmethod
     def get_slice_prefix(site_name, tile_type):
@@ -401,8 +451,9 @@ class XC7FasmGenerator(FasmGenerator):
         excluded_bels = [
             "{}USED".format(bel) for bel in ["A", "B", "C", "D", "COUT"]
         ]
-        excluded_bels += ["{}CY0".format(bel) for bel in ["A", "B", "C", "D"]]
-        excluded_bels += ["CLKINV", "PRECYINIT"]
+        excluded_bels += ["CLKINV"]
+
+        carry_cy = ["{}CY0".format(bel) for bel in ["A", "B", "C", "D"]]
 
         for site, bel, pin, _ in routing_bels:
             if bel in excluded_bels:
@@ -413,9 +464,24 @@ class XC7FasmGenerator(FasmGenerator):
 
             if bel in used_muxes:
                 if pin not in ["0", "1"]:
-                    self.add_cell_feature((tile_name, slice_prefix, bel))
+                    feature = (tile_name, slice_prefix, bel)
+            elif bel in carry_cy:
+                # TODO: requires possible adjustment to the FASM database format
+                if pin != "O5":
+                    continue
+                feature = (tile_name, slice_prefix, "CARRY4", bel)
+            elif bel == "PRECYINIT":
+                if pin == "1":
+                    # TODO: requires possible adjustment to the FASM database format
+                    pin = "C{}".format(pin)
+                elif pin == "0":
+                    # default value, do not emit as might collide with CIN
+                    continue
+                feature = (tile_name, slice_prefix, bel, pin)
             else:
-                self.add_cell_feature((tile_name, slice_prefix, bel, pin))
+                feature = (tile_name, slice_prefix, bel, pin)
+
+            self.add_cell_feature(feature)
 
     def handle_bram_routing_bels(self):
         tile_types = ["BRAM_L", "BRAM_R"]
@@ -466,6 +532,11 @@ class XC7FasmGenerator(FasmGenerator):
             ExtraFeatures(
                 regex="IOI_OLOGIC([01])_D1",
                 features=["OMUX.D1", "OQUSED", "OSERDES.DATA_RATE_TQ.BUF"],
+                callback=lambda m: "OLOGIC_Y{}".format(m.group(1))))
+        site_thru_features.append(
+            ExtraFeatures(
+                regex="IOI_OLOGIC([01])_T1",
+                features=["ZINV_T1"],
                 callback=lambda m: "OLOGIC_Y{}".format(m.group(1))))
         site_thru_features.append(
             ExtraFeatures(
