@@ -169,11 +169,10 @@ class TimingAnalyzer():
 
     def create_site_bel_placment_check(self):
         for placed in self.phy_netlist.placements:
-            self.placment_check.add((placed.site,
-                                     self.net_dev_string_map[placed.bel]))
-            for bel in placed.otherBels:
-                self.placment_check.add((placed.site,
-                                         self.net_dev_string_map[bel]))
+            for pin in placed.pinMap:
+                self.placment_check.add(
+                    (placed.site, self.net_dev_string_map[pin.bel],
+                     self.net_dev_string_map[pin.belPin]))
 
     def create_siteType_pin_cornermodel_map(self):
         for i, siteType in enumerate(self.device.siteTypeList):
@@ -212,7 +211,7 @@ class TimingAnalyzer():
             for pin in self.device.siteTypeList[siteType].siteWires[
                     wireIdx].pins:
                 _belpin = self.device.siteTypeList[siteType].belPins[pin]
-                if (site, _belpin.bel) in self.placment_check:
+                if (site, _belpin.bel, _belpin.name) in self.placment_check:
                     connected_bels.append(
                         (site, self.dev_net_string_map[_belpin.bel],
                          self.dev_net_string_map[_belpin.name]))

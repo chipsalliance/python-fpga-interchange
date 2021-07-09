@@ -44,7 +44,7 @@ def main():
     with open(args.base_timing, 'r') as f:
         for line in f.readlines():
             line = line.split()
-            baseline[line[0]] = int(line[1])
+            baseline[line[0]] = int(float(line[1]))
 
     comp = {}
     with open(args.compare_timing, 'r') as f:
