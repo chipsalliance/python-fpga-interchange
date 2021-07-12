@@ -11,6 +11,7 @@
 
 import argparse
 import copy
+import sys
 
 from fpga_interchange.interchange_capnp import Interchange
 
@@ -75,8 +76,10 @@ class TimingAnalyzer():
         self.belpin_sitewire_map = {}
         # mapping from (netlist site, device bel, device belpin) to True if belpin is used in design
         self.placment_check = set()
-        # mappin from (netlist site, device bel, device ibelpin) to (cellName, CellPin)
+        # mapping from (netlist site, device bel, device belpin) to (cellName, CellPin)
         self.cell_pin_map = {}
+        # mapping for sitePIPs from (device siteType, device belpinidx) to device belpinidx of output pin
+        self.site_pip_output_map = {}
 
     def create_net_string_to_dev_string_map(self):
         dev_string = {}
@@ -176,14 +179,19 @@ class TimingAnalyzer():
                     (placed.site, self.net_dev_string_map[pin.bel],
                      self.net_dev_string_map[pin.belPin]))
 
+    def create_sitePIP_belpin_to_sitePIP_belpin_output(self):
+        for i, siteType in enumerate(self.device.siteTypeList):
+            for pip in siteType.sitePIPs:
+                self.site_pip_output_map[(i, pip.inpin)] = pip.outpin
+                self.site_pip_output_map[(i, pip.outpin)] = pip.outpin
+
     def create_cell_pin_map(self):
         for placed in self.phy_netlist.placements:
             for pin in placed.pinMap:
-                self.cell_pin_map[(
-                    self.net_dev_string_map[placed.site],
-                    self.net_dev_string_map[pin.bel],
-                    self.net_dev_string_map[pin.belPin]
-                )] = (placed.cellName, pin.cellPin )
+                self.cell_pin_map[(self.net_dev_string_map[placed.site],
+                                   self.net_dev_string_map[pin.bel],
+                                   self.net_dev_string_map[pin.belPin])] = (
+                                       placed.cellName, pin.cellPin)
 
     def create_siteType_pin_cornermodel_map(self):
         for i, siteType in enumerate(self.device.siteTypeList):
@@ -253,12 +261,12 @@ class TimingAnalyzer():
 
                     if self.verbose:
                         indent += 1
+                        print("\t" * indent + "Exploring",
+                              self.phy_netlist.strList[obj.site],
+                              self.phy_netlist.strList[obj.bel],
+                              self.phy_netlist.strList[obj.pin])
                         if len(temp) > 0:
-                            print("\t" * indent + "Exploring",
-                                  self.phy_netlist.strList[obj.site],
-                                  self.phy_netlist.strList[obj.bel],
-                                  self.phy_netlist.strList[obj.pin],
-                                  "found bels:")
+                            print("\t" * indent + "found bels:")
                         indent += 1
                         for new_end in temp:
                             print("\t" * indent,
@@ -283,12 +291,15 @@ class TimingAnalyzer():
                 obj = vertex.routeSegment.pip
             elif which == "sitePIP":
                 obj = vertex.routeSegment.sitePIP
+
             last = len(vertex.branches) == 0
             if not last:
                 for branch in vertex.branches:
                     dfs_traverse(branch, False)
             elif not start:
-                assert which == "belPin", obj
+                # in some cases signal may go to sitePIP to get inverted, in such cases we must allow for sitePIP
+                # to be an end to netlist
+                assert which == "belPin" or which == "sitePIP"
                 ends_array.append((vertex, (obj.site, obj.bel, obj.pin)))
             return
 
@@ -309,27 +320,31 @@ class TimingAnalyzer():
             else:
                 raise
             sinks_array.extend(ends_array)
-        if self.verbose:
-            print("\t" * indent + "Searching for pseudo sitePIPs")
-        # assumption is that if some bel has both net sink and source it's probably pseudo sitePIP
-        old_sources = net.disown('sources')
-        new_sources = []
-        for sink in sinks_array:
-            match = []
-            for source in sources_array:
-                if source[1] is not None\
-                   and source[1][0] == sink[1][0]\
-                   and source[1][1] == sink [1][1]\
-                   and source[1][2] != sink [1][2]:
-                    match.append(source)
-            node = sink[0]
-            node.init('branches', len(match))
-            for i, s in enumerate(match):
-                node.branches[i] = old_sources.get()[s[0]]
-                sources_array.remove(s)
-        net.init('sources', len(sources_array))
-        for i, source in enumerate(sources_array):
-            net.sources[i] = old_sources.get()[source[0]]
+        if len(net.sources) > 1:
+            # if net has more than 1 source it's either:
+            # global constant network
+            # network that goes through cells as pseudo sitePIP
+            if self.verbose:
+                print("\t" * indent + "Searching for pseudo sitePIPs")
+            # assumption is that if some bel has both net sink and source it's probably pseudo sitePIP
+            old_sources = net.disown('sources')
+            new_sources = []
+            for sink in sinks_array:
+                match = []
+                for source in sources_array:
+                    if source[1] is not None\
+                       and source[1][0] == sink[1][0]\
+                       and source[1][1] == sink [1][1]\
+                       and source[1][2] != sink [1][2]:
+                        match.append(source)
+                node = sink[0]
+                node.init('branches', len(match))
+                for i, s in enumerate(match):
+                    node.branches[i] = old_sources.get()[s[0]]
+                    sources_array.remove(s)
+            net.init('sources', len(sources_array))
+            for i, source in enumerate(sources_array):
+                net.sources[i] = old_sources.get()[source[0]]
         if self.verbose:
             indent -= 2
 
@@ -532,6 +547,7 @@ class TimingAnalyzer():
                         dfs_traverse(branch, 0, temp_delay, True),
                         return_value)
             elif which == 'pip':
+                obj = source.routeSegment.pip
                 for branch in source.branches:
                     return_value = max(
                         dfs_traverse(branch, 0, temp_delay, False),
@@ -585,6 +601,7 @@ def main():
     analyzer.create_siteType_pin_cornermodel_map()
     analyzer.create_siteType_belpin_sitePIP_cornermodel_map()
     analyzer.create_cell_pin_map()
+    analyzer.create_sitePIP_belpin_to_sitePIP_belpin_output()
     array = []
     for net in analyzer.phy_netlist.physNets:
         array.append(net)
@@ -600,12 +617,13 @@ def main():
                 for source, ends in analyzer.timing_to_all_ends[net]:
                     for end in ends:
                         key = (end[0], end[1], end[2])
-                        (cell_name, cell_pin) = analyzer.cell_pin_map[key]
-                        cell_name = analyzer.phy_netlist.strList[cell_name]
-                        cell_pin = analyzer.phy_netlist.strList[cell_pin]
-                        print(
-                            f"{analyzer.net_name(net)}_to_{cell_name}/{cell_pin} {analyzer.longest_path[net] * 1e12}"
-                        )
+                        if key in analyzer.cell_pin_map.keys():
+                            (cell_name, cell_pin) = analyzer.cell_pin_map[key]
+                            cell_name = analyzer.phy_netlist.strList[cell_name]
+                            cell_pin = analyzer.phy_netlist.strList[cell_pin]
+                            print(
+                                f"{analyzer.net_name(net)}_to_{cell_name}/{cell_pin} {end[3] * 1e12}"
+                            )
                 continue
             print(
                 "\t" * indent +
@@ -616,12 +634,20 @@ def main():
                 print("\t" * indent + "Detail report:")
                 indent += 1
                 for source, ends in analyzer.timing_to_all_ends[net]:
-                    print(
-                        "\t" * indent +
-                        f"(Source) Site {analyzer.phy_netlist.strList[source.site]}, "
-                        +
-                        "BEL {analyzer.phy_netlist.strList[source.bel]}, BELpin{analyzer.phy_netlist.strList[source.pin]}"
-                    )
+                    if hasattr(source, "site"):
+                        print(
+                            "\t" * indent +
+                            f"(Source) Site {analyzer.phy_netlist.strList[source.site]}, "
+                            +
+                            "BEL {analyzer.phy_netlist.strList[source.bel]}, BELpin{analyzer.phy_netlist.strList[source.pin]}"
+                        )
+                    else:
+                        print(
+                            "\t" * indent +
+                            f"(Source) TilePIP {analyzer.phy_netlist.strList[source.tile]}, "
+                            +
+                            "{analyzer.phy_netlist.strList[source.wire0]} -> {analyzer.phy_netlist.strList[source.wire1]}"
+                        )
                     indent += 1
                     for end in ends:
                         print(
