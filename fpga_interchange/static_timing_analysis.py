@@ -73,8 +73,10 @@ class TimingAnalyzer():
         self.cell_map = {}
         # mapping from device (siteType, belpinidx) to sitewireidx
         self.belpin_sitewire_map = {}
-        # mapping from (netlist site, device bel) to True if bel is used in design
+        # mapping from (netlist site, device bel, device belpin) to True if belpin is used in design
         self.placment_check = set()
+        # mappin from (netlist site, device bel, device ibelpin) to (cellName, CellPin)
+        self.cell_pin_map = {}
 
     def create_net_string_to_dev_string_map(self):
         dev_string = {}
@@ -173,6 +175,15 @@ class TimingAnalyzer():
                 self.placment_check.add(
                     (placed.site, self.net_dev_string_map[pin.bel],
                      self.net_dev_string_map[pin.belPin]))
+
+    def create_cell_pin_map(self):
+        for placed in self.phy_netlist.placements:
+            for pin in placed.pinMap:
+                self.cell_pin_map[(
+                    self.net_dev_string_map[placed.site],
+                    self.net_dev_string_map[pin.bel],
+                    self.net_dev_string_map[pin.belPin]
+                )] = (placed.cellName, pin.cellPin )
 
     def create_siteType_pin_cornermodel_map(self):
         for i, siteType in enumerate(self.device.siteTypeList):
@@ -573,6 +584,7 @@ def main():
     analyzer.create_site_bel_placment_check()
     analyzer.create_siteType_pin_cornermodel_map()
     analyzer.create_siteType_belpin_sitePIP_cornermodel_map()
+    analyzer.create_cell_pin_map()
     array = []
     for net in analyzer.phy_netlist.physNets:
         array.append(net)
@@ -585,9 +597,15 @@ def main():
     for i, net in enumerate(array):
         if net.type == "signal":
             if args.compact:
-                print(
-                    f"{analyzer.net_name(net)} {analyzer.longest_path[net] * 1e12}"
-                )
+                for source, ends in analyzer.timing_to_all_ends[net]:
+                    for end in ends:
+                        key = (end[0], end[1], end[2])
+                        (cell_name, cell_pin) = analyzer.cell_pin_map[key]
+                        cell_name = analyzer.phy_netlist.strList[cell_name]
+                        cell_pin = analyzer.phy_netlist.strList[cell_pin]
+                        print(
+                            f"{analyzer.net_name(net)}_to_{cell_name}/{cell_pin} {analyzer.longest_path[net] * 1e12}"
+                        )
                 continue
             print(
                 "\t" * indent +
