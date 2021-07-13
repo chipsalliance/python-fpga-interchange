@@ -25,7 +25,6 @@ class prjxray_db_reader:
                 continue
             with open(os.path.join(self.timing_dir, _file), 'r') as f:
                 tile_data = json.load(f)
-            print(_file, tile_data["tile_type"])
             tile_name = tile_data['tile_type']
             tile_dict = {}
             tile_dict['wires'] = {}
