@@ -969,6 +969,21 @@ class DeviceResources():
         return to_logical_netlist(self.device_resource_capnp.primLibs,
                                   self.strs)
 
+    def get_macro_instances(self):
+        prims = self.get_primitive_library()
+
+        if 'macros' not in prims.libraries:
+            return
+
+        macro_lib = prims.libraries['macros']
+        for cell_name, cell in sorted(
+                macro_lib.cells.items(), key=lambda x: x[0]):
+            macro_name = cell_name
+
+            for inst_name, inst in sorted(
+                    cell.cell_instances.items(), key=lambda x: x[0]):
+                yield (macro_name, inst_name, inst.cell_name)
+
     def get_constants(self):
         constants = self.device_resource_capnp.constants
 
