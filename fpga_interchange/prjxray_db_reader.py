@@ -12,6 +12,10 @@
 import os
 import json
 
+CAPACITANCE = 1e-9  # convert from prjxray internal values to farads
+RESISTANCE = 1e-6  # convert from prjxray internal values to ohms
+DELAY = 1e-9  # convert from ns to s
+
 
 class prjxray_db_reader:
     def __init__(self, timing_dir):
@@ -33,8 +37,8 @@ class prjxray_db_reader:
                     continue
                 wire_name = name
                 tile_dict['wires'][wire_name] = (
-                    tuple([float(data['res']) * 1e-6] * 6),
-                    tuple([float(data['cap']) * 1e-9] * 6))
+                    tuple([float(data['res']) * RESISTANCE] * 6),
+                    tuple([float(data['cap']) * CAPACITANCE] * 6))
 
             tile_dict['pips'] = {}
             for data in tile_data['pips'].values():
@@ -46,18 +50,19 @@ class prjxray_db_reader:
                 internal_cap = tuple([None] * 6)
                 if model_values['in_cap'] is not None:
                     internal_cap = tuple(
-                        [float(model_values['in_cap']) * 1e-9] * 6)
+                        [float(model_values['in_cap']) * CAPACITANCE] * 6)
                 delays = tuple([None] * 6)
                 if model_values['delay'] is not None:
-                    delays = (float(model_values['delay'][0]) * 1e-9, None,
-                              float(model_values['delay'][1]) * 1e-9,
-                              float(model_values['delay'][2]) * 1e-9, None,
-                              float(model_values['delay'][3]) * 1e-9)
+                    delays = (float(model_values['delay'][0]) * DELAY, None,
+                              float(model_values['delay'][1]) * DELAY,
+                              float(model_values['delay'][2]) * DELAY, None,
+                              float(model_values['delay'][3]) * DELAY)
                 output_cap = tuple([None] * 6)
 
                 output_res = tuple([None] * 6)
                 if model_values['res'] is not None:
-                    output_res = tuple([float(model_values['res']) * 1e-6] * 6)
+                    output_res = tuple(
+                        [float(model_values['res']) * RESISTANCE] * 6)
 
                 tile_dict['pips'][key] = (input_cap, internal_cap, delays,
                                           output_res, output_cap)
@@ -73,17 +78,19 @@ class prjxray_db_reader:
                         delays = tuple([None] * 6)
                         values = (None, tuple([None] * 6))
                     elif 'res' in dic.keys():
-                        values = ('r', tuple([float(dic['res']) * 1e-6] * 6))
-                        delays = (float(dic['delay'][0]) * 1e-9, None,
-                                  float(dic['delay'][1]) * 1e-9,
-                                  float(dic['delay'][2]) * 1e-9, None,
-                                  float(dic['delay'][3]) * 1e-9)
+                        values = ('r',
+                                  tuple([float(dic['res']) * RESISTANCE] * 6))
+                        delays = (float(dic['delay'][0]) * DELAY, None,
+                                  float(dic['delay'][1]) * DELAY,
+                                  float(dic['delay'][2]) * DELAY, None,
+                                  float(dic['delay'][3]) * DELAY)
                     else:
-                        values = ('c', tuple([float(dic['cap']) * 1e-9] * 6))
-                        delays = (float(dic['delay'][0]) * 1e-9, None,
-                                  float(dic['delay'][1]) * 1e-9,
-                                  float(dic['delay'][2]) * 1e-9, None,
-                                  float(dic['delay'][3]) * 1e-9)
+                        values = ('c',
+                                  tuple([float(dic['cap']) * CAPACITANCE] * 6))
+                        delays = (float(dic['delay'][0]) * DELAY, None,
+                                  float(dic['delay'][1]) * DELAY,
+                                  float(dic['delay'][2]) * DELAY, None,
+                                  float(dic['delay'][3]) * DELAY)
                     tile_dict['sites'][siteType][sitePin] = (values, delays)
             return_dict[tile_name] = tile_dict
         return return_dict
