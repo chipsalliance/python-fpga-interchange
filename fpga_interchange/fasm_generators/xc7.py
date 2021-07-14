@@ -463,8 +463,9 @@ class XC7FasmGenerator(FasmGenerator):
             slice_prefix = self.get_slice_prefix(site, tile_type)
 
             if bel in used_muxes:
-                if pin not in ["0", "1"]:
-                    feature = (tile_name, slice_prefix, bel)
+                if pin in ["0", "1"]:
+                    continue
+                feature = (tile_name, slice_prefix, bel)
             elif bel in carry_cy:
                 # TODO: requires possible adjustment to the FASM database format
                 if pin != "O5":
