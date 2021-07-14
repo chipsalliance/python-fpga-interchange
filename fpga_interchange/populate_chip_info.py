@@ -99,7 +99,7 @@ class FlattenedWire():
 class FlattenedPip(
         namedtuple(
             'FlattenedPip',
-            'type src_index dst_index site_index pip_index pseudo_cell_wires')
+            'type src_index dst_index site_index pip_index pseudo_cell_wires is_buffered timing_idx')
 ):
     pass
 
@@ -238,7 +238,7 @@ class FlattenedTileType():
                 # Skip pseudo pips through disabled cells
                 continue
 
-            pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1)
+            pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1, pip.timing, pip.buffered20)
 
             if is_pseudo_cell:
                 pseudo_pips.append((pip_index, pip))
@@ -247,7 +247,7 @@ class FlattenedTileType():
                 # Pseudo pips should not be bidirectional!
                 assert not is_pseudo_cell
 
-                self.add_tile_pip(idx, pip.wire1, pip.wire0)
+                self.add_tile_pip(idx, pip.wire1, pip.wire0, pip.timing, pip.buffered21)
 
         # Add all site variants
         for site_in_type_index, site_type_in_tile_type in enumerate(
@@ -437,7 +437,7 @@ class FlattenedTileType():
 
         return pip_index
 
-    def add_tile_pip(self, tile_pip_index, src_wire, dst_wire):
+    def add_tile_pip(self, tile_pip_index, src_wire, dst_wire, timing_idx=-1, is_buffered=True):
         assert self.wires[src_wire].type == FlattenedWireType.TILE_WIRE
         assert self.wires[dst_wire].type == FlattenedWireType.TILE_WIRE
 
@@ -447,7 +447,9 @@ class FlattenedTileType():
             dst_index=dst_wire,
             site_index=None,
             pip_index=tile_pip_index,
-            pseudo_cell_wires=[])
+            pseudo_cell_wires=[],
+            timing_idx=timing_idx,
+            is_buffered=is_buffered)
 
         return self.add_pip_common(flat_pip)
 
@@ -638,7 +640,9 @@ class FlattenedTileType():
             dst_index=dst_wire,
             site_index=site_index,
             pip_index=site_pip_index,
-            pseudo_cell_wires=[])
+            pseudo_cell_wires=[],
+            timing_idx=-1,
+            is_buffered=True)
 
         return self.add_pip_common(flat_pip)
 
@@ -655,7 +659,9 @@ class FlattenedTileType():
             dst_index=dst_wire,
             site_index=site_index,
             pip_index=site_pin_index,
-            pseudo_cell_wires=[])
+            pseudo_cell_wires=[],
+            timing_idx=-1,
+            is_buffered=True)
 
         return self.add_pip_common(flat_pip)
 
@@ -2490,6 +2496,7 @@ def populate_chip_info(device, constids, device_config):
 
         # FIXME: Replace with actual node name?
         node_info.name = 'node_{}'.format(node_index)
+        node_info.timing_idx = node.nodeTiming
 
         for wire_index in node.wires:
             wire = device.device_resource_capnp.wires[wire_index]
