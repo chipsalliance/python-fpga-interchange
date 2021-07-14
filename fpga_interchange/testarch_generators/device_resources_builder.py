@@ -57,10 +57,11 @@ class Package():
 
 
 class CellBelMappingEntry():
-    def __init__(self, site_type, bel, pin_map):
+    def __init__(self, site_type, bel, pin_map, delay_mapping=[]):
         self.site_type = site_type
         self.bel = bel
         self.pin_map = pin_map  # dict(cell_pin) -> bel_pin
+        self.delays = delay_mapping
 
 
 class CellBelMapping():
@@ -102,10 +103,16 @@ class Bel():
 
 
 class SitePin():
-    def __init__(self, name, direction, bel_name):
+    def __init__(self,
+                 name,
+                 direction,
+                 bel_name,
+                 corner_model=(0, 0, 0, 0, 0, 0)):
+
         self.name = name
         self.direction = direction
         self.bel_name = bel_name
+        self.corner_model = corner_model
 
     def __repr__(self):
         return "SitePin(\"{}\", {}, bel=\"{}\")".format(
@@ -128,9 +135,13 @@ class SiteWire():
 
 
 class SitePip():
-    def __init__(self, src_bel_pin, dst_bel_pin):
+    def __init__(self,
+                 src_bel_pin,
+                 dst_bel_pin,
+                 corner_model=(0, 0, 0, 0, 0, 0)):
         self.src_bel_pin = src_bel_pin
         self.dst_bel_pin = dst_bel_pin
+        self.corner_model = corner_model
 
     def __repr__(self):
         return "SitePip({}, {})".format(self.src_bel_pin, self.dst_bel_pin)
@@ -147,7 +158,7 @@ class SiteType():
 
 #        self.alt_site_types = []
 
-    def add_pin(self, name, direction):
+    def add_pin(self, name, direction, corner_model=(0, 0, 0, 0, 0, 0)):
         """
         Adds a pin to the site type along with its corresponding BEL
         """
@@ -163,7 +174,7 @@ class SiteType():
 
         # Add the site pin
         assert name not in self.pins, name
-        self.pins[name] = SitePin(name, direction, bel_name)
+        self.pins[name] = SitePin(name, direction, bel_name, corner_model)
 
         return self.pins[name]
 
@@ -194,11 +205,14 @@ class SiteType():
 
         return wire
 
-    def add_pip(self, src_bel_pin, dst_bel_pin):
+    def add_pip(self,
+                src_bel_pin,
+                dst_bel_pin,
+                corner_model=(0, 0, 0, 0, 0, 0)):
         """
         Adds a new site PIP to the site type
         """
-        pip = SitePip(src_bel_pin, dst_bel_pin)
+        pip = SitePip(src_bel_pin, dst_bel_pin, corner_model)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 
@@ -215,13 +229,20 @@ class SiteTypeInTileType():
 
 
 class PIP():
-    def __init__(self, wire0, wire1):
+    def __init__(self,
+                 wire0,
+                 wire1,
+                 delay_type,
+                 is_buffered20=True,
+                 is_buffered21=True):
         self.wire0 = wire0
         self.wire1 = wire1
 
         self.is_directional = True
-        self.is_buffered20 = True  # TODO:
-        self.is_buffered21 = True
+        self.is_buffered20 = is_buffered20  # TODO:
+        self.is_buffered21 = is_buffered21
+
+        self.delay_type = delay_type
 
         # TODO: Pseudo cells
 
@@ -259,11 +280,16 @@ class TileType():
 
         return name
 
-    def add_pip(self, wire0, wire1):
+    def add_pip(self,
+                wire0,
+                wire1,
+                delay_type,
+                is_buffered20=True,
+                is_buffered21=True):
         """
         Adds a new PIP to the tile type
         """
-        pip = PIP(wire0, wire1)
+        pip = PIP(wire0, wire1, delay_type, is_buffered20, is_buffered21)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 
@@ -347,6 +373,10 @@ class DeviceResources():
 
         # Nodes
         self.nodes = []
+
+        # Timing
+        self.node_delay_types = {}
+        self.pip_delay_types = {}
 
         # Physical chip packages
         self.packages = {}  # dict(name) -> Package
@@ -436,6 +466,27 @@ class DeviceResources():
 
         return wire_id
 
+    def add_nodeTiming(self, delay_type, R, C):
+        """
+        Adds new node delay_type to device based on resistance R and capacitance C
+        """
+
+        assert delay_type not in self.node_delay_types, delay_type
+        self.node_delay_types[delay_type] = (R, C)
+
+    def add_PIPTiming(self, delay_type, iC, itC, itD, oR, oC):
+        """
+        Adds new pip delay_type to device based on input capacitance iC,
+        internal capacitance itC, internal delay itD,
+        output resistance oR and output capacitance oC.
+
+        Internal capacitances are taken into account only if PIP is taken,
+        input capacitance is always added to node capacitance.
+        """
+
+        assert delay_type not in self.pip_delay_types, delay_type
+        self.pip_delay_types[delay_type] = (iC, itC, itD, oR, oC)
+
     def get_wire(self, wire_id):
         """
         Returns a Wire object containing string literals which refer to the
@@ -497,11 +548,11 @@ class DeviceResources():
                                                   bel_port)
         self.constants[(site_name, bel_name, bel_port)] = constant
 
-    def add_node(self, wire_ids):
+    def add_node(self, wire_ids, node_type):
         """
         Adds a new node that spans the given wire ids.
         """
-        self.nodes.append(wire_ids)
+        self.nodes.append((wire_ids, node_type))
 
     def add_package(self, name):
         """
@@ -548,6 +599,30 @@ class DeviceResourcesCapnp():
 
         self.tile_type_map = {}
         self.tile_site_list = {}
+
+    def populate_corner_model(self,
+                              corner_model,
+                              slow_min=None,
+                              slow_typ=None,
+                              slow_max=None,
+                              fast_min=None,
+                              fast_typ=None,
+                              fast_max=None):
+        fields = ['min', 'typ', 'max']
+        slow = [slow_min, slow_typ, slow_max]
+        fast = [fast_min, fast_typ, fast_max]
+        if any(x is not None for x in slow):
+            corner_model.slow.init("slow")
+        if any(x is not None for x in fast):
+            corner_model.fast.init("fast")
+        for i, field in enumerate(fields):
+            if slow[i] is not None:
+                x = getattr(corner_model.slow.slow, field)
+                setattr(x, field, slow[i])
+        for i, field in enumerate(fields):
+            if fast[i] is not None:
+                x = getattr(corner_model.fast.fast, field)
+                setattr(x, field, fast[i])
 
     def add_string_id(self, s):
         """
@@ -633,6 +708,32 @@ class DeviceResourcesCapnp():
                 for port_name in cell.ports.keys():
                     self.add_string_id(port_name)
 
+    def write_timings(self, device):
+        self.node_timing_map = {}
+        self.pip_timing_map = {}
+        device.init("nodeTimings", len(self.device.node_delay_types))
+        for i, node_timing in enumerate(self.device.node_delay_types.items()):
+            key, value = node_timing
+            self.node_timing_map[key] = i
+            self.populate_corner_model(
+                device.nodeTimings[i].resistance, slow_typ=value[0])
+            self.populate_corner_model(
+                device.nodeTimings[i].capacitance, slow_typ=value[1])
+        device.init("pipTimings", len(self.device.pip_delay_types))
+        for i, pip_timing in enumerate(self.device.pip_delay_types.items()):
+            key, value = pip_timing
+            self.pip_timing_map[key] = i
+            self.populate_corner_model(
+                device.pipTimings[i].inputCapacitance, slow_typ=value[0])
+            self.populate_corner_model(
+                device.pipTimings[i].internalCapacitance, slow_typ=value[1])
+            self.populate_corner_model(
+                device.pipTimings[i].internalDelay, slow_typ=value[2])
+            self.populate_corner_model(
+                device.pipTimings[i].outputResistance, slow_typ=value[3])
+            self.populate_corner_model(
+                device.pipTimings[i].outputCapacitance, slow_typ=value[4])
+
     def write_site_types(self, device):
         """
         Packs all SiteType objects and their children into the cap'n'proto
@@ -675,7 +776,7 @@ class DeviceResourcesCapnp():
                 bel_pin_capnp = site_type_capnp.belPins[i]
                 bel_pin_capnp.name = self.get_string_id(bel_pin.name)
                 bel_pin_capnp.dir = bel_pin.direction.value
-                bel_pin_capnp.bel = bel_map[bel.name]
+                bel_pin_capnp.bel = self.get_string_id(bel.name)
 
             # Write BELs
             site_type_capnp.init("bels", len(bel_list))
@@ -724,6 +825,15 @@ class DeviceResourcesCapnp():
                 bel_pin = next(iter(bel.pins.values()))
 
                 pin_capnp.belpin = bel_pin_map[(bel.name, bel_pin.name)]
+                model = None
+
+                if pin.direction.value == 0:
+                    pin_capnp.model.init('capacitance')
+                    model = pin_capnp.model.capacitance
+                else:
+                    pin_capnp.model.init('resistance')
+                    model = pin_capnp.model.resistance
+                self.populate_corner_model(model, *pin.corner_model)
 
             # Write site wires
             site_wire_list = list(site_type.wires.values())
@@ -752,6 +862,9 @@ class DeviceResourcesCapnp():
                 bel = site_type.bels[pip.dst_bel_pin[0]]
                 bel_pin = bel.pins[pip.dst_bel_pin[1]]
                 site_pip_capnp.outpin = bel_pin_map[(bel.name, bel_pin.name)]
+
+                self.populate_corner_model(site_pip_capnp.delay,
+                                           *pip.corner_model)
 
             # TODO: Alt site types
 
@@ -797,6 +910,7 @@ class DeviceResourcesCapnp():
                 pip_capnp.directional = pip.is_directional
                 pip_capnp.buffered20 = pip.is_buffered20
                 pip_capnp.buffered21 = pip.is_buffered21
+                pip_capnp.timing = self.pip_timing_map[pip.delay_type]
 
                 # TODO: Pseudo cells
 
@@ -891,9 +1005,11 @@ class DeviceResourcesCapnp():
         device.init("nodes", len(self.device.nodes))
         for i, node in enumerate(self.device.nodes):
             node_capnp = device.nodes[i]
-            node_capnp.init("wires", len(node))
-            for j, wire_id in enumerate(node):
+            node_capnp.init("wires", len(node[0]))
+            for j, wire_id in enumerate(node[0]):
+                wire = self.device.get_wire(wire_id)
                 node_capnp.wires[j] = wire_id
+            node_capnp.nodeTiming = self.node_timing_map[node[1]]
 
     def write_packages(self, device):
         """
@@ -945,6 +1061,15 @@ class DeviceResourcesCapnp():
         Packs all cell <-> bel mapping objects to the cap'n'proto schema
         """
 
+        site_name_siteType = {}
+        for i, site in enumerate(self.device.site_types.keys()):
+            site_name_siteType[site] = i
+
+        site_type_bel_belpin_id = {}
+        for i, site in enumerate(device.siteTypeList):
+            for j, belpin in enumerate(site.belPins):
+                site_type_bel_belpin_id[(i, belpin.bel, belpin.name)] = j
+
         # Make a cell-bel mapping list
         cell_bel_mappings = list(self.device.cell_bel_mappings.values())
 
@@ -960,6 +1085,7 @@ class DeviceResourcesCapnp():
             # Rearrange entries so that they can be encoded according to the
             # schema.
             entries = {}
+            delays = []
             for entry in cell_bel_mapping.entries:
                 key = tuple(entry.pin_map.items())
 
@@ -969,6 +1095,9 @@ class DeviceResourcesCapnp():
                     entries[key][entry.site_type] = []
 
                 entries[key][entry.site_type].append(entry.bel)
+                site_type = site_name_siteType[entry.site_type]
+                delays.extend(
+                    [(site_type, entry.bel, delay) for delay in entry.delays])
 
             # Encode
             cell_bel_mapping_capnp.init("commonPins", len(entries))
@@ -996,6 +1125,43 @@ class DeviceResourcesCapnp():
                         site_type_bel_entry_capnp.bels[m] = self.get_string_id(
                             bel)
 
+            cell_bel_mapping_capnp.init("pinsDelay", len(delays))
+            for k, pins_delay in enumerate(delays):
+                pin_delay = cell_bel_mapping_capnp.pinsDelay[k]
+                site_type = pins_delay[0]
+                bel = pins_delay[1]
+                delay = pins_delay[2]
+                pin_delay.pinsDelayType = delay[3]
+                self.populate_corner_model(pin_delay.cornerModel, *delay[2])
+                if isinstance(delay[0], tuple):
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[0][0]))]
+                    pin_delay.firstPin.clockEdge = delay[0][1]
+                else:
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[0]))]
+                    pin_delay.firstPin.pin = self.get_string_id(delay[0])
+                pin_delay.firstPin.pin = index
+
+                if isinstance(delay[1], tuple):
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[1][0]))]
+                    pin_delay.secondPin.clockEdge = delay[1][1]
+                else:
+                    index = site_type_bel_belpin_id[(site_type,
+                                                     self.get_string_id(bel),
+                                                     self.get_string_id(
+                                                         delay[1]))]
+                pin_delay.secondPin.pin = index
+
+                pin_delay.site = site_type
+
     def to_capnp(self):
         """
         Encodes stuff into a cap'n'proto message.
@@ -1011,6 +1177,9 @@ class DeviceResourcesCapnp():
         device.init("strList", len(self.string_list))
         for i, s in enumerate(self.string_list):
             device.strList[i] = s
+
+        # Node and PIP timings
+        self.write_timings(device)
 
         # Site types
         self.write_site_types(device)

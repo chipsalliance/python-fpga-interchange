@@ -30,7 +30,7 @@ class TestArchGenerator():
     def __init__(self):
         self.device = DeviceResources()
 
-        self.grid_size = (6, 6)
+        self.grid_size = (10, 10)
         self.num_intra_nodes = 8
         self.num_inter_nodes = 8
 
@@ -43,16 +43,25 @@ class TestArchGenerator():
         site_type = self.device.add_site_type("SLICE")
 
         # Site pins (with BELs added automatically)
-        site_type.add_pin("L0", Direction.Input)
-        site_type.add_pin("L1", Direction.Input)
-        site_type.add_pin("L2", Direction.Input)
-        site_type.add_pin("L3", Direction.Input)
-        site_type.add_pin("O", Direction.Output)
+        site_type.add_pin("L0", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L2", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L3", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("O", Direction.Output,
+                          (None, 1.7, None, None, None, None))
 
-        site_type.add_pin("R", Direction.Input)
-        site_type.add_pin("C", Direction.Input)
-        site_type.add_pin("D", Direction.Input)
-        site_type.add_pin("Q", Direction.Output)
+        site_type.add_pin("R", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("C", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("D", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("Q", Direction.Output,
+                          (None, 1.9, None, None, None, None))
 
         # LUT4 BEL
         bel_lut = site_type.add_bel("LUT", "LUT4", BelCategory.LOGIC)
@@ -97,8 +106,10 @@ class TestArchGenerator():
         w = site_type.add_wire("FF_OUT", [("FF", "Q"), ("Q", "Q")])
 
         # Site PIPs
-        site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"))
-        site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"))
+        site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"),
+                          (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
 
@@ -206,13 +217,15 @@ class TestArchGenerator():
         for dst_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 src_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire)
+                tile_type.add_pip(
+                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
 
         wires_for_site = [w for w in tile_type.wires if w.startswith("FROM_")]
         for src_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 dst_wire = "INTRA_{}".format(i)
-                tile_type.add_pip(src_wire, dst_wire)
+                tile_type.add_pip(
+                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
 
         # Input tile wires to intra wires and vice-versa
         for direction in ["N", "S", "E", "W"]:
@@ -221,12 +234,12 @@ class TestArchGenerator():
                 src_wire = "INP_{}_{}".format(direction, i)
                 for j in range(self.num_intra_nodes):
                     dst_wire = "INTRA_{}".format(j)
-                    tile_type.add_pip(src_wire, dst_wire)
+                    tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
                 dst_wire = "OUT_{}_{}".format(direction, i)
                 for j in range(self.num_intra_nodes):
                     src_wire = "INTRA_{}".format(j)
-                    tile_type.add_pip(src_wire, dst_wire)
+                    tile_type.add_pip(src_wire, dst_wire, "tilePIP")
 
         if tile_type_name == "PWR":
             tile_type.add_const_source(ConstantType.VCC, "FROM_POWER0_V")
@@ -266,10 +279,12 @@ class TestArchGenerator():
             tile_type = self.device.tile_types[tile.type]
 
             for wire in tile_type.wires:
-                if wire.startswith("TO_") or wire.startswith("FROM_") or \
-                   wire.startswith("INTRA_"):
+                if wire.startswith("TO_") or wire.startswith("FROM_"):
                     wire_id = self.device.get_wire_id(tile.name, wire)
-                    self.device.add_node([wire_id])
+                    self.device.add_node([wire_id], "toSite")
+                elif wire.startswith("INTRA_"):
+                    wire_id = self.device.get_wire_id(tile.name, wire)
+                    self.device.add_node([wire_id], "internal")
 
         # Add nodes for inter-tile connections.
         def offset_loc(pos, ofs):
@@ -309,8 +324,7 @@ class TestArchGenerator():
                         wire_ids.append(
                             self.device.get_wire_id(other_tile.name,
                                                     other_wire_name))
-
-                    self.device.add_node(wire_ids)
+                    self.device.add_node(wire_ids, "external")
 
     def make_package_data(self):
 
@@ -369,6 +383,12 @@ class TestArchGenerator():
     def make_cell_bel_mappings(self):
 
         # TODO: Pass all the information via device.add_cell_bel_mapping()
+        delay_mapping = [
+            ('I0', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I1', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I2', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('I3', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+        ]
         mapping = CellBelMapping("LUT")
         mapping.entries.append(
             CellBelMappingEntry(
@@ -380,9 +400,19 @@ class TestArchGenerator():
                     "A2": "I2",
                     "A3": "I3",
                     "O": "O",
-                }))
+                },
+                delay_mapping=delay_mapping))
         self.device.add_cell_bel_mapping(mapping)
 
+        delay_mapping = [
+            ('D', ('C', 'rise'), (None, 5e-12, None, None, None, None),
+             'setup'),
+            ('D', ('C', 'rise'), (None, 8e-12, None, None, None, None),
+             'hold'),
+            (('C', 'rise'), 'Q', (None, 6e-12, None, None, None, None),
+             'clk2q'),
+            ('R', 'Q', (None, 24e-12, None, None, None, None), 'comb'),
+        ]
         mapping = CellBelMapping("DFF")
         mapping.entries.append(
             CellBelMappingEntry(
@@ -393,6 +423,19 @@ class TestArchGenerator():
                     "R": "R",
                     "C": "C",
                     "Q": "Q",
+                },
+                delay_mapping=delay_mapping))
+        self.device.add_cell_bel_mapping(mapping)
+
+        mapping = CellBelMapping("FFMUX")
+        mapping.entries.append(
+            CellBelMappingEntry(
+                site_type="SLICE",
+                bel="FFMUX",
+                pin_map={
+                    "I0": "I0",
+                    "I1": "I1",
+                    "O": "O",
                 }))
         self.device.add_cell_bel_mapping(mapping)
 
@@ -447,6 +490,19 @@ class TestArchGenerator():
 
         self.make_primitives_library()
         self.make_cell_bel_mappings()
+
+        # Add pip imings
+        # Values are taken at random, resisitance, input and output capacitance are chosen
+        # to be samewhat inline with values calculated from skaywater PDK
+        self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 5e-10, 0.5, 4e-16)
+
+        # Add node timing
+        # Value taken from skywater PDK for metal layer 1,
+        # Tile-to-Tile length 30 um, internal 15 um and to site 2 um
+        # Wire width of 0.14 um
+        self.device.add_nodeTiming("external", 26.8, 1.14e-14)
+        self.device.add_nodeTiming("internal", 13.4, 5.7e-15)
+        self.device.add_nodeTiming("toSite", 1.8, 7.6e-16)
 
         self.device.print_stats()
 
