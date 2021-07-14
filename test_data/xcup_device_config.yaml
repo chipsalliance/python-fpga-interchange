@@ -6,7 +6,7 @@ global_buffer_bels:
 - GND
 # Which cell names are global buffers, and which pins should use dedicated routing resources
 global_buffer_cells:
-  - cell: BUFG
+  - cell: BUFGCE
     pins: # list of pins that use global resources
      - name: I # pin name
        guide_placement: true # attempt to place so that this pin can use dedicated resources
