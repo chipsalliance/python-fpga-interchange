@@ -64,8 +64,8 @@ class TimingAnalyzer():
         self.node_map = {}
         # mapping from node_id to node
         self.node_id_map = {}
-        # mapping from wire in node to list of pips connected to node
-        self.node_pip_map = {}
+        # mapping from (tileType, wire) to list of pips connected to wire
+        self.wire_id_to_pip_map = {}
         # mapping from (tile,wire0,wire1) to pip
         self.pip_map = {}
         # mapping from phy_netlist site name to device site type
@@ -122,25 +122,15 @@ class TimingAnalyzer():
                 self.node_map[(wire_data.tile, wire_data.wire)] = i
                 self.node_id_map[i] = node
 
-    def create_node_to_pip_map(self):
-        wire_to_id_map = {}
-        wire_id_to_pip = {}
+    def create_tileType_wire_id_to_pip_map(self):
         for i, tileType in enumerate(self.device.tileTypeList):
-            for j, wire in enumerate(tileType.wires):
-                wire_to_id_map[(i, wire)] = j
-                wire_id_to_pip[(i, j)] = []
+            for wire in tileType.wires:
+                self.wire_id_to_pip_map[(i, wire)] = []
             for pip in tileType.pips:
-                wire_id_to_pip[(i, pip.wire0)].append((pip, True))
-                wire_id_to_pip[(i, pip.wire1)].append((pip, False))
-
-        for i, node in enumerate(self.device.nodes):
-            self.node_pip_map[i] = []
-            for wire in node.wires:
-                wire_data = self.device.wires[wire]
-                tile = wire_data.tile
-                tile_type = self.tile_map[tile]
-                wire_id = wire_to_id_map[(tile_type, wire_data.wire)]
-                self.node_pip_map[i] += wire_id_to_pip[(tile_type, wire_id)]
+                wire0 = tileType.wires[pip.wire0]
+                wire1 = tileType.wires[pip.wire1]
+                self.wire_id_to_pip_map[(i, wire0)].append((pip, True))
+                self.wire_id_to_pip_map[(i, wire1)].append((pip, False))
 
     def create_wires_to_pip_map(self):
         for i, tileType in enumerate(self.device.tileTypeList):
@@ -405,10 +395,6 @@ class TimingAnalyzer():
                 if pip[1]:
                     delay += get_value_from_model(pip_timing.inputCapacitance)\
                              * resistance * 0.5
-                else:
-                    delay += get_value_from_model(pip_timing.outputCapacitance)\
-                             * (resistance\
-                             + get_value_from_model(pip_timing.outputResistance)) * 0.5
             return delay
 
         def dfs_traverse(vertex, resistance, delay, in_site):
@@ -462,10 +448,10 @@ class TimingAnalyzer():
                     wire1 = temp
 
                 # Calculate delay from slice to tile
+                node_id = self.node_map[(tile, wire0)]
+                node = self.node_id_map[node_id]
                 if in_site:
                     in_site = False
-                    node_id = self.node_map[(tile, wire0)]
-                    node = self.node_id_map[node_id]
                     if len(self.device.nodeTimings) > 0:
                         node_model = self.device.nodeTimings[node.nodeTiming]
                         node_resistance = get_value_from_model(
@@ -474,12 +460,12 @@ class TimingAnalyzer():
                             node_model.capacitance)
                         resistance += node_resistance
                         temp_delay += resistance * (node_capacitance) * 0.5
-                        if len(self.device.pipTimings) > 0:
-                            temp_delay += get_pips_delay(
-                                self.node_pip_map[node_id], resistance)
 
                 # delay on PIP
                 if len(self.device.pipTimings) > 0:
+                    temp_delay += get_pips_delay(
+                        self.wire_id_to_pip_map[(tile_type, wire0)],
+                        resistance)
                     pip_timing = self.device.pipTimings[pip.timing]
 
                     if  (pip.directional or obj.forward) and pip.buffered21 or\
@@ -499,6 +485,9 @@ class TimingAnalyzer():
 
                     temp_delay += get_value_from_model(pip_timing.outputCapacitance)\
                                   * resistance * 0.5
+                    temp_delay += get_pips_delay(
+                        self.wire_id_to_pip_map[(tile_type, wire1)],
+                        resistance)
                 # Calculate delay for next node
                 node_id = self.node_map[(tile, wire1)]
                 node = self.node_id_map[node_id]
@@ -510,13 +499,7 @@ class TimingAnalyzer():
                         node_model.capacitance)
                     resistance += node_resistance
                     temp_delay += resistance * (node_capacitance) * 0.5
-                    if len(self.device.pipTimings) > 0:
-                        temp_delay += get_pips_delay(
-                            self.node_pip_map[node_id], resistance)
-                        # Remove delay of PIP we are in
-                        temp_delay -= get_value_from_model(pip_timing.outputCapacitance) *\
-                                (resistance + get_value_from_model(
-                                    pip_timing.outputResistance)) * 0.5
+
             elif which == "sitePIP":
                 obj = vertex.routeSegment.sitePIP
                 siteType = self.site_map[obj.site]
@@ -601,7 +584,7 @@ def main():
     analyzer.create_wire_to_node_map()
     analyzer.create_wires_to_pip_map()
     analyzer.create_site_and_tile_map()
-    analyzer.create_node_to_pip_map()
+    analyzer.create_tileType_wire_id_to_pip_map()
     analyzer.create_site_bel_to_cell_delay_map()
     analyzer.create_siteType_bel_pin_to_BELPin_map()
     analyzer.create_siteType_belpin_to_siteWire_map()
