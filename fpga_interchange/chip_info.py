@@ -198,6 +198,10 @@ class PipInfo():
 
         self.extra_data = 0
 
+        # Timing info
+        self.timing_idx = -1
+        self.is_buffered = 0
+
         self.pseudo_cell_wires = []
 
     def field_label(self, label_prefix, field):
@@ -220,6 +224,9 @@ class PipInfo():
         bba.u16(self.site_variant)
         bba.u16(self.bel)
         bba.u16(self.extra_data)
+        bba.u32(self.timing_idx)
+        bba.u16(self.is_buffered)
+        bba.u16(0)  # padding
         bba.ref(self.field_label(label_prefix, 'pseudo_cell_wires'))
         bba.u32(len(self.pseudo_cell_wires))
 
@@ -445,6 +452,7 @@ class TileWireRef():
 class NodeInfo():
     def __init__(self):
         self.name = ''
+        self.timing_idx = -1
         self.tile_wires = []
 
     def tile_wires_label(self, label_prefix):
@@ -457,6 +465,7 @@ class NodeInfo():
             tile_wire.append_bba(bba, label)
 
     def append_bba(self, bba, label_prefix):
+        bba.u32(self.timing_idx)
         bba.ref(self.tile_wires_label(label_prefix))
         bba.u32(len(self.tile_wires))
 
@@ -523,15 +532,66 @@ class CellConstraint():
         bba.u32(len(self.states))
 
 
+class PinEdge():
+    def __init__(self):
+        self.pin_name = ""
+        self.clock_edge = 0
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.pin_name)
+        bba.u32(self.clock_edge)
+
+
+class TimingCorners():
+    def __init__(self):
+        self.fast_min = 0
+        self.fast_max = 0
+        self.slow_min = 0
+        self.slow_max = 0
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.fast_min)
+        bba.u32(self.fast_max)
+        bba.u32(self.slow_min)
+        bba.u32(self.slow_max)
+
+
+class PinTimingType(Enum):
+    COMB = 0
+    SETUP = 1
+    HOLD = 2
+    CLK2Q = 3
+
+
+class PinTiming():
+    def __init__(self):
+        self.from_pin = PinEdge()
+        self.to_pin = PinEdge()
+        self.type = PinTimingType.COMB
+        self.value = TimingCorners()
+        self.site_type_idx = 0
+
+    def append_bba(self, bba, label_prefix):
+        self.from_pin.append_bba(bba, label_prefix)
+        self.to_pin.append_bba(bba, label_prefix)
+        bba.u32(self.type.value)
+        self.value.append_bba(bba, label_prefix)
+        bba.u32(self.site_type_idx)
+
+
 class CellBelMap():
-    fields = ['common_pins', 'parameter_pins', 'constraints']
-    field_types = ['CellBelPinPOD', 'ParameterPinsPOD', 'CellConstraintPOD']
+    fields = ['common_pins', 'parameter_pins', 'constraints', 'timing']
+    field_types = [
+        'CellBelPinPOD', 'ParameterPinsPOD', 'CellConstraintPOD',
+        'PinTimingPOD'
+    ]
 
     def __init__(self, cell, tile_type, site_index, bel):
         self.key = '_'.join((cell, tile_type, str(site_index), bel))
         self.common_pins = []
         self.parameter_pins = []
         self.constraints = []
+        self.timing = []
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.key, field)
@@ -783,6 +843,36 @@ class Package():
         bba.str_id(self.package)
         bba.ref(self.field_label(label_prefix, 'package_pins'))
         bba.u32(len(self.package_pins))
+
+
+class PipTiming():
+    def __init__(self):
+        self.int_cap = TimingCorners()
+        self.int_delay = TimingCorners()
+        self.out_res = TimingCorners()
+        self.out_cap = TimingCorners()
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        self.int_cap.append_bba(bba, label_prefix)
+        self.int_delay.append_bba(bba, label_prefix)
+        self.out_res.append_bba(bba, label_prefix)
+        self.out_cap.append_bba(bba, label_prefix)
+
+
+class NodeTiming():
+    def __init__(self):
+        self.res = TimingCorners()
+        self.cap = TimingCorners()
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        self.res.append_bba(bba, label_prefix)
+        self.cap.append_bba(bba, label_prefix)
 
 
 class DefaultCellConnection():
@@ -1153,6 +1243,8 @@ class ChipInfo():
         self.wire_types = []
         self.global_cells = []
         self.clusters = []
+        self.node_timings = []
+        self.pip_timings = []
 
         # str, constids
         self.bel_buckets = []
@@ -1168,19 +1260,14 @@ class ChipInfo():
 
         children_fields = [
             'tile_types', 'sites', 'tiles', 'nodes', 'packages', 'wire_types',
-            'global_cells', 'macros', 'macro_rules', 'clusters'
+            'global_cells', 'macros', 'macro_rules', 'clusters',
+            'node_timings', 'pip_timings'
         ]
         children_types = [
-            'TileTypeInfoPOD',
-            'SiteInstInfoPOD',
-            'TileInstInfoPOD',
-            'NodeInfoPOD',
-            'PackagePOD',
-            'WireTypePOD',
-            'GlobalCellPOD',
-            'MacroPOD',
-            'MacroExpansionPOD',
-            'ClusterPOD',
+            'TileTypeInfoPOD', 'SiteInstInfoPOD', 'TileInstInfoPOD',
+            'NodeInfoPOD', 'PackagePOD', 'WireTypePOD', 'GlobalCellPOD',
+            'MacroPOD', 'MacroExpansionPOD', 'ClusterPOD', 'NodeTimingPOD',
+            'PipTimingPOD'
         ]
         for field, field_type in zip(children_fields, children_types):
             prefix = '{}.{}'.format(label, field)
