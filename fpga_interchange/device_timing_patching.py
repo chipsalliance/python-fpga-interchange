@@ -8,7 +8,21 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+"""
+    This file contains simple script for patching device with timing data.
 
+    It uses simple abstraction layer. It constructs specialized class,
+    for given architecture, passing database path, then it calls extract_data method.
+    That method must return dictionary with keys being tile_type names.
+    Data stored at each key must be dictionary with keys: "wires", "pips", "sites".
+    "wires" entry must hold dictionary with keys being wire name, and data being RC model
+    "pips" entry must hold dictionary with keys being pair (wire0 name, wire1 name) and data being pip model
+    "sites" entry must hold dictionary with keys being site name and data being
+        dictionary with keys being sitePort name and value being model of this port
+
+    So far this script only adds delay models to site ports, PIPs and nodes.
+    But adding support for cells shouldn't be hard thanks to abstraction layer.
+"""
 import argparse
 
 from fpga_interchange.interchange_capnp import read_capnp_file,\
@@ -105,7 +119,7 @@ def populate_corner_model(corner_model, fast_min, fast_typ, fast_max, slow_min,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Add timing information to Xilinx 7 series ")
+        description="Add timing information to Device")
 
     parser.add_argument("--schema_dir", required=True)
     parser.add_argument("--timing_dir", required=True)

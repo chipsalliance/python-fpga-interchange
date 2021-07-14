@@ -211,7 +211,12 @@ class TimingAnalyzer():
         pass
 
     def fix_netlist(self, net):
-
+        """
+            Given physical net it will traverse and search for reachable belpins not listed in net structure
+            but declared by cell placement.
+            Also it tries to fix situations where net goes through site BEL as pseudo sitePIP.
+            Some tools break up such net into 2 trees in one net.
+        """
         global indent
         ends_array = []
         sinks_array = []
@@ -342,7 +347,10 @@ class TimingAnalyzer():
             indent -= 2
 
     def calculate_delays_for_net(self, net):
-
+        """
+            Given a net, this function calculates the delay from each source to each sink
+            and retruns the value of the bigest delay in the net.
+        """
         ends_array = []
 
         def get_value_from_model(model):

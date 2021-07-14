@@ -8,6 +8,20 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+"""
+    This file defines PRJXRAY database timing reader.
+
+    The prjxray_db_reader is abstraction layer for device_timing_patchin.py
+    so that later script doesn't have to know every odds and ends
+    of the database timing models are taken from.
+
+    Extract_data method is used to read and extract data from PRJXRAY
+    timing database. It returns dictionary compatible with device_timing_patching.py
+
+    So far it only extracts data regarding interconnect,
+    pip and site port delay/RC models. The ultimate goal is to support
+    delays inside sites.
+"""
 
 import os
 import json

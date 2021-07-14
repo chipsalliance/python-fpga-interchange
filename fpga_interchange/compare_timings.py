@@ -8,6 +8,12 @@
 # https://opensource.org/licenses/ISC
 #
 # SPDX-License-Identifier: ISC
+"""
+    This file contains script to compare 2 timing analysis result files.
+    First file is used as baseline, second one is compared against base.
+    Results are as follows:
+    (base_line_net_name, compared_net_name) (relative_value, baseline_value, compared_value)
+"""
 
 import argparse
 import sys
