@@ -17,12 +17,14 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
         WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, \
-        MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin, Cluster
+        MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin, Cluster, TimingCorners, PipTiming, \
+        NodeTiming
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
 from fpga_interchange.device_resources import convert_wire_category
 from fpga_interchange.nextpnr import PortType
+from fpga_interchange.static_timing_analysis import SECOND_CHOICE, ALL_POSSIBLE_VALUES
 
 
 class FlattenedWireType(Enum):
@@ -94,8 +96,8 @@ class FlattenedWire():
 class FlattenedPip(
         namedtuple(
             'FlattenedPip',
-            'type src_index dst_index site_index pip_index pseudo_cell_wires is_buffered timing_idx')
-):
+            'type src_index dst_index site_index pip_index pseudo_cell_wires is_buffered timing_idx'
+        )):
     pass
 
 
@@ -105,6 +107,40 @@ class FlattenedSite(
             'site_in_type_index site_type_index site_type site_type_name site_variant bel_to_bel_index bel_pin_to_site_wire_index bel_pin_index_to_bel_index'
         )):
     pass
+
+
+def import_corner(corner_model, scale=1.0):
+    result = TimingCorners()
+
+    def get_value_from_model(req_process, req_corner):
+        process = getattr(corner_model, req_process)
+        if process.which() == req_process:
+            process = getattr(process, req_process)
+            corner = getattr(process, req_corner)
+            if corner.which() == req_corner:
+                return getattr(corner, req_corner)
+            for corner in ALL_POSSIBLE_VALUES:
+                if getattr(process, corner).which() == corner:
+                    return getattr(getattr(process, corner), corner)
+        process = getattr(corner_model, SECOND_CHOICE[req_process])
+        if process.which() == SECOND_CHOICE[req_process]:
+            process = getattr(process, SECOND_CHOICE[req_process])
+            corner = getattr(process, req_corner)
+            if corner.which() == req_corner:
+                return getattr(corner, req_corner)
+            for corner in ALL_POSSIBLE_VALUES:
+                if getattr(process, corner).which() == corner:
+                    return getattr(getattr(process, corner), corner)
+        else:
+            return 0
+
+    for process in ("fast", "slow"):
+        for corner in ("min", "max"):
+            val = get_value_from_model(process, corner)
+            val = int(val * scale)
+            assert val >= 0 and val < 0x7FFFFFFF
+            setattr(result, f"{process}_{corner}", val)
+    return result
 
 
 def emit_constraints(tile_type, tile_constraints, cell_bel_mapper):
@@ -233,7 +269,8 @@ class FlattenedTileType():
                 # Skip pseudo pips through disabled cells
                 continue
 
-            pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1, pip.timing, pip.buffered20)
+            pip_index = self.add_tile_pip(idx, pip.wire0, pip.wire1,
+                                          pip.timing, pip.buffered20)
 
             if is_pseudo_cell:
                 pseudo_pips.append((pip_index, pip))
@@ -242,7 +279,8 @@ class FlattenedTileType():
                 # Pseudo pips should not be bidirectional!
                 assert not is_pseudo_cell
 
-                self.add_tile_pip(idx, pip.wire1, pip.wire0, pip.timing, pip.buffered21)
+                self.add_tile_pip(idx, pip.wire1, pip.wire0, pip.timing,
+                                  pip.buffered21)
 
         # Add all site variants
         for site_in_type_index, site_type_in_tile_type in enumerate(
@@ -432,7 +470,12 @@ class FlattenedTileType():
 
         return pip_index
 
-    def add_tile_pip(self, tile_pip_index, src_wire, dst_wire, timing_idx=-1, is_buffered=True):
+    def add_tile_pip(self,
+                     tile_pip_index,
+                     src_wire,
+                     dst_wire,
+                     timing_idx=-1,
+                     is_buffered=True):
         assert self.wires[src_wire].type == FlattenedWireType.TILE_WIRE
         assert self.wires[dst_wire].type == FlattenedWireType.TILE_WIRE
 
@@ -735,6 +778,9 @@ class FlattenedTileType():
             pip_info.src_index = pip.src_index
             pip_info.dst_index = pip.dst_index
             pip_info.pseudo_cell_wires = pip.pseudo_cell_wires
+
+            pip_info.timing_idx = pip.timing_idx
+            pip_info.is_buffered = pip.is_buffered
 
             if pip.site_index is not None:
                 site = self.sites[pip.site_index]
@@ -1779,6 +1825,11 @@ def populate_macro_rules(device, chip_info):
         chip_info.macro_rules.append(exp_data)
 
 
+CAP_SCALE = 1e15  # fF
+RES_SCALE = 1e6  # uOhm
+DEL_SCALE = 1e12  # ps
+
+
 def populate_chip_info(device, constids, device_config):
     assert len(constids.values) == 1
 
@@ -2099,5 +2150,23 @@ def populate_chip_info(device, constids, device_config):
                                                   False) else 0
             global_cell_data.pins.append(pin_data)
         chip_info.global_cells.append(global_cell_data)
+
+    for pip_timing in device.device_resource_capnp.pipTimings:
+        pip_tmg_data = PipTiming()
+        pip_tmg_data.int_cap = import_corner(pip_timing.internalCapacitance,
+                                             CAP_SCALE)
+        pip_tmg_data.int_delay = import_corner(pip_timing.internalDelay,
+                                               DEL_SCALE)
+        pip_tmg_data.out_res = import_corner(pip_timing.outputResistance,
+                                             RES_SCALE)
+        pip_tmg_data.out_cap = import_corner(pip_timing.outputCapacitance,
+                                             CAP_SCALE)
+        chip_info.pip_timings.append(pip_tmg_data)
+
+    for node_timing in device.device_resource_capnp.nodeTimings:
+        node_tmg_data = NodeTiming()
+        node_tmg_data.res = import_corner(node_timing.resistance, RES_SCALE)
+        node_tmg_data.cap = import_corner(node_timing.capacitance, CAP_SCALE)
+        chip_info.node_timings.append(node_tmg_data)
 
     return chip_info
