@@ -233,7 +233,7 @@ class LutElementsEmitter():
 class FlattenedTileType():
     def __init__(self, device, tile_type_index, tile_type, cell_bel_mapper,
                  constraints, lut_elements, disabled_routethrus,
-                 disabled_site_pips):
+                 disabled_site_pips, extra_pip_timings):
         self.tile_type_name = device.strs[tile_type.name]
         self.tile_type = tile_type
 
@@ -250,6 +250,7 @@ class FlattenedTileType():
         self.lut_elements_map = {}
 
         self.disabled_site_pips = disabled_site_pips
+        self.extra_pip_timings = extra_pip_timings
 
         # Add tile wires
         self.tile_wire_to_wire_in_tile_index = {}
@@ -297,7 +298,8 @@ class FlattenedTileType():
 
             self.add_site_type(device, site_type_in_tile_type,
                                site_in_type_index, site_type_index,
-                               site_variant, cell_bel_mapper, lut_elements)
+                               site_variant, cell_bel_mapper, lut_elements,
+                               extra_pip_timings)
 
             for site_variant, (alt_site_type_index, _) in enumerate(
                     zip(primary_site_type.altSiteTypes,
@@ -305,7 +307,7 @@ class FlattenedTileType():
                 self.add_site_type(device, site_type_in_tile_type,
                                    site_in_type_index, alt_site_type_index,
                                    site_variant, cell_bel_mapper, lut_elements,
-                                   primary_site_type)
+                                   extra_pip_timings, primary_site_type)
 
         # Now that sites have been emitted, populate pseudo_pips data.
         #
@@ -504,6 +506,7 @@ class FlattenedTileType():
                       site_variant,
                       cell_bel_mapper,
                       lut_elements,
+                      extra_pip_timings,
                       primary_site_type=None):
         if site_variant == -1:
             assert primary_site_type is None
@@ -671,7 +674,27 @@ class FlattenedTileType():
                 src_wire = site_wire
                 dst_wire = tile_wire
 
-            self.add_site_pin(src_wire, dst_wire, site_index, idx)
+            timing_idx = -1
+            if site_pin.model.which(
+            ) != 'noModel' or site_pin.delay.slow.which(
+            ) != 'noSlow' or site_pin.delay.fast.which() != 'noFast':
+                # Site pin has timing data associated with it
+                pin_timing = PipTiming()
+                if site_pin.model.which() == 'resistance':
+                    pin_timing.out_res = import_corner(
+                        site_pin.model.resistance, RES_SCALE)
+                elif site_pin.model.which() == 'capacitance':
+                    pin_timing.int_cap = import_corner(
+                        site_pin.model.capacitance, CAP_SCALE)
+                else:
+                    assert site_pin.model.which(
+                    ) == 'noModel', site_pin.model.which()
+                pin_timing.int_delay = import_corner(site_pin.delay, DEL_SCALE)
+                timing_idx = len(device.device_resource_capnp.
+                                 pipTimings) + len(extra_pip_timings)
+                extra_pip_timings.append(pin_timing)
+
+            self.add_site_pin(src_wire, dst_wire, site_index, idx, timing_idx)
 
     def add_site_pip(self, src_wire, dst_wire, site_index, site_pip_index):
         assert self.wires[src_wire].type == FlattenedWireType.SITE_WIRE
@@ -689,7 +712,12 @@ class FlattenedTileType():
 
         return self.add_pip_common(flat_pip)
 
-    def add_site_pin(self, src_wire, dst_wire, site_index, site_pin_index):
+    def add_site_pin(self,
+                     src_wire,
+                     dst_wire,
+                     site_index,
+                     site_pin_index,
+                     timing_idx=-1):
         if self.wires[src_wire].type == FlattenedWireType.SITE_WIRE:
             assert self.wires[dst_wire].type == FlattenedWireType.TILE_WIRE
         else:
@@ -703,7 +731,7 @@ class FlattenedTileType():
             site_index=site_index,
             pip_index=site_pin_index,
             pseudo_cell_wires=[],
-            timing_idx=-1,
+            timing_idx=timing_idx,
             is_buffered=True)
 
         return self.add_pip_common(flat_pip)
@@ -2393,11 +2421,14 @@ def populate_chip_info(device, constids, device_config):
 
         chip_info.clusters.append(cluster_obj)
 
+    extra_pip_timings = []
+
     for tile_type_index, tile_type in enumerate(
             device.device_resource_capnp.tileTypeList):
         flattened_tile_type = FlattenedTileType(
             device, tile_type_index, tile_type, cell_bel_mapper, constraints,
-            lut_elements, disabled_routethrus, disabled_site_pips)
+            lut_elements, disabled_routethrus, disabled_site_pips,
+            extra_pip_timings)
 
         tile_type_info = flattened_tile_type.create_tile_type_info(
             cell_bel_mapper)
@@ -2646,6 +2677,8 @@ def populate_chip_info(device, constids, device_config):
         pip_tmg_data.out_cap = import_corner(pip_timing.outputCapacitance,
                                              CAP_SCALE)
         chip_info.pip_timings.append(pip_tmg_data)
+
+    chip_info.pip_timings += extra_pip_timings
 
     for node_timing in device.device_resource_capnp.nodeTimings:
         node_tmg_data = NodeTiming()
