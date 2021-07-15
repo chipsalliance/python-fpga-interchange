@@ -2066,6 +2066,17 @@ def populate_chip_info(device, constids, device_config):
     for idx, node in enumerate(device.device_resource_capnp.nodes):
         # Skip nodes with only 1 wire!
         if len(node.wires) == 1:
+            # Move timing index to tile type
+            wire = device.device_resource_capnp.wires[node.wires[0]]
+            tile_name = device.strs[wire.tile]
+            wire_name = device.strs[wire.wire]
+
+            tile_index = tile_name_to_tile_index[tile_name]
+            tile_info = chip_info.tiles[tile_index]
+            wire_in_tile_id = tile_wire_to_wire_in_tile_index[tile_info.
+                                                              type][wire_name]
+            chip_info.tile_types[tile_info.type].wire_data[
+                wire_in_tile_id].timing_idx = node.nodeTiming
             continue
 
         node_info = NodeInfo()
