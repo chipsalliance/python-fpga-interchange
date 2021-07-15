@@ -176,6 +176,8 @@ class TileWireInfo():
         # -1 if site is a primary type, otherwise index into altSiteTypes.
         self.site_variant = 0
 
+        self.timing_idx = -1
+
     def field_label(self, label_prefix, field):
         if self.site != -1:
             prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site,
@@ -210,6 +212,7 @@ class TileWireInfo():
 
         bba.u16(self.site)
         bba.u16(self.site_variant)
+        bba.u32(self.timing_idx)
 
 
 class PipInfo():
