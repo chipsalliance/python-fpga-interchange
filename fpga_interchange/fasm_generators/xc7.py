@@ -167,14 +167,16 @@ class XC7FasmGenerator(FasmGenerator):
                 elif attr in rw_widths:
                     init_value = init_param.decode_integer(value)
 
+                    if init_value == 0:
+                        continue
                     # Handle special INIT value case
                     if is_y1 and init_value == 36 and ram_mode == "SDP" and attr == "READ_WIDTH_A":
                         init_value = 18
 
-                    fasm_features.append("{}_{}".format(attr, init_value))
-
                     if init_value == 36 and ram_mode == "SDP":
-                        fasm_features.append("SDP_{}_36".format(attr))
+                        fasm_features.append("SDP_{}_36".format(attr[:-2]))
+                    else:
+                        fasm_features.append("{}_{}".format(attr, init_value))
 
             for fasm_feature in fasm_features:
                 self.add_cell_feature((tile_name, bram_prefix, fasm_feature))
@@ -454,6 +456,26 @@ class XC7FasmGenerator(FasmGenerator):
         excluded_bels += ["CLKINV"]
 
         carry_cy = ["{}CY0".format(bel) for bel in ["A", "B", "C", "D"]]
+        slicem_srl_mux = {
+            "CDI1MUX": {
+                "LUT": "CLUT",
+                "DI": "DI_DMC31",
+                "DMC31": "DI_DMC31",
+                "CI": "CI"
+            },
+            "BDI1MUX": {
+                "LUT": "BLUT",
+                "DI": "DI_CMC31",
+                "CMC31": "DI_CMC31",
+                "BI": "BI"
+            },
+            "ADI1MUX": {
+                "LUT": "ALUT",
+                "BDI1": "BDI1_BMC31",
+                "BMC31": "BDI1_BMC31",
+                "AI": "AI"
+            },
+        }
 
         for site, bel, pin, _ in routing_bels:
             if bel in excluded_bels:
@@ -479,6 +501,14 @@ class XC7FasmGenerator(FasmGenerator):
                     # default value, do not emit as might collide with CIN
                     continue
                 feature = (tile_name, slice_prefix, bel, pin)
+            elif bel in slicem_srl_mux.keys():
+                feature = (tile_name, slice_prefix, slicem_srl_mux[bel]['LUT'],
+                           "DI1MUX", slicem_srl_mux[bel][pin])
+            elif bel == "WEMUX":
+                if pin == "CE":
+                    feature = (tile_name, slice_prefix, bel, pin)
+                else:
+                    continue
             else:
                 feature = (tile_name, slice_prefix, bel, pin)
 
@@ -575,6 +605,13 @@ class XC7FasmGenerator(FasmGenerator):
                 if prefix is None:
                     continue
 
+                io_re = re.compile(".*?X[0-9]+Y([0-9]+)")
+                m = io_re.match(tile)
+                y_coord = int(m.group(1))
+                if "SING" in tile and y_coord % 50 == 0:
+                    prefix = prefix[0:-1] + "0"
+                elif "SING" in tile and y_coord % 50 == 49:
+                    prefix = prefix[0:-1] + "1"
                 for feature in site_thru_feature.features:
                     self.add_cell_feature((tile, prefix, feature))
 
