@@ -94,9 +94,7 @@ class XC7FasmGenerator(FasmGenerator):
         Handles slice RAMB18 FASM feature emission.
         """
 
-        # TODO: handle ramb36 as well
-
-        init_re = re.compile("INITP?_[0-9][0-9]")
+        init_re = re.compile("(INITP?_)([0-9A-F][0-9A-F])")
 
         z_features = ["INIT_A", "INIT_B", "SRVAL_A", "SRVAL_B"]
         str_features = [
@@ -107,8 +105,8 @@ class XC7FasmGenerator(FasmGenerator):
             "READ_WIDTH_A", "READ_WIDTH_B", "WRITE_WIDTH_A", "WRITE_WIDTH_B"
         ]
 
-        allowed_cell_types = ["RAMB18E1"]
-        allowed_site_types = ["RAMB18E1"]
+        allowed_cell_types = ["RAMB18E1", "RAMB36E1"]
+        allowed_site_types = ["RAMB18E1", "RAMB36E1"]
 
         for cell_instance, cell_data in self.physical_cells_instances.items():
             cell_type = cell_data.cell_type
@@ -120,68 +118,232 @@ class XC7FasmGenerator(FasmGenerator):
             site_name = cell_data.site_name
             bram_prefix = self.get_bram_prefix(site_name, tile_type)
 
-            is_y1 = "Y1" in bram_prefix
+            if "RAMB18" in bram_prefix:
+                is_y1 = "Y1" in bram_prefix
 
-            self.add_cell_feature((tile_name, bram_prefix, "IN_USE"))
+                self.add_cell_feature((tile_name, bram_prefix, "IN_USE"))
 
-            attributes = cell_data.attributes
+                attributes = cell_data.attributes
 
-            fasm_features = list()
-            ram_mode = attributes["RAM_MODE"]
-            for attr, value in attributes.items():
-                init_param = self.device_resources.get_parameter_definition(
-                    cell_type, attr)
+                fasm_features = list()
+                ram_mode = attributes["RAM_MODE"]
+                for attr, value in attributes.items():
+                    init_param = self.device_resources.get_parameter_definition(
+                        cell_type, attr)
 
-                init_match = init_re.match(attr)
-                fasm_feature = None
-                if init_match:
-                    init_value = init_param.decode_integer(value)
+                    init_match = init_re.match(attr)
+                    fasm_feature = None
+                    if init_match:
+                        init_value = init_param.decode_integer(value)
 
-                    if init_value == 0:
-                        continue
+                        if init_value == 0:
+                            continue
 
-                    init_str_value = "{:b}".format(init_value)
+                        init_str_value = "{:b}".format(init_value)
+                        init_str = "{len}'b{value}".format(
+                            len=len(init_str_value), value=init_str_value)
+                        fasm_feature = "{}[{}:0]={}".format(
+                            attr,
+                            len(init_str_value) - 1, init_str)
+                        fasm_features.append(fasm_feature)
+
+                    elif attr in z_features:
+                        init_value = init_param.decode_integer(value)
+                        width = init_param.width
+
+                        init_str_value = "{value:0{width}b}".format(
+                            value=init_value, width=width)
+
+                        feature_value = invert_bitstring(init_str_value)
+
+                        fasm_feature = "Z{}[{}:0]={}'b{}".format(
+                            attr, width - 1, width, feature_value)
+                        fasm_features.append(fasm_feature)
+
+                    elif attr in str_features:
+                        fasm_features.append("{}_{}".format(attr, value))
+
+                    elif attr in rw_widths:
+                        init_value = init_param.decode_integer(value)
+
+                        assert init_value == 36 and ram_mode == 'SDP' or init_value in [
+                            0, 1, 2, 4, 9, 18
+                        ], (init_value, ram_mode)
+
+                        attr_prefix = attr[:-2]
+                        if init_value == 36 and ram_mode == "SDP":
+                            fasm_features.append("SDP_{}_36".format(attr[:-2]))
+                            fasm_features = [
+                                feature for feature in fasm_features
+                                if not feature.startswith(attr_prefix)
+                            ]
+                            fasm_features.append("{}_{}".format(
+                                attr_prefix + "_A",
+                                18 if is_y1 or "WRITE" in attr_prefix else
+                                1))  # Handle special INIT value case
+                            fasm_features.append("{}_{}".format(
+                                attr_prefix + "_B", 18))
+                        else:
+                            if init_value != 0 and not any([
+                                    feature.startswith(attr)
+                                    for feature in fasm_features
+                            ]):
+                                fasm_features.append("{}_{}".format(
+                                    attr, init_value))
+
+                for fasm_feature in fasm_features:
+                    self.add_cell_feature((tile_name, bram_prefix,
+                                           fasm_feature))
+
+                if not is_y1:
+                    for feature in [
+                            "ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"
+                    ]:
+                        value = "1" * 13
+                        fasm_feature = "Z{}[12:0]=13'b{}".format(
+                            feature, value)
+                        self.add_cell_feature((tile_name, fasm_feature))
+            else:
+                #TODO: add support for cascading
+                brams = ["RAMB18_Y0", "RAMB18_Y1"]
+                for bram in brams:
+                    self.add_cell_feature((tile_name, bram, "IN_USE"))
+
+                attributes = cell_data.attributes
+
+                fasm_features = list()
+                ram_mode = attributes["RAM_MODE"]
+
+                init_types = ["INIT_{:02X}".format(i) for i in range(128)]
+                init_name_dict = {
+                    "INIT_{:02X}".format(i + 0x40): "INIT_{:02X}".format(i)
+                    for i in range(64)
+                }
+                init_name_dict.update({
+                    "INITP_{:02X}".format(i + 0x8): "INITP_{:02X}".format(i)
+                    for i in range(8)
+                })
+                initp_types = ["INITP_{:02X}".format(i) for i in range(16)]
+
+                init_dict = {}
+                for value in init_types + initp_types:
+                    init_dict[value] = 0
+
+                for attr, value in attributes.items():
+                    init_param = self.device_resources.get_parameter_definition(
+                        cell_type, attr)
+
+                    init_match = init_re.match(attr)
+                    fasm_feature = None
+                    if init_match:
+                        init_pos = int(init_match.group(2), 16)
+                        init_prefix = init_match.group(1)
+                        init_value = init_param.decode_integer(value)
+
+                        if init_value == 0:
+                            continue
+
+                        group = init_pos // 32
+                        line = (init_pos - group * 32) // 2
+                        bit_mask = 0
+                        for i in range(0, 128):
+                            bit_mask |= ((init_value & (1 << (i * 2))) >> i)
+                        if init_pos % 2 == 1:
+                            bit_mask <<= 128
+                        init_dict[init_prefix + "{:X}".format(group) +
+                                  "{:X}".format(line)] |= bit_mask
+                        bit_mask = 0
+                        for i in range(0, 128):
+                            bit_mask |= ((init_value & (1 << (i * 2 + 1))) >>
+                                         (i + 1))
+                        if init_pos % 2 == 1:
+                            bit_mask <<= 128
+                        group += 4 if init_prefix == "INIT_" else 0
+                        line += 0 if init_prefix == "INIT_" else 8
+                        init_dict[init_prefix + "{:X}".format(group) +
+                                  "{:X}".format(line)] |= bit_mask
+
+                    elif attr in z_features:
+                        init_value = init_param.decode_integer(value)
+                        width = init_param.width
+
+                        init_str_value = "{value:0{width}b}".format(
+                            value=init_value, width=width)
+
+                        feature_value = invert_bitstring(init_str_value)
+
+                        for i, bram in enumerate(brams):
+                            fasm_feature = "{}.Z{}[{}:0]={}'b{}".format(
+                                bram, attr, width // 2 - 1, width // 2,
+                                feature_value[18 * i:18 * (i + 1)])
+                            fasm_features.append(fasm_feature)
+
+                    elif attr in str_features:
+                        for bram in brams:
+                            fasm_features.append("{}.{}_{}".format(
+                                bram, attr, value))
+
+                    elif attr in rw_widths:
+                        init_value = init_param.decode_integer(value)
+
+                        assert init_value == 72 and ram_mode == 'SDP' or init_value in [
+                            0, 1, 2, 4, 9, 18, 36
+                        ], (init_value, ram_mode)
+
+                        attr_prefix = attr[:-2]
+                        if init_value == 72 and ram_mode == "SDP":
+                            for bram in brams:
+                                fasm_features.append("{}.SDP_{}_36".format(
+                                    bram, attr[:-2]))
+                                fasm_features = [
+                                    feature for feature in fasm_features
+                                    if not feature.startswith(attr_prefix)
+                                ]
+                                fasm_features.append("{}.{}_{}".format(
+                                    bram, attr_prefix + "_A", 18))
+                                fasm_features.append("{}.{}_{}".format(
+                                    bram, attr_prefix + "_B", 18))
+                        else:
+                            if init_value % 2 == 1:
+                                fasm_features.append(
+                                    "RAMB36.BRAM36_{}_1".format(attr))
+                                init_value = 2 if init_value == 1 else 8
+                            init_value = init_value >> 1
+                            for bram in brams:
+                                if init_value != 0 and not any([
+                                        feature.startswith(bram + "." + attr)
+                                        for feature in fasm_features
+                                ]):
+                                    fasm_features.append("{}.{}_{}".format(
+                                        bram, attr, init_value))
+
+                for init, value in init_dict.items():
+                    init_match = init_re.match(init)
+                    init_pos = int(init_match.group(2), 16)
+                    init_prefix = init_match.group(1)
+                    init_str_value = "{:b}".format(value)
                     init_str = "{len}'b{value}".format(
                         len=len(init_str_value), value=init_str_value)
-                    fasm_feature = "{}[{}:0]={}".format(
-                        attr,
-                        len(init_str_value) - 1, init_str)
-                    fasm_features.append(fasm_feature)
-
-                elif attr in z_features:
-                    init_value = init_param.decode_integer(value)
-                    width = init_param.width
-
-                    init_str_value = "{value:0{width}b}".format(
-                        value=init_value, width=width)
-
-                    feature_value = invert_bitstring(init_str_value)
-
-                    fasm_feature = "Z{}[{}:0]={}'b{}".format(
-                        attr, width - 1, width, feature_value)
-                    fasm_features.append(fasm_feature)
-
-                elif attr in str_features:
-                    fasm_features.append("{}_{}".format(attr, value))
-
-                elif attr in rw_widths:
-                    init_value = init_param.decode_integer(value)
-
-                    if init_value == 0:
-                        continue
-                    # Handle special INIT value case
-                    if is_y1 and init_value == 36 and ram_mode == "SDP" and attr == "READ_WIDTH_A":
-                        init_value = 18
-
-                    if init_value == 36 and ram_mode == "SDP":
-                        fasm_features.append("SDP_{}_36".format(attr[:-2]))
+                    if init_prefix == "INIT_" and init_pos < 0x40 or init_prefix == "INITP_" and init_pos < 0x8:
+                        self.add_cell_feature(
+                            (tile_name, "RAMB18_Y0", "{}[{}:0]={}".format(
+                                init,
+                                len(init_str_value) - 1, init_str)))
                     else:
-                        fasm_features.append("{}_{}".format(attr, init_value))
+                        self.add_cell_feature(
+                            (tile_name, "RAMB18_Y1", "{}[{}:0]={}".format(
+                                init_name_dict[init],
+                                len(init_str_value) - 1, init_str)))
 
-            for fasm_feature in fasm_features:
-                self.add_cell_feature((tile_name, bram_prefix, fasm_feature))
+                for fasm_feature in fasm_features:
+                    self.add_cell_feature((tile_name, fasm_feature))
 
-            if not is_y1:
+                for feature in [
+                        "RAMB36.RAM_EXTENSION_A_NONE_OR_UPPER",
+                        "RAMB36.RAM_EXTENSION_B_NONE_OR_UPPER"
+                ]:
+                    self.add_cell_feature((tile_name, feature))
+
                 for feature in ["ALMOST_EMPTY_OFFSET", "ALMOST_FULL_OFFSET"]:
                     value = "1" * 13
                     fasm_feature = "Z{}[12:0]=13'b{}".format(feature, value)
@@ -308,12 +470,12 @@ class XC7FasmGenerator(FasmGenerator):
         Returns the slice prefix corresponding to the input site name.
         """
 
-        ramb_re = re.compile("RAMB18_X[0-9]+Y([0-9]+)")
+        ramb_re = re.compile("(RAMB(18|36))_X[0-9]+Y([0-9]+)")
         m = ramb_re.match(site_name)
         assert m, site_name
 
-        ramb_site_idx = int(m.group(1)) % 2
-        return "RAMB18_Y{}".format(ramb_site_idx)
+        ramb_site_idx = int(m.group(3)) % 2
+        return "{}_Y{}".format(m.group(1), ramb_site_idx)
 
     def add_lut_features(self):
         for lut in self.luts.values():
@@ -522,9 +684,17 @@ class XC7FasmGenerator(FasmGenerator):
             tile_name, tile_type = self.get_tile_info_at_site(site)
             bram_prefix = self.get_bram_prefix(site, tile_type)
 
-            if not is_inverting:
-                zinv_feature = "ZINV_{}".format(pin)
-                self.add_cell_feature((tile_name, bram_prefix, zinv_feature))
+            if "RAMB18" in bram_prefix:
+                if not is_inverting:
+                    zinv_feature = "ZINV_{}".format(pin)
+                    self.add_cell_feature((tile_name, bram_prefix,
+                                           zinv_feature))
+            elif "RAMB36" in bram_prefix:
+                if not is_inverting:
+                    zinv_feature = "{}.ZINV_{}".format(
+                        "RAMB18_Y0" if pin[-1] == "L" else "RAMB18_Y1",
+                        pin[:-1])
+                    self.add_cell_feature((tile_name, zinv_feature))
 
     def handle_slice_bel_pins(self):
         """
