@@ -1074,7 +1074,9 @@ class XC7FasmGenerator(FasmGenerator):
             node, that may require some extra features as well.
             """
 
-            extra_wires_to_check = ["CLK_BUFG_REBUF_R_CK", "HCLK_CK_BUFHCLK"]
+            extra_wires_to_check = [
+                "CLK_BUFG_REBUF_R_CK", "HCLK_CK_BUFHCLK", "HCLK_IOI_CK_BUFHCLK"
+            ]
 
             if any(
                     wire.startswith(extra_wire) for extra_wire in
@@ -1201,11 +1203,11 @@ class XC7FasmGenerator(FasmGenerator):
         bel_pins = [("CARRY4", "CIN")]
 
         tile_types = [
-            "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
-            "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R", "CLK_HROW_BOT_R",
-            "CLK_BUFG_REBUF", "BRAM_L", "BRAM_R", "LIOI3", "LIOI3_SING",
-            "LIOI3_TBYTETERM", "LIOI3_TBYTESRC", "RIOI3", "RIOI3_SING",
-            "RIOI3_TBYTETERM", "RIOI3_TBYTESRC"
+            "HCLK_IOI3", "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN",
+            "HCLK_R_BOT_UTURN", "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R",
+            "CLK_HROW_BOT_R", "CLK_BUFG_REBUF", "BRAM_L", "BRAM_R", "LIOI3",
+            "LIOI3_SING", "LIOI3_TBYTETERM", "LIOI3_TBYTESRC", "RIOI3",
+            "RIOI3_SING", "RIOI3_TBYTETERM", "RIOI3_TBYTESRC"
         ]
         extra_pip_features = dict(
             (tile_type, set()) for tile_type in tile_types)
