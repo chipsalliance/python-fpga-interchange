@@ -216,10 +216,8 @@ class FasmGenerator():
                     tile = tile_info.sub_tile_prefices[pip.subTile]
                     if pip.which() != "pseudoCells":
                         if tile_type_name in extra_pip_features:
-                            extra_pip_features[tile_type_name].add((tile,
-                                                                    wire0))
-                            extra_pip_features[tile_type_name].add((tile,
-                                                                    wire1))
+                            extra_pip_features[tile_type_name].add(
+                                (tile, wire0, wire1))
 
                         self.add_pip_feature(
                             (tile, wire_rename(wire0), wire_rename(wire1)),
