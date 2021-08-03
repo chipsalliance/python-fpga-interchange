@@ -89,6 +89,59 @@ def parse_lut_bel(lut_bel):
 
 
 class XC7FasmGenerator(FasmGenerator):
+    @staticmethod
+    def get_slice_prefix(site_name, tile_type):
+        """
+        Returns the slice prefix corresponding to the input site name.
+        """
+
+        slice_sites = {
+            "CLBLL_L": ["SLICEL_X0", "SLICEL_X1"],
+            "CLBLL_R": ["SLICEL_X0", "SLICEL_X1"],
+            "CLBLM_L": ["SLICEM_X0", "SLICEL_X1"],
+            "CLBLM_R": ["SLICEM_X0", "SLICEL_X1"],
+        }
+
+        slice_re = re.compile("SLICE_X([0-9]+)Y[0-9]+")
+        m = slice_re.match(site_name)
+        assert m, site_name
+
+        slice_site_idx = int(m.group(1)) % 2
+        return slice_sites[tile_type][slice_site_idx]
+
+    @staticmethod
+    def get_bram_prefix(site_name, tile_type):
+        """
+        Returns the bram prefix corresponding to the input site name.
+        """
+
+        ramb_re = re.compile("(RAMB(18|36))_X[0-9]+Y([0-9]+)")
+        m = ramb_re.match(site_name)
+        assert m, site_name
+
+        ramb_site_idx = int(m.group(3)) % 2
+        return "{}_Y{}".format(m.group(1), ramb_site_idx)
+
+    @staticmethod
+    def get_iologic_prefix(site_name, tile_type):
+        """
+        Returns the iologic prefix corresponding to the input site name.
+        """
+
+        iologic_re = re.compile("([IO](LOGIC|DELAY))_X[0-9]+Y([0-9]+)")
+        m = iologic_re.match(site_name)
+        assert m, site_name
+
+        y_coord = int(m.group(3))
+        if "SING" in tile_type and y_coord % 50 == 0:
+            io_site_idx = 0
+        elif "SING" in tile_type and y_coord % 50 == 49:
+            io_site_idx = 1
+        else:
+            io_site_idx = y_coord % 2
+
+        return "{}_Y{}".format(m.group(1), io_site_idx)
+
     def handle_brams(self):
         """
         Handles slice RAMB18 FASM feature emission.
@@ -355,8 +408,6 @@ class XC7FasmGenerator(FasmGenerator):
         in the 7-Series database format.
         """
 
-        import sys
-
         # FIXME: Need to make this dynamic, and find a suitable way to add FASM annotations to the device resources.
         #        In addition, a reformat of the database might be required to have an easier handling of these
         #        features.
@@ -444,38 +495,171 @@ class XC7FasmGenerator(FasmGenerator):
             if iostandard.startswith("DIFF_") and is_output:
                 self.add_cell_feature((tile_name, "OUT_DIFF"))
 
-    @staticmethod
-    def get_slice_prefix(site_name, tile_type):
+    def handle_iologic(self):
         """
-        Returns the slice prefix corresponding to the input site name.
+        Handles the IOLOGIC tiles, includeing ISERDES, OSERDES, IDELAY
         """
 
-        slice_sites = {
-            "CLBLL_L": ["SLICEL_X0", "SLICEL_X1"],
-            "CLBLL_R": ["SLICEL_X0", "SLICEL_X1"],
-            "CLBLM_L": ["SLICEM_X0", "SLICEL_X1"],
-            "CLBLM_R": ["SLICEM_X0", "SLICEL_X1"],
+        cell_features = set()
+
+        def handle_iserdes(cell_data):
+            tile_name = cell_data.tile_name
+            tile_type = cell_data.tile_type
+            site_name = cell_data.site_name
+            cell_type = cell_data.cell_type
+            prefix = self.get_iologic_prefix(site_name, tile_type)
+
+            attrs = cell_data.attributes
+
+            itype = attrs.get("INTERFACE_TYPE", "MEMORY")
+            width = "W{}".format(attrs.get("DATA_WIDTH", "4"))
+            data_rate = attrs.get("DATA_RATE", "DDR")
+            feature = ".".join([itype, data_rate, width])
+
+            cell_features.add((tile_name, prefix, "ISERDES", feature))
+
+            num_ce = attrs.get("NUM_CE", "2")
+            cell_features.add((tile_name, prefix,
+                               "ISERDES.NUM_CE.N{}".format(num_ce)))
+
+            iob_delay = attrs.get("IOBDELAY", "NONE")
+
+            for idelay in ["IFD", "IBUF"]:
+                if iob_delay in [idelay, "BOTH"]:
+                    cell_features.add((tile_name, prefix,
+                                       "IOBDELAY_{}".format(idelay)))
+
+            for z_feature in ["INIT", "SRVAL"]:
+                for q in range(1, 5):
+                    z_attr = "{}_Q{}".format(z_feature, q)
+                    z_value = attrs.get(z_attr, 0)
+                    z_param = self.device_resources.get_parameter_definition(
+                        cell_type, z_attr)
+
+                    z_value = z_param.decode_integer(z_value)
+
+                    if z_value == 0:
+                        cell_features.add((tile_name, prefix,
+                                           "IFF.Z{}_Q{}".format(z_feature, q)))
+
+        def handle_oserdes(cell_data):
+            tile_name = cell_data.tile_name
+            tile_type = cell_data.tile_type
+            site_name = cell_data.site_name
+            cell_type = cell_data.cell_type
+            prefix = self.get_iologic_prefix(site_name, tile_type)
+
+            attrs = cell_data.attributes
+
+            common_feature = ".".join((tile_name, prefix, "OSERDES"))
+
+            # Always present feature
+            cell_features.add((common_feature, "IN_USE"))
+            cell_features.add((common_feature, "SRTYPE.SYNC"))
+            cell_features.add((common_feature, "TSRTYPE.SYNC"))
+            cell_features.add((tile_name, prefix,
+                               "ODDR.DDR_CLK_EDGE.SAME_EDGE"))
+            cell_features.add((tile_name, prefix, "ODDR.SRUSED"))
+            cell_features.add((tile_name, prefix, "OQUSED"))
+
+            data_width = "W{}".format(attrs.get("DATA_WIDTH", "4"))
+            features = {
+                "DATA_RATE_OQ": "DDR",
+                "DATA_RATE_TQ": "DDR",
+                "SERDES_MODE": "MASTER"
+            }
+            for k, v in features.items():
+                attr = attrs.get(k, v)
+
+                if v != "MASTER":
+                    cell_features.add((common_feature, k, attr))
+
+                if k == "DATA_RATE_OQ":
+                    cell_features.add((common_feature, "DATA_WIDTH", attr,
+                                       data_width))
+
+            tristate_width = attrs.get("TRISTATE_WIDTH", "4")
+            if tristate_width == "4":
+                cell_features.add((common_feature, "TRISTATE_WIDTH",
+                                   "W{}".format(tristate_width)))
+
+            for z_attr in ["INIT_TQ", "INIT_OQ", "SRVAL_TQ", "SRVAL_OQ"]:
+                z_value = attrs.get(z_attr, 0)
+                z_param = self.device_resources.get_parameter_definition(
+                    cell_type, z_attr)
+
+                z_value = z_param.decode_integer(z_value)
+
+                if z_value == 0:
+                    cell_features.add((tile_name, prefix,
+                                       "Z{}".format(z_attr)))
+
+        def handle_idelay(cell_data):
+            tile_name = cell_data.tile_name
+            tile_type = cell_data.tile_type
+            site_name = cell_data.site_name
+            cell_type = cell_data.cell_type
+            prefix = self.get_iologic_prefix(site_name, tile_type)
+
+            attrs = cell_data.attributes
+
+            cell_features.add((tile_name, prefix, "IN_USE"))
+            features = {
+                "DELAY_SRC": "IDATAIN",
+                "IDELAY_TYPE": "FIXED",
+                "HIGH_PERFORMANCE_MODE": "FALSE",
+                "CINVCTRL_SEL": "FALSE",
+                "PIPE_SEL": "FALSE"
+            }
+
+            for k, v in features.items():
+                v = attrs.get(k, v)
+                if v == "FALSE":
+                    continue
+                elif v == "TRUE":
+                    cell_features.add((tile_name, prefix, k))
+                else:
+                    cell_features.add((tile_name, prefix, "{}_{}".format(k,
+                                                                         v)))
+
+            delay_value = attrs.get("IDELAY_VALUE", "1'b0")
+            delay_param = self.device_resources.get_parameter_definition(
+                cell_type, "IDELAY_VALUE")
+
+            delay_value = delay_param.decode_integer(delay_value)
+
+            delay_str_value = "{:b}".format(delay_value)
+            delay_str = "{len}'b{value}".format(
+                len=len(delay_str_value), value=delay_str_value)
+            delay_feature = "{}[{}:0]={}".format("IDELAY_VALUE",
+                                                 len(delay_str_value) - 1,
+                                                 delay_str)
+
+            zdelay_str_value = invert_bitstring(delay_str_value)
+            zdelay_str = "{len}'b{value}".format(
+                len=len(zdelay_str_value), value=zdelay_str_value)
+            zdelay_feature = "{}[{}:0]={}".format("ZIDELAY_VALUE",
+                                                  len(zdelay_str_value) - 1,
+                                                  zdelay_str)
+
+            cell_features.add((tile_name, prefix, delay_feature))
+            cell_features.add((tile_name, prefix, zdelay_feature))
+
+        ioi_handlers = {
+            "ISERDESE2": handle_iserdes,
+            "OSERDESE2": handle_oserdes,
+            "IDELAYE2": handle_idelay,
         }
 
-        slice_re = re.compile("SLICE_X([0-9]+)Y[0-9]+")
-        m = slice_re.match(site_name)
-        assert m, site_name
+        for cell_data in self.physical_cells_instances.values():
+            cell_type = cell_data.cell_type
+            if cell_type not in ioi_handlers:
+                continue
 
-        slice_site_idx = int(m.group(1)) % 2
-        return slice_sites[tile_type][slice_site_idx]
+            ioi_handlers[cell_type](cell_data)
 
-    @staticmethod
-    def get_bram_prefix(site_name, tile_type):
-        """
-        Returns the slice prefix corresponding to the input site name.
-        """
-
-        ramb_re = re.compile("(RAMB(18|36))_X[0-9]+Y([0-9]+)")
-        m = ramb_re.match(site_name)
-        assert m, site_name
-
-        ramb_site_idx = int(m.group(3)) % 2
-        return "{}_Y{}".format(m.group(1), ramb_site_idx)
+        for feature in cell_features:
+            self.add_cell_feature(feature)
 
     def add_lut_features(self):
         for lut in self.luts.values():
@@ -696,6 +880,46 @@ class XC7FasmGenerator(FasmGenerator):
                         pin[:-1])
                     self.add_cell_feature((tile_name, zinv_feature))
 
+    def handle_ioi_routing_bels(self):
+        tile_types = [
+            "LIOI3", "LIOI3_SING", "LIOI3_TBYTETERM", "LIOI3_TBYTESRC",
+            "RIOI3", "RIOI3_SING", "RIOI3_TBYTETERM", "RIOI3_TBYTESRC"
+        ]
+        routing_bels = self.get_routing_bels(tile_types)
+
+        zinv_pins = {
+            "OLOGIC": {
+                "CLK": "CLK",
+            },
+            "IDELAY": {},
+            "ILOGIC": {
+                "CLK": "C"
+            },
+        }
+
+        inverting_pins = ["D{}_B".format(i) for i in range(1, 9)]
+        inverting_pins += ["DATAIN_B", "IDATAIN_B"]
+
+        for site, bel, pin, is_inverting in routing_bels:
+            tile_name, tile_type = self.get_tile_info_at_site(site)
+            iologic_prefix = self.get_iologic_prefix(site, tile_type)
+            iologic_type = iologic_prefix.split("_")[0]
+
+            check_pins = zinv_pins[iologic_type]
+
+            if not is_inverting and pin in check_pins:
+                zinv_feature = "ZINV_{}".format(check_pins[pin])
+
+                if iologic_type == "ILOGIC":
+                    zinv_feature = "IFF.{}".format(zinv_feature)
+
+                self.add_cell_feature((tile_name, iologic_prefix,
+                                       zinv_feature))
+
+            elif is_inverting and pin in inverting_pins:
+                inv_feature = "IS_{}_INVERTED".format(pin.split("_")[0])
+                self.add_cell_feature((tile_name, iologic_prefix, inv_feature))
+
     def handle_slice_bel_pins(self):
         """
         This function handles the addition of special features when specific BEL
@@ -850,7 +1074,9 @@ class XC7FasmGenerator(FasmGenerator):
             node, that may require some extra features as well.
             """
 
-            extra_wires_to_check = ["CLK_BUFG_REBUF_R_CK", "HCLK_CK_BUFHCLK"]
+            extra_wires_to_check = [
+                "CLK_BUFG_REBUF_R_CK", "HCLK_CK_BUFHCLK", "HCLK_IOI_CK_BUFHCLK"
+            ]
 
             if any(
                     wire.startswith(extra_wire) for extra_wire in
@@ -920,11 +1146,32 @@ class XC7FasmGenerator(FasmGenerator):
                 features=[""],
                 callback=lambda m: "CASCOUT_{}_ACTIVE".format(m.group(1))))
 
+        # There exist PIPs which activate other PIPs that are not present
+        # in the physical netlist. These other PIPs need to be output as well.
+        extra_pips = {
+            "wire0": {},
+            "wire1": {
+                "IOI_OCLK_1": ["IOI_OCLKM_1"],
+                "IOI_OCLK_0": ["IOI_OCLKM_0"],
+            }
+        }
+
         extra_wires = set()
         for tile_pips in extra_pip_features.values():
-            for tile, wire in tile_pips:
+            for tile, wire0, wire1 in tile_pips:
                 for extra_feature in regexs:
-                    run_regex_match(extra_feature, tile, wire, extra_wires)
+                    run_regex_match(extra_feature, tile, wire0, extra_wires)
+                    run_regex_match(extra_feature, tile, wire1, extra_wires)
+
+                    if wire0 in extra_pips["wire0"]:
+                        for extra_wire0 in extra_pips["wire0"][wire0]:
+                            self.add_pip_feature((tile, extra_wire0, wire1),
+                                                 self.pip_feature_format)
+
+                    if wire1 in extra_pips["wire1"]:
+                        for extra_wire1 in extra_pips["wire1"][wire1]:
+                            self.add_pip_feature((tile, wire0, extra_wire1),
+                                                 self.pip_feature_format)
 
         # Handle extra wires
         exclude_tiles = [
@@ -956,26 +1203,31 @@ class XC7FasmGenerator(FasmGenerator):
         bel_pins = [("CARRY4", "CIN")]
 
         tile_types = [
-            "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN", "HCLK_R_BOT_UTURN",
-            "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R", "CLK_HROW_BOT_R",
-            "CLK_BUFG_REBUF", "BRAM_L", "BRAM_R"
+            "HCLK_IOI3", "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN",
+            "HCLK_R_BOT_UTURN", "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R",
+            "CLK_HROW_BOT_R", "CLK_BUFG_REBUF", "BRAM_L", "BRAM_R", "LIOI3",
+            "LIOI3_SING", "LIOI3_TBYTETERM", "LIOI3_TBYTESRC", "RIOI3",
+            "RIOI3_SING", "RIOI3_TBYTETERM", "RIOI3_TBYTESRC"
         ]
         extra_pip_features = dict(
             (tile_type, set()) for tile_type in tile_types)
 
-        pip_feature_format = "{tile}.{wire1}.{wire0}"
         site_thru_pips, lut_thru_pips = self.fill_pip_features(
-            pip_feature_format, extra_pip_features, avail_lut_thrus, bel_pins)
+            self.pip_feature_format, extra_pip_features, avail_lut_thrus,
+            bel_pins)
 
         self.handle_extra_pip_features(extra_pip_features)
         self.handle_site_thru(site_thru_pips)
         self.handle_lut_thru(lut_thru_pips)
 
     def fill_features(self):
+        self.pip_feature_format = "{tile}.{wire1}.{wire0}"
+
         # Handling BELs
         self.handle_brams()
         self.handle_clock_resources()
         self.handle_ios()
+        self.handle_iologic()
         self.handle_luts()
         self.handle_slice_ff()
 
@@ -985,6 +1237,7 @@ class XC7FasmGenerator(FasmGenerator):
         # Handling routing BELs
         self.handle_slice_routing_bels()
         self.handle_bram_routing_bels()
+        self.handle_ioi_routing_bels()
 
         # Handling bel pins
         self.handle_slice_bel_pins()
