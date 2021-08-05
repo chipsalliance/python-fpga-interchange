@@ -1859,7 +1859,8 @@ def populate_chip_info(device, constids, device_config):
         cluster_obj = Cluster(cluster_name, cluster.get("chainable_ports", []),
                               cluster["root_cell_types"],
                               cluster.get("cluster_cells", []),
-                              cluster.get("out_of_site_clusters", False))
+                              cluster.get("out_of_site_clusters", False),
+                              cluster.get("disallow_other_cells", False))
 
         chip_info.clusters.append(cluster_obj)
 

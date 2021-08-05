@@ -411,7 +411,7 @@ class XC7FasmGenerator(FasmGenerator):
         # FIXME: Need to make this dynamic, and find a suitable way to add FASM annotations to the device resources.
         #        In addition, a reformat of the database might be required to have an easier handling of these
         #        features.
-        allowed_io_types = ["IBUF", "OBUF", "OBUFT", "OBUFTDS"]
+        allowed_io_types = ["IBUF", "OBUF", "OBUFT", "OBUFTDS", "OBUFDS", "IOBUFDS"]
 
         iob_sites = ["IOB_Y0", "IOB_Y1"]
         iob_re = re.compile("IOB_X[0-9]+Y([0-9]+)")
