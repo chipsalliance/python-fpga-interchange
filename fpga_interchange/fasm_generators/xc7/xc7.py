@@ -28,8 +28,8 @@ from collections import namedtuple
 from enum import Enum
 from itertools import product
 
-from fpga_interchange.fasm_generators.generic import FasmGenerator, PhysCellInstance, invert_bitstring
-from fpga_interchange.fasm_generators.xc7_iobs import iob_settings
+from ..generic import FasmGenerator, PhysCellInstance, invert_bitstring
+from .xc7_iobs import iob_settings
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, Pin
 """
