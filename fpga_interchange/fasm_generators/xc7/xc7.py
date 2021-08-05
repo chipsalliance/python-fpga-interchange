@@ -24,14 +24,18 @@ Such special cases may include:
 
 """
 import re
+import copy
 from collections import namedtuple
 from enum import Enum
 from itertools import product
 
 from ..generic import FasmGenerator, PhysCellInstance, invert_bitstring
 from .xc7_iobs import iob_settings
+from .xc7_cmt import compute_pll_lookup, compute_pll_clkregs
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, Pin
+from fpga_interchange.parameter_definitions import ParameterDefinition
+from fpga_interchange.parameter_definitions import ParameterFormat
 """
 This is a helper object that is used to find and emit extra features
 that do depend on the usage of specific PIPs or Pseudo PIPs.
@@ -141,6 +145,29 @@ class XC7FasmGenerator(FasmGenerator):
             io_site_idx = y_coord % 2
 
         return "{}_Y{}".format(m.group(1), io_site_idx)
+
+    @staticmethod
+    def format_feature_value(bits):
+        """
+        Formats a FASM feature value assignment according to the given bits
+        (as a string or any iterable yeilding "0" and "1"). The bit range
+        always starts at the LSB.
+        """
+        count = len(bits)
+        value = "".join(bits[::-1])
+
+        if count == 1:
+            bitrange = "[0]"
+        elif count > 1:
+            bitrange = "[{}:0]".format(count - 1)
+        else:
+            assert False, count
+
+        return "{}={}'b{}".format(
+            bitrange,
+            count,
+            value
+        )
 
     def handle_brams(self):
         """
@@ -767,6 +794,198 @@ class XC7FasmGenerator(FasmGenerator):
             if init_value == 0:
                 self.add_cell_feature((tile_name, slice_site, bel, "ZINI"))
 
+
+    def get_cell_param(self, cell_data, name, force_format=None):
+        """
+        Retrieves definition and decodes value of a cell parameter. The
+        function can optionally force a specific string format if needed.
+        """
+
+        param = self.device_resources.get_parameter_definition(
+            cell_data.cell_type, name
+        )
+
+        # Force the format if requested by substituting the paraameter
+        # definition object.
+        if not param.is_integer_like() and force_format is not None:
+            if force_format != param.string_format:
+                param = ParameterDefinition(
+                    name = name,
+                    string_format = force_format,
+                    default_value = cell_data.attributes[name]
+                )
+
+        return param.decode_integer(cell_data.attributes[name])
+
+
+    @staticmethod
+    def yield_pll_mmcm_clkregs_features(name, clkregs):
+        """
+        Yields strings with feature names and their assigned values that
+        correspond to parts or PLL/MMCM clock registers
+        """
+
+        # DIVCLK have different feature names
+        if name == "DIVCLK":
+            pfx1 = "DIVCLK"
+            pfx2 = "DIVCLK"
+        else:
+            pfx1 = "CLKOUT1"
+            pfx2 = "CLKOUT2"
+
+        yield "{}_{}_HIGH_TIME{}".format(name, pfx1,
+            XC7FasmGenerator.format_feature_value(clkregs[6:12]))
+        yield "{}_{}_LOW_TIME{}".format(name, pfx1,
+            XC7FasmGenerator.format_feature_value(clkregs[0:6]))
+
+        # A corner case for DIVCLK
+        if name != "DIVCLK":
+            yield "{}_{}_PHASE_MUX{}".format(name, pfx1,
+                XC7FasmGenerator.format_feature_value(clkregs[13:16]))
+            yield "{}_{}_DELAY_TIME{}".format(name, pfx2,
+                XC7FasmGenerator.format_feature_value(clkregs[16:22]))
+
+        yield "{}_{}_EDGE{}".format(name, pfx2,
+            XC7FasmGenerator.format_feature_value(clkregs[23]))
+        yield "{}_{}_NO_COUNT{}".format(name, pfx2,
+            XC7FasmGenerator.format_feature_value(clkregs[22]))
+
+    def handle_pll_mmcm_common(self, cell_data):
+        """
+        Handles FASM feature emission common to PLLE2_ADV and MMCME2_ADV
+        """
+
+        tile_name = cell_data.tile_name
+        bel = cell_data.bel
+
+        # Get BEL pin assignments
+        bel_pins = self.get_bel_pins_annotation(tile_name, bel)
+
+        # IN_USE
+        self.add_cell_feature((tile_name, bel, "IN_USE"))
+
+        # Input pin inverters
+        val = self.get_cell_param(cell_data,
+              "IS_CLKINSEL_INVERTED", ParameterFormat.VERILOG_BINARY)
+        if val:
+            self.add_cell_feature((tile_name, bel, "INV_CLKINSEL"))
+
+        net = bel_pins.get("PWRDWN", None)
+        val = self.get_cell_param(cell_data,
+              "IS_PWRDWN_INVERTED", ParameterFormat.VERILOG_BINARY)
+        # FIXME: This should get inverted but no...
+        if val:
+            self.add_cell_feature((tile_name, bel, "ZINV_PWRDWN"))
+
+        net = bel_pins.get("RST", None)
+        val = self.get_cell_param(cell_data,
+              "IS_RST_INVERTED", ParameterFormat.VERILOG_BINARY)
+        # FIXME: This should get inverted but no...
+        if val:
+            self.add_cell_feature((tile_name, bel, "ZINV_RST"))
+
+        # Boolean parameters
+        val = self.get_cell_param(cell_data,
+                "STARTUP_WAIT", ParameterFormat.BOOLEAN)
+        if val:
+            self.add_cell_feature((tile_name, bel, "STARTUP_WAIT"))
+
+        # Clock output enables
+        for clkname in ["CLKFBOUT", "CLKOUT0", "CLKOUT1", "CLKOUT2", "CLKOUT3",
+                        "CLKOUT4", "CLKOUT5"]:
+            feature = "{}_CLKOUT1_OUTPUT_ENABLE".format(clkname)
+            if clkname in bel_pins:
+                self.add_cell_feature((tile_name, bel, feature))
+
+    def handle_pll(self, cell_data):
+        """
+        Handles emission of PLLE2_ADV features
+        """
+
+        # Common features
+        self.handle_pll_mmcm_common(cell_data)
+
+        tile_name = cell_data.tile_name
+        bel = cell_data.bel
+
+        # FIXME: Is this one supposed to be emitted always ?
+        self.add_cell_feature((tile_name, bel,
+            "COMPENSATION.Z_ZHOLD_OR_CLKIN_BUF"))
+
+        # Lookup tables
+        clkfbout_mult = self.get_cell_param(cell_data, "CLKFBOUT_MULT")
+        bandwidth = cell_data.attributes["BANDWIDTH"].lower()
+
+        lktable, table = compute_pll_lookup(clkfbout_mult, bandwidth)
+
+        self.add_cell_feature((tile_name, bel,
+            "LKTABLE[39:0]={}".format(lktable)))
+        self.add_cell_feature((tile_name, bel,
+            "TABLE[9:0]={}".format(table)))
+
+        # Fixed parameters
+        self.add_cell_feature((tile_name, bel,
+            "FILTREG1_RESERVED[11:0]=12'b000000001000"))
+        self.add_cell_feature((tile_name, bel,
+            "LOCKREG3_RESERVED[0]=1'b1"))       
+
+        # Multipliers / dividers
+        for clkname in ["CLKFBOUT", "DIVCLK", "CLKOUT0", "CLKOUT1", "CLKOUT2",
+                        "CLKOUT3", "CLKOUT4", "CLKOUT5"]:
+
+            if clkname == "CLKFBOUT":
+                param = "CLKFBOUT_MULT"
+            else:
+                param = "{}_DIVIDE".format(clkname)
+            muldiv = self.get_cell_param(cell_data, param)
+
+            if clkname in ["CLKFBOUT", "DIVCLK"]:
+                duty = 0.5
+            else:
+                param = "{}_DUTY_CYCLE".format(clkname)
+                duty = float(cell_data.attributes[param])
+
+            if clkname == "CLKFBOUT":
+                phase = float(cell_data.attributes["CLKFBOUT_PHASE"])
+            elif clkname == "DIVCLK":
+                phase = 0.0
+            else:
+                param = "{}_PHASE".format(clkname)
+                phase = float(cell_data.attributes[param])
+
+            print(clkname)
+            clkregs = compute_pll_clkregs(muldiv, duty, phase)
+            for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
+                self.add_cell_feature((tile_name, bel, f))
+
+
+    def handle_mmcm(self, cell_data):
+        """
+        Handles emission of MMCME2_ADV features
+        """
+
+        # Common features
+        self.handle_pll_mmcm_common(cell_data)
+
+        tile_name = cell_data.tile_name
+        bel = cell_data.bel
+
+        # TODO: MMCM encoding
+
+
+    def handle_cmts(self):
+        """
+        Handles FASM features for CMT tiles
+        """
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+
+            if cell_data.cell_type == "PLLE2_ADV":
+                self.handle_pll(cell_data)
+
+            elif cell_data.cell_type == "MMCME2_ADV":
+                self.handle_mmcm(cell_data)
+
+
     def handle_clock_resources(self):
 
         bufg_re = re.compile("BUFGCTRL_X[0-9]+Y([0-9]+)")
@@ -1233,6 +1452,7 @@ class XC7FasmGenerator(FasmGenerator):
 
         # Handling BELs
         self.handle_brams()
+        self.handle_cmts()
         self.handle_clock_resources()
         self.handle_ios()
         self.handle_iologic()
