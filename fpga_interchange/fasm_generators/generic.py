@@ -97,14 +97,26 @@ class FasmGenerator():
 
         return routing_bels
 
-    def get_bel_pins_annotation(self, tile_types):
-        bel_pins_annotations = list()
+    def get_all_bel_pins_annotation(self):
+        return self.bel_pins_annotations
 
-        for tile_type, rbels in self.bel_pins_annotations.items():
-            if tile_type in tile_types:
-                bel_pins_annotations += rbels
+    def get_bel_pins_annotation(self, tile_name, bel_name):
+        """
+        Returns a dictionary with BEL pins net assignments. If such (tile, bel)
+        does not exist in the design then an empty dict is returned. If a BEL
+        pin is not present in the dict then it is unconnected.
+        """
 
-        return bel_pins_annotations
+        # Filter data
+        bel_pins = [p for k, p in self.bel_pins_annotations.items() if \
+                    (k[0], k[2]) == (tile_name, bel_name)]
+        assert len(bel_pins) <= 1, bel_pins
+
+        # No bel
+        if not bel_pins:
+            return dict()
+
+        return bel_pins[0]
 
     def build_log_cells_instances(self):
         """
@@ -173,7 +185,6 @@ class FasmGenerator():
                           pip_feature_format,
                           extra_pip_features,
                           avail_lut_thrus,
-                          bel_pins,
                           wire_rename=lambda x: x):
         """
         This function generates all features corresponding to the physical routing
@@ -282,15 +293,16 @@ class FasmGenerator():
 
                     site_thru_pips.append((tile, wire0, wire1))
 
-                # Check and store for site LUT-thrus
+                # Check and store for site LUT-thrus and BEL pin nets
                 elif isinstance(segment, PhysicalBelPin):
                     bel = segment.bel
                     pin = segment.pin
                     site = segment.site
                     site_type = list(self.device_resources.
                                      site_name_to_site[site].keys())[0]
-                    _, tile_type = self.get_tile_info_at_site(site)
+                    tile, tile_type = self.get_tile_info_at_site(site)
 
+                    # Got a LUT-thru
                     if bel in avail_lut_thrus:
                         _, lut_bel = self.lut_mapper.find_lut_bel(
                             site_type, bel)
@@ -314,12 +326,12 @@ class FasmGenerator():
 
                         continue
 
-                    if (bel, pin) in bel_pins:
-                        if tile_type not in self.bel_pins_annotations:
-                            self.bel_pins_annotations[tile_type] = list()
+                    # Store BEL pin net annotations
+                    key = (tile, site, bel)
+                    if key not in self.bel_pins_annotations:
+                        self.bel_pins_annotations[key] = dict()
 
-                        self.bel_pins_annotations[tile_type].append((site, bel,
-                                                                     pin))
+                    self.bel_pins_annotations[key][pin] = net.name
 
                 # Store routing bels
                 elif isinstance(segment, PhysicalSitePip):

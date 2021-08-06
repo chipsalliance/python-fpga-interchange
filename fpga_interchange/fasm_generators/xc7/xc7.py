@@ -928,16 +928,20 @@ class XC7FasmGenerator(FasmGenerator):
         pins are used
         """
         tile_types = ["CLBLL_L", "CLBLL_R", "CLBLM_L", "CLBLM_R"]
-        bel_pins = self.get_bel_pins_annotation(tile_types)
+        bel_pins = self.get_all_bel_pins_annotation()
 
-        for site, bel, pin in bel_pins:
+        for (tile_name, site, bel), pins in bel_pins.items():
 
-            tile_name, tile_type = self.get_tile_info_at_site(site)
+            _, tile_type = self.get_tile_info_at_site(site)
+            if tile_type not in tile_types:
+                continue
+
             slice_prefix = self.get_slice_prefix(site, tile_type)
 
-            if bel == "CARRY4" and pin == "CIN":
-                self.add_cell_feature((tile_name, slice_prefix,
-                                       "PRECYINIT.CIN"))
+            for pin in pins:
+                if bel == "CARRY4" and pin == "CIN":
+                    self.add_cell_feature((tile_name, slice_prefix,
+                                           "PRECYINIT.CIN"))
 
     def handle_site_thru(self, site_thru_pips):
         """
@@ -1202,8 +1206,6 @@ class XC7FasmGenerator(FasmGenerator):
             if bel_type in ["LUT5", "LUT6"]:
                 avail_lut_thrus.append(bel)
 
-        bel_pins = [("CARRY4", "CIN")]
-
         tile_types = [
             "HCLK_IOI3", "HCLK_L", "HCLK_R", "HCLK_L_BOT_UTURN",
             "HCLK_R_BOT_UTURN", "HCLK_CMT", "HCLK_CMT_L", "CLK_HROW_TOP_R",
@@ -1215,8 +1217,7 @@ class XC7FasmGenerator(FasmGenerator):
             (tile_type, set()) for tile_type in tile_types)
 
         site_thru_pips, lut_thru_pips = self.fill_pip_features(
-            self.pip_feature_format, extra_pip_features, avail_lut_thrus,
-            bel_pins)
+            self.pip_feature_format, extra_pip_features, avail_lut_thrus)
 
         self.handle_extra_pip_features(extra_pip_features)
         self.handle_site_thru(site_thru_pips)
@@ -1225,16 +1226,17 @@ class XC7FasmGenerator(FasmGenerator):
     def fill_features(self):
         self.pip_feature_format = "{tile}.{wire1}.{wire0}"
 
+        # Handle LUTs first (needed for LUT-thru routing)
+        self.handle_luts()
+        # Handling PIPs and Route-throughs
+        self.handle_routes()
+
         # Handling BELs
         self.handle_brams()
         self.handle_clock_resources()
         self.handle_ios()
         self.handle_iologic()
-        self.handle_luts()
         self.handle_slice_ff()
-
-        # Handling PIPs and Route-throughs
-        self.handle_routes()
 
         # Handling routing BELs
         self.handle_slice_routing_bels()
