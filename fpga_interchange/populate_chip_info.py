@@ -22,7 +22,9 @@ from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint
 from fpga_interchange.constraint_generator import ConstraintPrototype
 from fpga_interchange.device_resources import convert_wire_category
+import fpga_interchange.device_resources
 from fpga_interchange.nextpnr import PortType
+from fpga_interchange.logical_netlist import PortInstance, Net
 
 
 class FlattenedWireType(Enum):
@@ -1740,6 +1742,224 @@ def populate_macros(device, chip_info):
             chip_info.macros.append(macro)
 
 
+def clusters_from_macros(device):
+
+    def check_if_tree(graph):
+        visited = {}
+        queue = []
+        node = list(graph.keys())[0]
+        queue.append(node)
+        visited[node] = (node, None)
+        while len(queue) > 0:
+            node = queue.pop(0)
+            for edge in graph[node]:
+                if edge[0] not in visited:
+                    visited[edge[0]] = (node, edge[1])
+                    queue.append(edge[0])
+                # This graph can have multiple edges from one cell to another one
+                elif edge[0] != visited[node][0] and\
+                     (visited[edge[0]][0] != node or\
+                      visited[edge[0]][1] != edge[1]):
+                    return False
+        for key in graph.keys():
+            if key not in visited:
+                return False
+        return True
+
+    def search_for_root(graph):
+        sources = []
+        sinks = []
+        for node in graph.items():
+            if all([x[1] == 1 for x in node[1]]):
+                sources.append(node[0])
+            elif all([x[1] == 0 for x in node[1]]):
+                sinks.append(node[0])
+        # Solve for trivial
+        if len(sinks) == 1:
+            return sinks[0]
+        if len(sources) == 1:
+            return sources[0]
+
+        ver = list(graph.keys())
+        # Remove sources and sinks. If they were to be root cell,
+        # we would have found them in previous step
+        for s in sources + sinks:
+            ver.remove(s)
+
+        for v in ver:
+            visited = {}
+            queue = []
+            for s in sources:
+                if s != v:
+                    queue.append(s)
+                    visited[s] = s
+            while len(queue) > 0:
+                node = queue.pop(0)
+                for edge in graph[node]:
+                    if edge[1] == 1 and edge[0] != v:
+                        visited[edge[0]] = node
+                        queue.append(edge[0])
+            # If all sinks are unrechable we have found root cell
+            if all([s not in visited for s in sinks]):
+                return v
+        # We couldn't find root cell
+        return None
+
+
+    prims = device.get_primitive_library()
+
+    clusters = []
+    if 'macros' in prims.libraries:
+        macro_lib = prims.libraries['macros']
+        cell_pin_direction_map = {}
+
+        macros_expansion = macro_lib.cells
+        primitives = prims.libraries['primitives'].cells
+        for cell_name, prim in primitives.items():
+            cell_pin_direction_map[cell_name] = {}
+            for port_name, port in prim.ports.items():
+                cell_pin_direction_map[cell_name][port_name] =\
+                    port.direction == fpga_interchange.device_resources.Direction.Output
+
+        constants = device.get_constants()
+
+        for macro in macro_lib.cells.items():
+            graph = {}
+            instance_to_cell_map = {}
+
+            new_cell_instances = macro[1].cell_instances
+            old_cell_instances = {}
+            new_nets = {}
+            for net in macro[1].nets.items():
+                new_ports = []
+                for port in net[1].ports:
+                    port_name = port.name.upper()
+                    port_idx = port.idx
+                    port_instance_name = port.instance_name
+                    new_ports.append(PortInstance(port_name,
+                        port_instance_name, port_idx))
+
+                new_nets[net[0].upper()] = Net(net[1].name.upper(),
+                    net[1].property_map, new_ports)
+            old_nets = {}
+
+            print(macro[0])
+            while new_cell_instances != old_cell_instances:
+                old_cell_instances = new_cell_instances
+                old_nets = new_nets
+                new_cell_instances = {}
+                new_nets = {}
+                nets_dict = {}
+                for cell_instance in old_cell_instances.items():
+                    cell_name = cell_instance[1].cell_name
+                    if cell_name not in macros_expansion.keys():
+                        new_cell_instances[cell_instance[0]] = cell_instance[1]
+                    elif cell_name in primitives and\
+                        cell_instance[1].capnp_name == primitives[cell_name].capnp_index:
+                        new_cell_instances[cell_instance[0]] = cell_instance[1]
+                    else:
+                        cell_instance = cell_instance[0]
+                        for cell in macros_expansion[
+                                cell_name].cell_instances.items():
+                            new_cell_instances[cell_instance + "/" +
+                                               cell[0]] = cell[1]
+                        nets_dict[cell_instance] = {}
+                        for net in macros_expansion[cell_name].nets.items():
+                            new_ports = []
+                            for port in net[1].ports:
+                                port_name = port.name.upper()
+                                port_idx = port.idx
+                                port_instance_name = port.instance_name
+                                if port.instance_name is not None:
+                                    port_instance_name = cell_instance + "/" + port.instance_name
+                                new_ports.append(
+                                    PortInstance(port_name, port_instance_name,
+                                                 port_idx))
+                            nets_dict[cell_instance][net[0].upper()] =\
+                                Net(cell_instance + "/" + net[1].name.upper(),
+                                    net[1].property_map, new_ports)
+
+                for net in old_nets.items():
+                    new_ports = []
+                    for port in net[1].ports:
+                        cell_instance_name = port.instance_name
+                        if cell_instance_name not in nets_dict:
+                            new_ports.append(port)
+                        else:
+                            _net = nets_dict[cell_instance_name].pop(port.name)
+                            for _port in _net.ports:
+                                if _port.instance_name is not None:
+                                    new_ports.append(_port)
+                    new_nets[net[0]] = Net(net[1].name, net[1].property_map,
+                                           new_ports)
+                if len(nets_dict) != 0:
+                    for key in nets_dict.keys():
+                        for net in nets_dict[key].items():
+                            new_nets[str(key) + "/" + str(net[0])] = net[1]
+
+            cell_instances = {}
+            nets ={}
+            # Remove const cells and nets that were driven by them,
+            # as they could create false root_cells
+            VCC_cell = constants.VCC_CELL_TYPE
+            GND_cell = constants.GND_CELL_TYPE
+            for net in old_nets.items():
+                add = True
+                for port in net[1].ports:
+                    temp = port.instance_name
+                    if temp is not None:
+                        temp = old_cell_instances[temp]
+                        if temp.cell_name in [VCC_cell, GND_cell]:
+                            add = False
+                if add:
+                    nets[net[0]] = net[1]
+
+            for cell in old_cell_instances.items():
+                if cell[1].cell_name not in [VCC_cell, GND_cell]:
+                    cell_instances[cell[0]] = cell[1]
+
+            for cell_instance in cell_instances.items():
+                cell_name = cell_instance[1].cell_name
+                instance_to_cell_map[cell_instance[0]] = cell_name
+                graph[cell_instance[0]] = []
+            for net in nets.items():
+                sources = []
+                sinks = []
+                for port in net[1].ports:
+                    if port.instance_name is not None:
+                        cell = instance_to_cell_map[port.instance_name]
+                        if len(cell_pin_direction_map[cell]) == 0:
+                            continue
+                        direction = cell_pin_direction_map[cell][port.name]
+                        if direction:
+                            sources.append(port.instance_name)
+                        else:
+                            sinks.append(port.instance_name)
+                if sources == [] or sinks == []:
+                    continue
+
+                for source in sources:
+                    for sink in sinks:
+                        graph[source].append((sink, 1))
+                        graph[sink].append((source, 0))
+            print()
+            print(graph)
+            cluster = {}
+            cluster['name'] = macro[0]
+            # If we can't find good root use any cell as root cell
+            key = list(cell_instances.keys())[0]
+            cluster['root_cell_types'] = cell_instances[key].cell_name
+            # Check if connection graph is a tree
+            if check_if_tree(graph):
+                # If grah is a tree, search for node, such that when it's remved ther is no connection from any source to any sink
+                root = search_for_root(graph)
+                if root is not None:
+                    cluster['root_cell_types'] = root
+            clusters.append(cluster)
+    raise
+    return clusters
+
+
 def populate_macro_rules(device, chip_info):
     for rule in device.device_resource_capnp.exceptionMap:
         exp_data = MacroExpansion()
@@ -1843,6 +2063,7 @@ def populate_chip_info(device, constids, device_config):
 
     populate_macros(device, chip_info)
     populate_macro_rules(device, chip_info)
+    clusters.extend(clusters_from_macros(device))
 
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []

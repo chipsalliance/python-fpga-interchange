@@ -94,7 +94,8 @@ Net = namedtuple('Net', 'name property_map ports')
 #
 # view should be a str and is a deprecate field.
 # TODO: Remove view field.
-CellInstance = namedtuple('CellInstance', 'property_map view cell_name')
+CellInstance = namedtuple('CellInstance',
+                          'property_map view cell_name capnp_name', defaults=([0]))
 
 
 # Direction of a Cell port
@@ -117,7 +118,7 @@ class Cell():
 
     """
 
-    def __init__(self, name, property_map={}):
+    def __init__(self, name, capnp_index=0, property_map={}):
         """ Create a new cell
 
         name (str) - Name of the Cell within the library.
@@ -128,6 +129,7 @@ class Cell():
         self.name = name
         self.property_map = property_map
         self.view = "netlist"
+        self.capnp_index = capnp_index
 
         self.nets = {}
         self.ports = {}

@@ -734,6 +734,12 @@ class XC7FasmGenerator(FasmGenerator):
 
             self.luts[key][LutsEnum.from_str(lut_type)] = phys_lut_init
 
+    def handle_lutram(slef):
+        self.lutram = dict()
+
+        for cell_instance, cell_data in self.physical_cells_instances.items():
+            pass
+
     def handle_slice_ff(self):
         """
         Handles slice FFs FASM feature emission.
