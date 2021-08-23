@@ -161,7 +161,7 @@ cellConstraints:
         - SLICEM
       bel: { anyBel: null }
       implies:
-        - { tag: FF_MODE, state: FF }
+        - { tag: FF_MODE, state: LATCH }
 - cells:
   - RAMD32
   - RAMD64E

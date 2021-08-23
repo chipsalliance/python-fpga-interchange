@@ -94,8 +94,8 @@ Net = namedtuple('Net', 'name property_map ports')
 #
 # view should be a str and is a deprecate field.
 # TODO: Remove view field.
-CellInstance = namedtuple('CellInstance',
-                          'property_map view cell_name capnp_name', defaults=([0]))
+CellInstance = namedtuple(
+    'CellInstance', 'property_map view cell_name capnp_name', defaults=([0]))
 
 
 # Direction of a Cell port

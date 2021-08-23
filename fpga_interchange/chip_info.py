@@ -20,9 +20,25 @@ class ConstraintType(Enum):
     TAG_REQUIRES = 1
 
 
+class BelShortedPins():
+    def __init__(self, pin1, pin2):
+        self.pin1 = pin1
+        self.pin2 = pin2
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.pin1)
+        bba.str_id(self.pin2)
+
+
 class BelInfo():
     str_id_fields = ['ports']
     int_fields = ['types', 'wires']
+
+    fields = ['connected_pins']
+    field_types = ['BelConnectedPinsPOD']
 
     def __init__(self):
         # BEL name, str
@@ -61,6 +77,9 @@ class BelInfo():
         self.non_inverting_pin = -1
         self.inverting_pin = -1
 
+        # Pairs of BEL's port str that are shorted together (e.g. Xilinx 7 Series DLUTRAM WADDR and ADDR)
+        self.connected_pins = []
+
     def field_label(self, label_prefix, field):
         prefix = '{}.site{}.{}.{}'.format(label_prefix, self.site, self.name,
                                           field)
@@ -83,6 +102,16 @@ class BelInfo():
         bba.label(self.field_label(label_prefix, 'pin_map'), 'int32_t')
         for value in self.pin_map:
             bba.u32(value)
+
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.name)
@@ -109,6 +138,10 @@ class BelInfo():
 
         # Pad to nearest 32-bit alignment
         bba.u16(0)
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
 
 
 class BelPort():
@@ -682,12 +715,135 @@ class ChainablePort():
         bba.u16(self.avg_y_offset)
 
 
+class ClusterRequiredCell():
+    def __init__(self, cell_type, count):
+        self.cell_type = cell_type
+        self.count = count
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.cell_type)
+        bba.u32(self.count)
+
+
+class ClusterEdge():
+    def __init__(self, _dir, cell_pin, other_cell_pin, cell_type):
+        self._dir = _dir
+        self.cell_pin = cell_pin
+        self.other_cell_pin = other_cell_pin
+        self.other_cell_type = cell_type
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self._dir)
+        bba.str_id(self.cell_pin)
+        bba.str_id(self.other_cell_pin)
+        bba.str_id(self.other_cell_type)
+
+
+class ClusterConnection():
+    fields = ['edges']
+    field_types = ['ClusterEdgePOD']
+
+    def __init__(self, con_list, target_idx):
+        self.target_idx = target_idx
+        self.edges = []
+        for con in con_list:
+            self.edges.append(ClusterEdge(*con))
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.target_idx, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.target_idx)
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
+class ClusterUsedPort():
+    def __init__(self, name):
+        self.name = name
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
+
+    def append_bba(self, bba, label_prefix):
+        bba.str_id(self.name)
+
+
+class ClusterConnectionGraph():
+    fields = ['connections', 'ports']
+    field_types = ['ClusterConnectionsPOD', 'ClusterUsedPortPOD']
+
+    def __init__(self, idx, cell_type, connections, used_ports):
+        self.idx = idx
+        self.cell_type = cell_type
+        self.connections = []
+        for con in connections:
+            self.connections.append(ClusterConnection(*con))
+        self.ports = []
+        for port in used_ports:
+            self.ports.append(ClusterUsedPort(port))
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.idx, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba(self, bba, label_prefix):
+        bba.u32(self.idx)
+        bba.str_id(self.cell_type)
+
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class Cluster():
-    fields = ['chainable_ports', 'cluster_cell_ports']
-    field_types = ['ChainablePortPOD', 'ClusterCellPortPOD']
+    fields = [
+        'chainable_ports', 'cluster_cell_ports', 'required_cells',
+        'connection_graph'
+    ]
+    field_types = [
+        'ChainablePortPOD', 'ClusterCellPortPOD', 'ClusterRequiredCellPOD',
+        'ClusterConnectionGraphPOD'
+    ]
 
     def __init__(self, name, chainable_ports, root_cell_types, cluster_cells,
-                 out_of_site_clusters, disallow_other_cells):
+                 out_of_site_clusters, disallow_other_cells, from_macro,
+                 required_cells, connection_graph):
         # Chain name
         self.name = name
 
@@ -710,6 +866,16 @@ class Cluster():
 
         self.out_of_site_clusters = out_of_site_clusters
         self.disallow_other_cells = disallow_other_cells
+
+        self.from_macro = from_macro
+
+        self.required_cells = []
+        for req_cell in required_cells:
+            self.required_cells.append(ClusterRequiredCell(*req_cell))
+
+        self.connection_graph = []
+        for node in connection_graph:
+            self.connection_graph.append(ClusterConnectionGraph(*node))
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -745,6 +911,7 @@ class Cluster():
 
         bba.u32(1 if self.out_of_site_clusters else 0)
         bba.u32(1 if self.disallow_other_cells else 0)
+        bba.u32(1 if self.from_macro else 0)
 
 
 class PackagePin():
@@ -1143,7 +1310,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema or the nextpnr chip database structure changes.
-        self.version = 14
+        self.version = 15
         self.width = 0
         self.height = 0
 
