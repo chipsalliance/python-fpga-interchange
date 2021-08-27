@@ -687,7 +687,7 @@ class Cluster():
     field_types = ['ChainablePortPOD', 'ClusterCellPortPOD']
 
     def __init__(self, name, chainable_ports, root_cell_types, cluster_cells,
-                 out_of_site_clusters):
+                 out_of_site_clusters, disallow_other_cells):
         # Chain name
         self.name = name
 
@@ -709,6 +709,7 @@ class Cluster():
                 self.cluster_cell_ports.append(ClusterCellPort(cell, port))
 
         self.out_of_site_clusters = out_of_site_clusters
+        self.disallow_other_cells = disallow_other_cells
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)
@@ -743,6 +744,7 @@ class Cluster():
             bba.u32(len(getattr(self, field)))
 
         bba.u32(1 if self.out_of_site_clusters else 0)
+        bba.u32(1 if self.disallow_other_cells else 0)
 
 
 class PackagePin():
@@ -1141,7 +1143,7 @@ class ChipInfo():
         self.generator = ''
 
         # Note: Increment by 1 this whenever schema or the nextpnr chip database structure changes.
-        self.version = 13
+        self.version = 14
         self.width = 0
         self.height = 0
 

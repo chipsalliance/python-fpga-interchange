@@ -118,6 +118,7 @@ clusters:
       avg_y_offset: -1
   root_cell_types:
     - CARRY4
+  disallow_other_cells: true # Disable placing cells not belonging to the cluster in the same site
   cluster_cells:
     - cells:
         - LUT1
@@ -131,32 +132,6 @@ clusters:
         - S[2]
         - S[1]
         - S[0]
-    - cells:
-        - FDRE
-        - FDSE
-        - FDCE
-        - FDPE
-      ports:
-        - O[3]
-        - O[2]
-        - O[1]
-        - O[0]
-- name: LUT_FF
-  root_cell_types:
-    - FDRE
-    - FDSE
-    - FDCE
-    - FDPE
-  cluster_cells:
-    - cells:
-        - LUT1
-        - LUT2
-        - LUT3
-        - LUT4
-        - LUT5
-        - LUT6
-      ports:
-        - D
 - name: IDELAY_ISERDES
   root_cell_types:
     - IDELAYE2
