@@ -77,10 +77,28 @@ buckets:
   cells:
    - ISERDESE3
 # don't route through the following cells
+# FIXME: It seems that antenna nets can be produced when
+#        using pseudo PIPs through LUTs. For now disable them
 disabled_routethroughs:
   - BUFGCTRL
   - BUFCE
   - OUTINV
+  - A6LUT
+  - B6LUT
+  - C6LUT
+  - D6LUT
+  - E6LUT
+  - F6LUT
+  - G6LUT
+  - H6LUT
+  - A5LUT
+  - B5LUT
+  - C5LUT
+  - D5LUT
+  - E5LUT
+  - F5LUT
+  - G5LUT
+  - H5LUT
 # Do not allow cells to be placed at BELs
 disabled_cell_bel_map:
   - cell: FDRE
