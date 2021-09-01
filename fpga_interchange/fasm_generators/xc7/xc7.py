@@ -32,6 +32,8 @@ from itertools import product
 from ..generic import FasmGenerator, PhysCellInstance, invert_bitstring
 from .xc7_iobs import iob_settings
 from .xc7_cmt import compute_pll_lookup, compute_pll_clkregs
+from .xc7_cmt import compute_mmcm_lookup, compute_mmcm_clkregs, \
+                     compute_mmcm_clkregs_frac
 from fpga_interchange.route_stitching import flatten_segments
 from fpga_interchange.physical_netlist import PhysicalPip, Pin
 from fpga_interchange.parameter_definitions import ParameterDefinition
@@ -850,6 +852,47 @@ class XC7FasmGenerator(FasmGenerator):
         yield "{}_{}_NO_COUNT{}".format(name, pfx2,
             XC7FasmGenerator.format_feature_value(clkregs[22]))
 
+    @staticmethod
+    def yield_mmcm_clkregs_frac_features(name, clkregs):
+        """
+        Yields strings with feature names and their assigned values that
+        correspond to parts or clock registers that have fractional divider
+        which are CLKFBOUT and CLKOUT0
+        """
+
+        yield "{}_CLKOUT2_FRAC{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[28:31]))
+        yield "{}_CLKOUT2_FRAC_EN{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[27]))
+        yield "{}_CLKOUT2_FRAC_WF_R{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[26]))
+
+    @staticmethod
+    def yield_mmcm_clkregs_features(name, clkregs):
+        """
+        Yields strings with feature names and their assigned values for
+        CLKOUT5 and CLKOUT6 of MMCM which have some features shared with
+        others and named differently
+        """
+
+        yield "{}_CLKOUT1_HIGH_TIME{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[6:12]))
+        yield "{}_CLKOUT1_LOW_TIME{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[0:6]))
+        yield "{}_CLKOUT1_PHASE_MUX{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[13:16]))
+
+        yield "{}_CLKOUT2_FRACTIONAL_DELAY_TIME{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[16:22]))
+        yield "{}_CLKOUT2_FRACTIONAL_EDGE{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[23]))
+        yield "{}_CLKOUT2_FRACTIONAL_NO_COUNT{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[22]))
+        yield "{}_CLKOUT2_FRACTIONAL_PHASE_MUX_F{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[27:30]))
+        yield "{}_CLKOUT2_FRACTIONAL_FRAC_WF_F{}".format(name,
+            XC7FasmGenerator.format_feature_value(clkregs[26]))
+
     def handle_pll_mmcm_common(self, cell_data):
         """
         Handles FASM feature emission common to PLLE2_ADV and MMCME2_ADV
@@ -970,8 +1013,189 @@ class XC7FasmGenerator(FasmGenerator):
         tile_name = cell_data.tile_name
         bel = cell_data.bel
 
-        # TODO: MMCM encoding
+        # Get BEL pin assignments
+        bel_pins = self.get_bel_pins_annotation(tile_name, bel)
 
+        # Input pin inverters
+        net = bel_pins.get("PSEN", None)
+        val = self.get_cell_param(cell_data,
+              "IS_PSEN_INVERTED", ParameterFormat.VERILOG_BINARY)
+        # FIXME: This should get inverted but no...
+        if val:
+            self.add_cell_feature((tile_name, bel, "ZINV_PSEN"))
+
+        net = bel_pins.get("PSINCDEC", None)
+        val = self.get_cell_param(cell_data,
+              "IS_PSINCDEC_INVERTED", ParameterFormat.VERILOG_BINARY)
+        # FIXME: This should get inverted but no...
+        if val:
+            self.add_cell_feature((tile_name, bel, "ZINV_PSINCDEC"))
+
+        # Boolean parameters
+        val = self.get_cell_param(cell_data, "SS_EN", ParameterFormat.BOOLEAN)
+        if val:
+            self.add_cell_feature((tile_name, bel, "SS_EN"))
+
+        # CLKOUT6 output enable
+        if "CLKOUT6" in bel_pins:
+            self.add_cell_feature((tile_name, bel,
+                "CLKOUT6_CLKOUT1_OUTPUT_ENABLE"))
+
+        # Lookup tables
+        clkfbout_mult = int(float(cell_data.attributes["CLKFBOUT_MULT_F"]))
+        ss_en = self.get_cell_param(cell_data, "SS_EN", ParameterFormat.BOOLEAN)
+        bandwidth = cell_data.attributes["BANDWIDTH"].lower()
+
+        lktable, table = compute_mmcm_lookup(
+            int(clkfbout_mult), bandwidth, ss_en)
+
+        self.add_cell_feature((tile_name, bel,
+            "LKTABLE[39:0]={}".format(lktable)))
+        self.add_cell_feature((tile_name, bel,
+            "TABLE[9:0]={}".format(table)))
+
+        # Fixed parameters
+        self.add_cell_feature((tile_name, bel,
+            "FILTREG1_RESERVED[11:0]=12'b000000001000"))
+        self.add_cell_feature((tile_name, bel,
+            "LOCKREG3_RESERVED[0]=1'b1"))       
+
+        # Compensation
+        compensation = cell_data.attributes["COMPENSATION"]
+        if compensation == "ZHOLD":
+            self.add_cell_feature((tile_name, bel, "COMP.ZHOLD"))
+        else:
+            self.add_cell_feature((tile_name, bel, "COMP.Z_ZHOLD"))
+
+        # Round fractional dividers to the nearest multiple of 0.125
+        clkfbout_mult = float(cell_data.attributes["CLKFBOUT_MULT_F"])
+        clkout0_divide = float(cell_data.attributes["CLKOUT0_DIVIDE_F"])
+
+        clkfbout_mult_r = int((clkfbout_mult + 0.0625) / 0.125) * 0.125
+        clkout0_divide_r = int((clkout0_divide + 0.0625) / 0.125) * 0.125
+
+        # Determine whether fractional dividers are enabled
+        EPS = 0.001
+        clkfbout_frac_en = \
+            abs(int(clkfbout_mult_r) - clkfbout_mult_r) > EPS
+        clkout0_frac_en = \
+            abs(int(clkout0_divide_r) - clkout0_divide_r) > EPS
+
+        # Determine if phase shift of CLKFBOUT and CLKOUT0 is a multiple of
+        # 45 degrees
+        clkfbout_phase = float(cell_data.attributes["CLKFBOUT_PHASE"])
+        clkout0_phase = float(cell_data.attributes["CLKOUT0_PHASE"])
+
+        clkfbout_phase_45 = (int(clkfbout_phase) % 45) == 0
+        clkout0_phase_45 = (int(clkout0_phase) % 45) == 0
+
+        # Power register
+        if clkfbout_frac_en or clkout0_frac_en or not clkout0_phase_45:
+            power_reg = "16'b1001100100000000"
+        else:
+            power_reg = "16'b0000000100000000"
+        self.add_cell_feature((tile_name, bel,
+            "POWER_REG_POWER_REG_POWER_REG[15:0]=" + power_reg))
+
+        # "Regular" multipliers / dividers
+        for clkname in ["DIVCLK", "CLKOUT1", "CLKOUT2", "CLKOUT3", "CLKOUT4"]:
+
+            param = "{}_DIVIDE".format(clkname)
+            muldiv = self.get_cell_param(cell_data, param)
+
+            if clkname == "DIVCLK":
+                duty = 0.5
+            else:
+                param = "{}_DUTY_CYCLE".format(clkname)
+                duty = float(cell_data.attributes[param])
+
+            if clkname == "DIVCLK":
+                phase = 0.0
+            else:
+                param = "{}_PHASE".format(clkname)
+                phase = float(cell_data.attributes[param])
+
+            print(clkname)
+            clkregs = compute_mmcm_clkregs(muldiv, duty, phase)
+            for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
+                self.add_cell_feature((tile_name, bel, f))
+
+
+        # Fractional multipliers / dividers + "regualr" ones that share their
+        # registers with them
+        for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT5"), ("CLKOUT0", "CLKOUT6")]:
+
+            # Compute registers for the "other" clock (integer only). Will be
+            # used later
+            param = "{}_DIVIDE".format(clkname2)
+            muldiv = self.get_cell_param(cell_data, param)
+
+            param = "{}_DUTY_CYCLE".format(clkname2)
+            duty = float(cell_data.attributes[param])
+
+            param = "{}_PHASE".format(clkname2)
+            phase = float(cell_data.attributes[param])
+
+            print(clkname2)
+            clkregs2 = compute_mmcm_clkregs(muldiv, duty, phase)
+
+            # Compute registers for integer divider of the first clock
+            if clkname1 == "CLKFBOUT":
+                muldiv  = clkfbout_mult_r
+                frac_en = clkfbout_frac_en
+            if clkname1 == "CLKOUT0":
+                muldiv  = clkout0_divide_r
+                frac_en = clkout0_frac_en
+
+            if clkname1 == "CLKFBOUT" or frac_en:
+                duty = 0.5
+            else:
+                param = "{}_DUTY".format(clkname1)
+                duty = float(cell_data.attribute[param])
+
+            param = "{}_PHASE".format(clkname1)
+            phase = float(cell_data.attributes[param])
+
+            print(clkname1)
+            clkregs1 = compute_mmcm_clkregs(int(muldiv), duty, phase)
+
+            # Fractional divider enabled
+            if frac_en:
+                
+                clkregs1_frac = compute_mmcm_clkregs_frac(
+                    muldiv, 0.5, phase)
+
+                # When no fractional divider is enabled use the *_regs content.
+                # For fractional divider use *_regs_frac content but take the
+                # "EDGE" bit from *_regs. This is not documented in XAPP888 but
+                # has been observed in vendor tools.
+                clkregs1 = clkregs1_frac[:23] + \
+                           clkregs1[23] + \
+                           clkregs1_frac[24:32]
+
+                # Integrate shared part of clkregs1 with clkregs2
+                clkregs2 = clkregs2[:26] + \
+                           clkregs1_frac[32:36] + \
+                           clkregs2[30:32]
+
+            # Fractional divider disabled
+            else:
+
+                # Integrate shared part of clkregs1 with clkregs2
+                clkregs2 = clkregs2[:26] + \
+                           clkregs1[13:16] + \
+                           clkregs2[30:32]
+
+            # For CLKFBOUT and CLKOUT0
+            for f in self.yield_pll_mmcm_clkregs_features(clkname1, clkregs1):
+                self.add_cell_feature((tile_name, bel, f))
+
+            for f in self.yield_mmcm_clkregs_frac_features(clkname1, clkregs1):
+                self.add_cell_feature((tile_name, bel, f))
+
+            # For CLKOUT5 and CLKOUT6
+            for f in self.yield_mmcm_clkregs_features(clkname2, clkregs2):
+                self.add_cell_feature((tile_name, bel, f))
 
     def handle_cmts(self):
         """

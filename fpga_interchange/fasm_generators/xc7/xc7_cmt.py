@@ -16,7 +16,7 @@ for Xilinx Series-7 FPGAs into FASM features.
 # =============================================================================
 
 
-PLL_LOCK_TABLE = [
+PLL_MMCM_LOCK_TABLE = [
     # This table is composed of:
     # LockRefDly_LockFBDly_LockCnt_LockSatHigh_UnlockCnt
     "40'b00110_00110_1111101000_1111101001_0000000001",
@@ -293,6 +293,279 @@ PLL_BANDWIDTH_TABLE = {
 
 # =============================================================================
 
+PLL_BANDWIDTH_TABLE = {
+    "low": [
+        # CP_RES_LFHF
+        "10'b0010_1111_00",
+        "10'b0010_1111_00",
+        "10'b0010_1111_00",
+        "10'b0010_1111_00",
+        "10'b0010_0111_00",
+        "10'b0010_1011_00",
+        "10'b0010_1101_00",
+        "10'b0010_0011_00",
+        "10'b0010_0101_00",
+        "10'b0010_0101_00",
+        "10'b0010_1001_00",
+        "10'b0010_1110_00",
+        "10'b0010_1110_00",
+        "10'b0010_1110_00",
+        "10'b0010_1110_00",
+        "10'b0010_0001_00",
+        "10'b0010_0001_00",
+        "10'b0010_0001_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_0110_00",
+        "10'b0010_1010_00",
+        "10'b0010_1010_00",
+        "10'b0010_1010_00",
+        "10'b0010_1010_00",
+        "10'b0010_1010_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_1100_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00",
+        "10'b0010_0010_00" 
+    ],
+    "high": [
+        # CP_RES_LFHF
+        "10'b0010_1111_00",
+        "10'b0100_1111_00",
+        "10'b0101_1011_00",
+        "10'b0111_0111_00",
+        "10'b1101_0111_00",
+        "10'b1110_1011_00",
+        "10'b1110_1101_00",
+        "10'b1111_0011_00",
+        "10'b1110_0101_00",
+        "10'b1111_0101_00",
+        "10'b1111_1001_00",
+        "10'b1101_0001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_0101_00",
+        "10'b1111_0101_00",
+        "10'b1100_0001_00",
+        "10'b1100_0001_00",
+        "10'b1100_0001_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0111_0001_00",
+        "10'b0111_0001_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0110_0001_00",
+        "10'b0110_0001_00",
+        "10'b0101_0110_00",
+        "10'b0101_0110_00",
+        "10'b0101_0110_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0100_1010_00",
+        "10'b0011_1100_00",
+        "10'b0011_1100_00" 
+    ],
+    "optimized": [
+        # CP_RES_LFHF
+        "10'b0010_1111_00",
+        "10'b0100_1111_00",
+        "10'b0101_1011_00",
+        "10'b0111_0111_00",
+        "10'b1101_0111_00",
+        "10'b1110_1011_00",
+        "10'b1110_1101_00",
+        "10'b1111_0011_00",
+        "10'b1110_0101_00",
+        "10'b1111_0101_00",
+        "10'b1111_1001_00",
+        "10'b1101_0001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_1001_00",
+        "10'b1111_0101_00",
+        "10'b1111_0101_00",
+        "10'b1100_0001_00",
+        "10'b1100_0001_00",
+        "10'b1100_0001_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0101_1100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0011_0100_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0010_1000_00",
+        "10'b0111_0001_00",
+        "10'b0111_0001_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0100_1100_00",
+        "10'b0110_0001_00",
+        "10'b0110_0001_00",
+        "10'b0101_0110_00",
+        "10'b0101_0110_00",
+        "10'b0101_0110_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0010_0100_00",
+        "10'b0100_1010_00",
+        "10'b0011_1100_00",
+        "10'b0011_1100_00" 
+    ],
+    "ss": [
+        # CP_RES_LFHF
+        "10'b0010_1111_11",
+        "10'b0010_1111_11",
+        "10'b0010_1111_11",
+        "10'b0010_1111_11",
+        "10'b0010_0111_11",
+        "10'b0010_1011_11",
+        "10'b0010_1101_11",
+        "10'b0010_0011_11",
+        "10'b0010_0101_11",
+        "10'b0010_0101_11",
+        "10'b0010_1001_11",
+        "10'b0010_1110_11",
+        "10'b0010_1110_11",
+        "10'b0010_1110_11",
+        "10'b0010_1110_11",
+        "10'b0010_0001_11",
+        "10'b0010_0001_11",
+        "10'b0010_0001_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_0110_11",
+        "10'b0010_1010_11",
+        "10'b0010_1010_11",
+        "10'b0010_1010_11",
+        "10'b0010_1010_11",
+        "10'b0010_1010_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_1100_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11",
+        "10'b0010_0010_11" 
+    ],
+}
+
+# =============================================================================
+
 
 def compute_pll_lookup(clkfbout_mult, bandwidth):
     """
@@ -301,7 +574,7 @@ def compute_pll_lookup(clkfbout_mult, bandwidth):
     """
 
     # Lock table (a.k.a. LKTABLE)
-    lktable = PLL_LOCK_TABLE[clkfbout_mult - 1].replace("_", "")
+    lktable = PLL_MMCM_LOCK_TABLE[clkfbout_mult - 1].replace("_", "")
     # Bandwidth control table (a.k.a. TABLE)
     table = PLL_BANDWIDTH_TABLE[bandwidth][clkfbout_mult - 1].replace("_", "")
 
@@ -323,6 +596,8 @@ def compute_pll_clkregs(divide, duty, phase):
         scale = (1 << PLL_FRAC_PRECISION)
         return int(round(x / scale, n) * scale)
 
+    print(divide, duty, phase)
+
     # Sanity check argument types and values
     assert isinstance(divide, int), type(divide)
     assert divide > 0 and divide <= 128, divide
@@ -330,8 +605,6 @@ def compute_pll_clkregs(divide, duty, phase):
     assert duty > 0.0 and duty < 1.0, duty
     assert isinstance(phase, int) or isinstance(phase, float), type(phase)
     assert phase > -360.0 and phase < 360.0, phase
-
-    print(divide, duty, phase)
 
     # Phase shift register fields
     if phase < 0.0:
@@ -400,4 +673,98 @@ def compute_pll_clkregs(divide, duty, phase):
     clkregs = "{:032b}".format(clkregs)[::-1]
     return clkregs
 
+# =============================================================================
+
+
+def compute_mmcm_lookup(clkfbout_mult, bandwidth, spread_spectrum=False):
+    """
+    Returns values from MMCM lookup tables according to its CLKFBOUT_MULT and
+    BANDWIDTH parameter. MMCM uses one more different lookup when
+    spread-spectrum is enabled. The values are returned as binary strings.
+    """
+
+    # Lock table (a.k.a. LKTABLE)
+    lktable = PLL_MMCM_LOCK_TABLE[clkfbout_mult - 1].replace("_", "")
+
+    # Bandwidth control table (a.k.a. TABLE)
+    if spread_spectrum:
+        key = "ss"
+    else:
+        key = bandwidth
+    table = PLL_BANDWIDTH_TABLE[key][clkfbout_mult - 1].replace("_", "")
+
+    return lktable, table
+
+
+def compute_mmcm_clkregs(divide, duty, phase):
+    """
+    See compule_pll_clkregs. They are identical.
+    """
+    return compute_pll_clkregs(divide, duty, phase)
+
+
+def compute_mmcm_clkregs_frac(divide, duty, phase):
+    """
+    Returns a string of 0s and 1s with the following layout. Bits are indexed
+    starting from LSB.
+    
+        CLKREG1: PHASE_MUX[2:0], RESERVED, HIGH_TIME[5:0], LOW_TIME[5:0]
+        CLKREG2: RESERVED[0:0], FRAC[2:0], FRAC_EN[0:0], FRAC_WF_R[0:0], MX[1:0], EDGE, NO_COUNT, DELAY_TIME[5:0]
+        Shared : RESERVED[1:0], FRAC_TIME[2:0], FRAC_WF_FALL
+   """
+
+    # Sanity check argument types and values
+    # TODO:
+
+    # Decompose the fractional divider
+    divide_int  = int(divide)
+    divide_frac = int((divide - divide_int) / 0.125)
+
+    # Calculate wf_fall_time and wf_rise_time
+    even_part_high = divide_int >> 1;
+    even_part_low  = even_part_high;
+
+    odd = divide_int - even_part_high - even_part_low;
+    odd_and_frac = (8 * odd) + divide_frac;
+
+    lt_frac = even_part_high - int(odd_and_frac <= 9);
+    ht_frac = even_part_low  - int(odd_and_frac <= 8);
+
+    pm_fall = (odd << 2) + (divide_frac >> 1)
+    pm_rise = 0
+
+    wf_fall_frac = int(((odd_and_frac >= 2) and (odd_and_frac <= 9)) or ((divide_frac == 1) and (divide_int == 2)));
+    wf_rise_frac = int( (odd_and_frac >= 1) and (odd_and_frac <= 8));
+
+    # Calculate phase shift in fractional cycles
+    a_per_in_octets   = int((8 * divide_int) + divide_frac);
+    a_phase_in_cycles = int(((phase + 0.01) * a_per_in_octets) // 360)
+
+    dt_calc = int(((phase + 0.01) * a_per_in_octets / 8) // 360)
+    dt = dt_calc & 0xFF
+
+    pm_rise_frac_filtered = a_phase_in_cycles % 8;
+    pm_fall_frac_filtered = (pm_fall + pm_rise_frac_filtered) % 8;
+
+    # Assemble the final clock registers content
+    # CLKREG1: PHASE_MUX[2:0], RESERVED, HIGH_TIME[5:0], LOW_TIME[5:0]
+    clkregs  = lt_frac
+    clkregs |= ht_frac << 6
+    clkregs |= pm_rise_frac_filtered << 13
+
+    # CLKREG2: RESERVED[0:0], FRAC[2:0], FRAC_EN[0:0], FRAC_WF_R[0:0], MX[1:0], EDGE, NO_COUNT, DELAY_TIME[5:0]
+    clkregs |= dt << 16
+    clkregs |= wf_rise_frac << 26
+    clkregs |= 1 << 27
+    clkregs |= divide_frac << 28
+
+    # Shared:  RESERVED[1:0], FRAC_TIME[2:0], FRAC_WF_FALL
+    clkregs |= wf_fall_frac << 32
+    clkregs |= pm_fall_frac_filtered << 33
+    clkregs |= 3 << 36
+
+    print("", "clkregs_frac: {:038b}".format(clkregs))
+
+    clkregs = "{:038b}".format(clkregs)[::-1]
+    return clkregs
 
