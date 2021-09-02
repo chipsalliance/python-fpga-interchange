@@ -907,26 +907,6 @@ class XC7FasmGenerator(FasmGenerator):
         # IN_USE
         self.add_cell_feature((tile_name, bel, "IN_USE"))
 
-        # Input pin inverters
-        val = self.get_cell_param(cell_data,
-              "IS_CLKINSEL_INVERTED", ParameterFormat.VERILOG_BINARY)
-        if val:
-            self.add_cell_feature((tile_name, bel, "INV_CLKINSEL"))
-
-        net = bel_pins.get("PWRDWN", None)
-        val = self.get_cell_param(cell_data,
-              "IS_PWRDWN_INVERTED", ParameterFormat.VERILOG_BINARY)
-        # FIXME: This should get inverted but no...
-        if val:
-            self.add_cell_feature((tile_name, bel, "ZINV_PWRDWN"))
-
-        net = bel_pins.get("RST", None)
-        val = self.get_cell_param(cell_data,
-              "IS_RST_INVERTED", ParameterFormat.VERILOG_BINARY)
-        # FIXME: This should get inverted but no...
-        if val:
-            self.add_cell_feature((tile_name, bel, "ZINV_RST"))
-
         # Boolean parameters
         val = self.get_cell_param(cell_data,
                 "STARTUP_WAIT", ParameterFormat.BOOLEAN)
@@ -1014,21 +994,6 @@ class XC7FasmGenerator(FasmGenerator):
 
         # Get BEL pin assignments
         bel_pins = self.get_bel_pins_annotation(tile_name, bel)
-
-        # Input pin inverters
-        net = bel_pins.get("PSEN", None)
-        val = self.get_cell_param(cell_data,
-              "IS_PSEN_INVERTED", ParameterFormat.VERILOG_BINARY)
-        # FIXME: This should get inverted but no...
-        if val:
-            self.add_cell_feature((tile_name, bel, "ZINV_PSEN"))
-
-        net = bel_pins.get("PSINCDEC", None)
-        val = self.get_cell_param(cell_data,
-              "IS_PSINCDEC_INVERTED", ParameterFormat.VERILOG_BINARY)
-        # FIXME: This should get inverted but no...
-        if val:
-            self.add_cell_feature((tile_name, bel, "ZINV_PSINCDEC"))
 
         # Boolean parameters
         val = self.get_cell_param(cell_data, "SS_EN", ParameterFormat.BOOLEAN)
@@ -1120,7 +1085,7 @@ class XC7FasmGenerator(FasmGenerator):
 
         # Fractional multipliers / dividers + "regualr" ones that share their
         # registers with them
-        for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT5"), ("CLKOUT0", "CLKOUT6")]:
+        for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT6"), ("CLKOUT0", "CLKOUT5")]:
 
             # Compute registers for the "other" clock (integer only). Will be
             # used later
@@ -1146,8 +1111,8 @@ class XC7FasmGenerator(FasmGenerator):
             if clkname1 == "CLKFBOUT" or frac_en:
                 duty = 0.5
             else:
-                param = "{}_DUTY".format(clkname1)
-                duty = float(cell_data.attribute[param])
+                param = "{}_DUTY_CYCLE".format(clkname1)
+                duty = float(cell_data.attributes[param])
 
             param = "{}_PHASE".format(clkname1)
             phase = float(cell_data.attributes[param])
@@ -1359,6 +1324,33 @@ class XC7FasmGenerator(FasmGenerator):
             elif is_inverting and pin in inverting_pins:
                 inv_feature = "IS_{}_INVERTED".format(pin.split("_")[0])
                 self.add_cell_feature((tile_name, iologic_prefix, inv_feature))
+
+    def handle_cmt_routing_bels(self):
+        """
+        Handles CMT routing bels - PLL and MMCM input pin inverters
+        """
+        tile_types = ["CMT_TOP_R_LOWER_B", "CMT_TOP_R_UPPER_T",
+                      "CMT_TOP_L_LOWER_B", "CMT_TOP_L_UPPER_T"]
+        routing_bels = self.get_routing_bels(tile_types)
+
+        for site, bel, pin, is_inverting in routing_bels:
+            tile_name, tile_type = self.get_tile_info_at_site(site)
+
+            # Get the CMT BEL (either PLL or MMCM)
+            cmt_bel = site.rsplit("_", maxsplit=1)[0]
+            assert cmt_bel in ["PLLE2_ADV", "MMCME2_ADV"], cmt_bel
+            # Get the CMT BEL pin
+            bel_pin = pin.replace("_B", "")
+
+            # FASM feature
+            # FIXME: Weird, those ZINV_* features behave more like INV_*
+            feature = "INV_{}".format(bel_pin)
+            if bel_pin not in ["CLKINSEL"]:
+                feature = "Z" + feature
+
+            # Emit
+            if is_inverting:
+                self.add_cell_feature((tile_name, cmt_bel, feature))
 
     def handle_slice_bel_pins(self):
         """
@@ -1681,6 +1673,7 @@ class XC7FasmGenerator(FasmGenerator):
         self.handle_slice_routing_bels()
         self.handle_bram_routing_bels()
         self.handle_ioi_routing_bels()
+        self.handle_cmt_routing_bels()
 
         # Handling bel pins
         self.handle_slice_bel_pins()

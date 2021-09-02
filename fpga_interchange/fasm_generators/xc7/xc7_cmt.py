@@ -714,7 +714,7 @@ def compute_mmcm_clkregs_frac(divide, duty, phase):
     divide_frac = int((divide - divide_int) / 0.125)
 
     # Calculate wf_fall_time and wf_rise_time
-    even_part_high = divide_int >> 1;
+    even_part_high = divide_int // 2;
     even_part_low  = even_part_high;
 
     odd = divide_int - even_part_high - even_part_low;
