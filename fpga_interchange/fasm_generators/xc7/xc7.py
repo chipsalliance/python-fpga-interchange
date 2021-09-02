@@ -996,7 +996,6 @@ class XC7FasmGenerator(FasmGenerator):
                 param = "{}_PHASE".format(clkname)
                 phase = float(cell_data.attributes[param])
 
-            print(clkname)
             clkregs = compute_pll_clkregs(muldiv, duty, phase)
             for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
                 self.add_cell_feature((tile_name, bel, f))
@@ -1075,11 +1074,10 @@ class XC7FasmGenerator(FasmGenerator):
         clkout0_divide_r = int((clkout0_divide + 0.0625) / 0.125) * 0.125
 
         # Determine whether fractional dividers are enabled
-        EPS = 0.001
         clkfbout_frac_en = \
-            abs(int(clkfbout_mult_r) - clkfbout_mult_r) > EPS
+            abs(int(clkfbout_mult_r) - clkfbout_mult_r) > 0.0625
         clkout0_frac_en = \
-            abs(int(clkout0_divide_r) - clkout0_divide_r) > EPS
+            abs(int(clkout0_divide_r) - clkout0_divide_r) > 0.0625
 
         # Determine if phase shift of CLKFBOUT and CLKOUT0 is a multiple of
         # 45 degrees
@@ -1115,7 +1113,6 @@ class XC7FasmGenerator(FasmGenerator):
                 param = "{}_PHASE".format(clkname)
                 phase = float(cell_data.attributes[param])
 
-            print(clkname)
             clkregs = compute_mmcm_clkregs(muldiv, duty, phase)
             for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
                 self.add_cell_feature((tile_name, bel, f))
@@ -1136,7 +1133,6 @@ class XC7FasmGenerator(FasmGenerator):
             param = "{}_PHASE".format(clkname2)
             phase = float(cell_data.attributes[param])
 
-            print(clkname2)
             clkregs2 = compute_mmcm_clkregs(muldiv, duty, phase)
 
             # Compute registers for integer divider of the first clock
@@ -1156,7 +1152,6 @@ class XC7FasmGenerator(FasmGenerator):
             param = "{}_PHASE".format(clkname1)
             phase = float(cell_data.attributes[param])
 
-            print(clkname1)
             clkregs1 = compute_mmcm_clkregs(int(muldiv), duty, phase)
 
             # Fractional divider enabled

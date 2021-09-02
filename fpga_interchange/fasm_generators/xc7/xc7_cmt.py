@@ -596,11 +596,9 @@ def compute_pll_clkregs(divide, duty, phase):
         scale = (1 << PLL_FRAC_PRECISION)
         return int(round(x / scale, n) * scale)
 
-    print(divide, duty, phase)
-
     # Sanity check argument types and values
     assert isinstance(divide, int), type(divide)
-    assert divide > 0 and divide <= 128, divide
+    assert divide >= 1 and divide <= 128, divide
     assert isinstance(duty, int) or isinstance(duty, float), type(duty)
     assert duty > 0.0 and duty < 1.0, duty
     assert isinstance(phase, int) or isinstance(phase, float), type(phase)
@@ -612,12 +610,9 @@ def compute_pll_clkregs(divide, duty, phase):
 
     phase_fixed = int(phase * (1 << PLL_FRAC_PRECISION))
     phase_in_cycles = round_frac((phase_fixed * divide) // 360, 3)
-    print("", phase, phase_fixed, phase_in_cycles)
 
     phase_mux = (phase_in_cycles >> (PLL_FRAC_PRECISION - 3)) & 0x07
     delay_tim = (phase_in_cycles >> (PLL_FRAC_PRECISION    )) & 0x3F
-    print("", "phase_mux: {:03b}".format(phase_mux))
-    print("", "delay_tim: {:06b}".format(delay_tim))
 
     # Divider register fields
     if divide > 1:
@@ -630,7 +625,6 @@ def compute_pll_clkregs(divide, duty, phase):
         duty_fix = int(duty * (1 << PLL_FRAC_PRECISION))
         temp = round_frac(duty_fix * divide, 1)
 
-        print("{:016b}".format(temp))
         high_time = (temp >>  PLL_FRAC_PRECISION     ) & 0x7F
         w_edge    = (temp >> (PLL_FRAC_PRECISION - 1)) & 0x01
 
@@ -655,11 +649,6 @@ def compute_pll_clkregs(divide, duty, phase):
     high_time &= 0x3F
     low_time  &= 0x3F
 
-    print("", "high_time: {:06b}".format(high_time))
-    print("", "low_time : {:06b}".format(low_time))
-    print("", "w_edge   : {:01b}".format(w_edge))
-    print("", "no_count : {:01b}".format(no_count))
-
     # Assemble the final clock registers content
     clkregs  = low_time
     clkregs |= high_time << 6
@@ -668,7 +657,6 @@ def compute_pll_clkregs(divide, duty, phase):
     clkregs |= delay_tim << 16
     clkregs |= no_count << 22
     clkregs |= w_edge << 23
-    print("", "clkregs: {:032b}".format(clkregs))
 
     clkregs = "{:032b}".format(clkregs)[::-1]
     return clkregs
@@ -714,7 +702,12 @@ def compute_mmcm_clkregs_frac(divide, duty, phase):
    """
 
     # Sanity check argument types and values
-    # TODO:
+    assert isinstance(divide, float), type(divide)
+    assert divide >= 1.0 and divide <= 128.0, divide
+    assert isinstance(duty, int) or isinstance(duty, float), type(duty)
+    assert duty > 0.0 and duty < 1.0, duty
+    assert isinstance(phase, int) or isinstance(phase, float), type(phase)
+    assert phase > -360.0 and phase < 360.0, phase
 
     # Decompose the fractional divider
     divide_int  = int(divide)
@@ -762,8 +755,6 @@ def compute_mmcm_clkregs_frac(divide, duty, phase):
     clkregs |= wf_fall_frac << 32
     clkregs |= pm_fall_frac_filtered << 33
     clkregs |= 3 << 36
-
-    print("", "clkregs_frac: {:038b}".format(clkregs))
 
     clkregs = "{:038b}".format(clkregs)[::-1]
     return clkregs
