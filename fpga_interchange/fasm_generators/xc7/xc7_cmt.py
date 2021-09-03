@@ -293,7 +293,7 @@ PLL_BANDWIDTH_TABLE = {
 
 # =============================================================================
 
-PLL_BANDWIDTH_TABLE = {
+MMCM_BANDWIDTH_TABLE = {
     "low": [
         # CP_RES_LFHF
         "10'b0010_1111_00",
@@ -679,7 +679,7 @@ def compute_mmcm_lookup(clkfbout_mult, bandwidth, spread_spectrum=False):
         key = "ss"
     else:
         key = bandwidth
-    table = PLL_BANDWIDTH_TABLE[key][clkfbout_mult - 1].replace("_", "")
+    table = MMCM_BANDWIDTH_TABLE[key][clkfbout_mult - 1].replace("_", "")
 
     return lktable, table
 
