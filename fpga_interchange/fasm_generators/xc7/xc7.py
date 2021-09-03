@@ -1085,7 +1085,8 @@ class XC7FasmGenerator(FasmGenerator):
 
         # Fractional multipliers / dividers + "regualr" ones that share their
         # registers with them
-        for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT6"), ("CLKOUT0", "CLKOUT5")]:
+        for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT6"), \
+                                   ("CLKOUT0", "CLKOUT5")]:
 
             # Compute registers for the "other" clock (integer only). Will be
             # used later
@@ -1142,7 +1143,7 @@ class XC7FasmGenerator(FasmGenerator):
             else:
 
                 # Integrate shared part of clkregs1 with clkregs2
-                clkregs2 = clkregs2[:26] + \
+                clkregs2 = clkregs2[:27] + \
                            clkregs1[13:16] + \
                            clkregs2[30:32]
 
