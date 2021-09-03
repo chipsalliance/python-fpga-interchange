@@ -165,11 +165,7 @@ class XC7FasmGenerator(FasmGenerator):
         else:
             assert False, count
 
-        return "{}={}'b{}".format(
-            bitrange,
-            count,
-            value
-        )
+        return "{}={}'b{}".format(bitrange, count, value)
 
     def handle_brams(self):
         """
@@ -796,7 +792,6 @@ class XC7FasmGenerator(FasmGenerator):
             if init_value == 0:
                 self.add_cell_feature((tile_name, slice_site, bel, "ZINI"))
 
-
     def get_cell_param(self, cell_data, name, force_format=None):
         """
         Retrieves definition and decodes value of a cell parameter. The
@@ -804,21 +799,18 @@ class XC7FasmGenerator(FasmGenerator):
         """
 
         param = self.device_resources.get_parameter_definition(
-            cell_data.cell_type, name
-        )
+            cell_data.cell_type, name)
 
         # Force the format if requested by substituting the paraameter
         # definition object.
         if not param.is_integer_like() and force_format is not None:
             if force_format != param.string_format:
                 param = ParameterDefinition(
-                    name = name,
-                    string_format = force_format,
-                    default_value = cell_data.attributes[name]
-                )
+                    name=name,
+                    string_format=force_format,
+                    default_value=cell_data.attributes[name])
 
         return param.decode_integer(cell_data.attributes[name])
-
 
     @staticmethod
     def yield_pll_mmcm_clkregs_features(name, clkregs):
@@ -835,22 +827,24 @@ class XC7FasmGenerator(FasmGenerator):
             pfx1 = "CLKOUT1"
             pfx2 = "CLKOUT2"
 
-        yield "{}_{}_HIGH_TIME{}".format(name, pfx1,
-            XC7FasmGenerator.format_feature_value(clkregs[6:12]))
-        yield "{}_{}_LOW_TIME{}".format(name, pfx1,
-            XC7FasmGenerator.format_feature_value(clkregs[0:6]))
+        yield "{}_{}_HIGH_TIME{}".format(
+            name, pfx1, XC7FasmGenerator.format_feature_value(clkregs[6:12]))
+        yield "{}_{}_LOW_TIME{}".format(
+            name, pfx1, XC7FasmGenerator.format_feature_value(clkregs[0:6]))
 
         # A corner case for DIVCLK
         if name != "DIVCLK":
-            yield "{}_{}_PHASE_MUX{}".format(name, pfx1,
+            yield "{}_{}_PHASE_MUX{}".format(
+                name, pfx1,
                 XC7FasmGenerator.format_feature_value(clkregs[13:16]))
-            yield "{}_{}_DELAY_TIME{}".format(name, pfx2,
+            yield "{}_{}_DELAY_TIME{}".format(
+                name, pfx2,
                 XC7FasmGenerator.format_feature_value(clkregs[16:22]))
 
-        yield "{}_{}_EDGE{}".format(name, pfx2,
-            XC7FasmGenerator.format_feature_value(clkregs[23]))
-        yield "{}_{}_NO_COUNT{}".format(name, pfx2,
-            XC7FasmGenerator.format_feature_value(clkregs[22]))
+        yield "{}_{}_EDGE{}".format(
+            name, pfx2, XC7FasmGenerator.format_feature_value(clkregs[23]))
+        yield "{}_{}_NO_COUNT{}".format(
+            name, pfx2, XC7FasmGenerator.format_feature_value(clkregs[22]))
 
     @staticmethod
     def yield_mmcm_clkregs_frac_features(name, clkregs):
@@ -860,12 +854,12 @@ class XC7FasmGenerator(FasmGenerator):
         which are CLKFBOUT and CLKOUT0
         """
 
-        yield "{}_CLKOUT2_FRAC{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[28:31]))
-        yield "{}_CLKOUT2_FRAC_EN{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[27]))
-        yield "{}_CLKOUT2_FRAC_WF_R{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[26]))
+        yield "{}_CLKOUT2_FRAC{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[28:31]))
+        yield "{}_CLKOUT2_FRAC_EN{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[27]))
+        yield "{}_CLKOUT2_FRAC_WF_R{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[26]))
 
     @staticmethod
     def yield_mmcm_clkregs_features(name, clkregs):
@@ -875,23 +869,23 @@ class XC7FasmGenerator(FasmGenerator):
         others and named differently
         """
 
-        yield "{}_CLKOUT1_HIGH_TIME{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[6:12]))
-        yield "{}_CLKOUT1_LOW_TIME{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[0:6]))
-        yield "{}_CLKOUT1_PHASE_MUX{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[13:16]))
+        yield "{}_CLKOUT1_HIGH_TIME{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[6:12]))
+        yield "{}_CLKOUT1_LOW_TIME{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[0:6]))
+        yield "{}_CLKOUT1_PHASE_MUX{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[13:16]))
 
-        yield "{}_CLKOUT2_FRACTIONAL_DELAY_TIME{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[16:22]))
-        yield "{}_CLKOUT2_FRACTIONAL_EDGE{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[23]))
-        yield "{}_CLKOUT2_FRACTIONAL_NO_COUNT{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[22]))
-        yield "{}_CLKOUT2_FRACTIONAL_PHASE_MUX_F{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[27:30]))
-        yield "{}_CLKOUT2_FRACTIONAL_FRAC_WF_F{}".format(name,
-            XC7FasmGenerator.format_feature_value(clkregs[26]))
+        yield "{}_CLKOUT2_FRACTIONAL_DELAY_TIME{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[16:22]))
+        yield "{}_CLKOUT2_FRACTIONAL_EDGE{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[23]))
+        yield "{}_CLKOUT2_FRACTIONAL_NO_COUNT{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[22]))
+        yield "{}_CLKOUT2_FRACTIONAL_PHASE_MUX_F{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[27:30]))
+        yield "{}_CLKOUT2_FRACTIONAL_FRAC_WF_F{}".format(
+            name, XC7FasmGenerator.format_feature_value(clkregs[26]))
 
     def handle_pll_mmcm_common(self, cell_data):
         """
@@ -908,14 +902,16 @@ class XC7FasmGenerator(FasmGenerator):
         self.add_cell_feature((tile_name, bel, "IN_USE"))
 
         # Boolean parameters
-        val = self.get_cell_param(cell_data,
-                "STARTUP_WAIT", ParameterFormat.BOOLEAN)
+        val = self.get_cell_param(cell_data, "STARTUP_WAIT",
+                                  ParameterFormat.BOOLEAN)
         if val:
             self.add_cell_feature((tile_name, bel, "STARTUP_WAIT"))
 
         # Clock output enables
-        for clkname in ["CLKFBOUT", "CLKOUT0", "CLKOUT1", "CLKOUT2", "CLKOUT3",
-                        "CLKOUT4", "CLKOUT5"]:
+        for clkname in [
+                "CLKFBOUT", "CLKOUT0", "CLKOUT1", "CLKOUT2", "CLKOUT3",
+                "CLKOUT4", "CLKOUT5"
+        ]:
             feature = "{}_CLKOUT1_OUTPUT_ENABLE".format(clkname)
             if clkname in bel_pins:
                 self.add_cell_feature((tile_name, bel, feature))
@@ -933,7 +929,7 @@ class XC7FasmGenerator(FasmGenerator):
 
         # FIXME: Is this one supposed to be emitted always ?
         self.add_cell_feature((tile_name, bel,
-            "COMPENSATION.Z_ZHOLD_OR_CLKIN_BUF"))
+                               "COMPENSATION.Z_ZHOLD_OR_CLKIN_BUF"))
 
         # Lookup tables
         clkfbout_mult = self.get_cell_param(cell_data, "CLKFBOUT_MULT")
@@ -942,19 +938,19 @@ class XC7FasmGenerator(FasmGenerator):
         lktable, table = compute_pll_lookup(clkfbout_mult, bandwidth)
 
         self.add_cell_feature((tile_name, bel,
-            "LKTABLE[39:0]={}".format(lktable)))
-        self.add_cell_feature((tile_name, bel,
-            "TABLE[9:0]={}".format(table)))
+                               "LKTABLE[39:0]={}".format(lktable)))
+        self.add_cell_feature((tile_name, bel, "TABLE[9:0]={}".format(table)))
 
         # Fixed parameters
         self.add_cell_feature((tile_name, bel,
-            "FILTREG1_RESERVED[11:0]=12'b000000001000"))
-        self.add_cell_feature((tile_name, bel,
-            "LOCKREG3_RESERVED[0]=1'b1"))       
+                               "FILTREG1_RESERVED[11:0]=12'b000000001000"))
+        self.add_cell_feature((tile_name, bel, "LOCKREG3_RESERVED[0]=1'b1"))
 
         # Multipliers / dividers
-        for clkname in ["CLKFBOUT", "DIVCLK", "CLKOUT0", "CLKOUT1", "CLKOUT2",
-                        "CLKOUT3", "CLKOUT4", "CLKOUT5"]:
+        for clkname in [
+                "CLKFBOUT", "DIVCLK", "CLKOUT0", "CLKOUT1", "CLKOUT2",
+                "CLKOUT3", "CLKOUT4", "CLKOUT5"
+        ]:
 
             if clkname == "CLKFBOUT":
                 param = "CLKFBOUT_MULT"
@@ -980,7 +976,6 @@ class XC7FasmGenerator(FasmGenerator):
             for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
                 self.add_cell_feature((tile_name, bel, f))
 
-
     def handle_mmcm(self, cell_data):
         """
         Handles emission of MMCME2_ADV features
@@ -1003,26 +998,25 @@ class XC7FasmGenerator(FasmGenerator):
         # CLKOUT6 output enable
         if "CLKOUT6" in bel_pins:
             self.add_cell_feature((tile_name, bel,
-                "CLKOUT6_CLKOUT1_OUTPUT_ENABLE"))
+                                   "CLKOUT6_CLKOUT1_OUTPUT_ENABLE"))
 
         # Lookup tables
         clkfbout_mult = int(float(cell_data.attributes["CLKFBOUT_MULT_F"]))
-        ss_en = self.get_cell_param(cell_data, "SS_EN", ParameterFormat.BOOLEAN)
+        ss_en = self.get_cell_param(cell_data, "SS_EN",
+                                    ParameterFormat.BOOLEAN)
         bandwidth = cell_data.attributes["BANDWIDTH"].lower()
 
         lktable, table = compute_mmcm_lookup(
             int(clkfbout_mult), bandwidth, ss_en)
 
         self.add_cell_feature((tile_name, bel,
-            "LKTABLE[39:0]={}".format(lktable)))
-        self.add_cell_feature((tile_name, bel,
-            "TABLE[9:0]={}".format(table)))
+                               "LKTABLE[39:0]={}".format(lktable)))
+        self.add_cell_feature((tile_name, bel, "TABLE[9:0]={}".format(table)))
 
         # Fixed parameters
         self.add_cell_feature((tile_name, bel,
-            "FILTREG1_RESERVED[11:0]=12'b000000001000"))
-        self.add_cell_feature((tile_name, bel,
-            "LOCKREG3_RESERVED[0]=1'b1"))       
+                               "FILTREG1_RESERVED[11:0]=12'b000000001000"))
+        self.add_cell_feature((tile_name, bel, "LOCKREG3_RESERVED[0]=1'b1"))
 
         # Compensation
         compensation = cell_data.attributes["COMPENSATION"]
@@ -1057,8 +1051,9 @@ class XC7FasmGenerator(FasmGenerator):
             power_reg = "16'b1001100100000000"
         else:
             power_reg = "16'b0000000100000000"
-        self.add_cell_feature((tile_name, bel,
-            "POWER_REG_POWER_REG_POWER_REG[15:0]=" + power_reg))
+        self.add_cell_feature(
+            (tile_name, bel,
+             "POWER_REG_POWER_REG_POWER_REG[15:0]=" + power_reg))
 
         # "Regular" multipliers / dividers
         for clkname in ["DIVCLK", "CLKOUT1", "CLKOUT2", "CLKOUT3", "CLKOUT4"]:
@@ -1082,7 +1077,6 @@ class XC7FasmGenerator(FasmGenerator):
             for f in self.yield_pll_mmcm_clkregs_features(clkname, clkregs):
                 self.add_cell_feature((tile_name, bel, f))
 
-
         # Fractional multipliers / dividers + "regualr" ones that share their
         # registers with them
         for clkname1, clkname2 in [("CLKFBOUT", "CLKOUT6"), \
@@ -1103,10 +1097,10 @@ class XC7FasmGenerator(FasmGenerator):
 
             # Compute registers for integer divider of the first clock
             if clkname1 == "CLKFBOUT":
-                muldiv  = clkfbout_mult_r
+                muldiv = clkfbout_mult_r
                 frac_en = clkfbout_frac_en
             if clkname1 == "CLKOUT0":
-                muldiv  = clkout0_divide_r
+                muldiv = clkout0_divide_r
                 frac_en = clkout0_frac_en
 
             if clkname1 == "CLKFBOUT" or frac_en:
@@ -1122,9 +1116,8 @@ class XC7FasmGenerator(FasmGenerator):
 
             # Fractional divider enabled
             if frac_en:
-                
-                clkregs1_frac = compute_mmcm_clkregs_frac(
-                    muldiv, 0.5, phase)
+
+                clkregs1_frac = compute_mmcm_clkregs_frac(muldiv, 0.5, phase)
 
                 # When no fractional divider is enabled use the *_regs content.
                 # For fractional divider use *_regs_frac content but take the
@@ -1169,7 +1162,6 @@ class XC7FasmGenerator(FasmGenerator):
 
             elif cell_data.cell_type == "MMCME2_ADV":
                 self.handle_mmcm(cell_data)
-
 
     def handle_clock_resources(self):
 
@@ -1330,8 +1322,10 @@ class XC7FasmGenerator(FasmGenerator):
         """
         Handles CMT routing bels - PLL and MMCM input pin inverters
         """
-        tile_types = ["CMT_TOP_R_LOWER_B", "CMT_TOP_R_UPPER_T",
-                      "CMT_TOP_L_LOWER_B", "CMT_TOP_L_UPPER_T"]
+        tile_types = [
+            "CMT_TOP_R_LOWER_B", "CMT_TOP_R_UPPER_T", "CMT_TOP_L_LOWER_B",
+            "CMT_TOP_L_UPPER_T"
+        ]
         routing_bels = self.get_routing_bels(tile_types)
 
         for site, bel, pin, is_inverting in routing_bels:

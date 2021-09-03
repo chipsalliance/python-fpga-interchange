@@ -15,7 +15,6 @@ for Xilinx Series-7 FPGAs into FASM features.
 
 # =============================================================================
 
-
 PLL_MMCM_LOCK_TABLE = [
     # This table is composed of:
     # LockRefDly_LockFBDly_LockCnt_LockSatHigh_UnlockCnt
@@ -153,7 +152,6 @@ PLL_BANDWIDTH_TABLE = {
         "10'b0010_0100_00",
         "10'b0010_0100_00"
     ],
-
     "high": [
         # CP_RES_LFHF
         "10'b0011_0111_00",
@@ -221,7 +219,6 @@ PLL_BANDWIDTH_TABLE = {
         "10'b0010_0100_00",
         "10'b0010_0100_00"
     ],
-
     "optimized": [
         # CP_RES_LFHF
         "10'b0011_0111_00",
@@ -359,7 +356,7 @@ MMCM_BANDWIDTH_TABLE = {
         "10'b0010_0010_00",
         "10'b0010_0010_00",
         "10'b0010_0010_00",
-        "10'b0010_0010_00" 
+        "10'b0010_0010_00"
     ],
     "high": [
         # CP_RES_LFHF
@@ -426,7 +423,7 @@ MMCM_BANDWIDTH_TABLE = {
         "10'b0010_0100_00",
         "10'b0100_1010_00",
         "10'b0011_1100_00",
-        "10'b0011_1100_00" 
+        "10'b0011_1100_00"
     ],
     "optimized": [
         # CP_RES_LFHF
@@ -493,7 +490,7 @@ MMCM_BANDWIDTH_TABLE = {
         "10'b0010_0100_00",
         "10'b0100_1010_00",
         "10'b0011_1100_00",
-        "10'b0011_1100_00" 
+        "10'b0011_1100_00"
     ],
     "ss": [
         # CP_RES_LFHF
@@ -560,7 +557,7 @@ MMCM_BANDWIDTH_TABLE = {
         "10'b0010_0010_11",
         "10'b0010_0010_11",
         "10'b0010_0010_11",
-        "10'b0010_0010_11" 
+        "10'b0010_0010_11"
     ],
 }
 
@@ -579,7 +576,7 @@ def compute_pll_lookup(clkfbout_mult, bandwidth):
     table = PLL_BANDWIDTH_TABLE[bandwidth][clkfbout_mult - 1].replace("_", "")
 
     return lktable, table
-    
+
 
 def compute_pll_clkregs(divide, duty, phase):
     """
@@ -612,7 +609,7 @@ def compute_pll_clkregs(divide, duty, phase):
     phase_in_cycles = round_frac((phase_fixed * divide) // 360, 3)
 
     phase_mux = (phase_in_cycles >> (PLL_FRAC_PRECISION - 3)) & 0x07
-    delay_tim = (phase_in_cycles >> (PLL_FRAC_PRECISION    )) & 0x3F
+    delay_tim = (phase_in_cycles >> (PLL_FRAC_PRECISION)) & 0x3F
 
     # Divider register fields
     if divide > 1:
@@ -625,8 +622,8 @@ def compute_pll_clkregs(divide, duty, phase):
         duty_fix = int(duty * (1 << PLL_FRAC_PRECISION))
         temp = round_frac(duty_fix * divide, 1)
 
-        high_time = (temp >>  PLL_FRAC_PRECISION     ) & 0x7F
-        w_edge    = (temp >> (PLL_FRAC_PRECISION - 1)) & 0x01
+        high_time = (temp >> PLL_FRAC_PRECISION) & 0x7F
+        w_edge = (temp >> (PLL_FRAC_PRECISION - 1)) & 0x01
 
         if high_time == 0:
             high_time = 1
@@ -647,10 +644,10 @@ def compute_pll_clkregs(divide, duty, phase):
         low_time = 1
 
     high_time &= 0x3F
-    low_time  &= 0x3F
+    low_time &= 0x3F
 
     # Assemble the final clock registers content
-    clkregs  = low_time
+    clkregs = low_time
     clkregs |= high_time << 6
     clkregs |= phase_mux << 13
 
@@ -660,6 +657,7 @@ def compute_pll_clkregs(divide, duty, phase):
 
     clkregs = "{:032b}".format(clkregs)[::-1]
     return clkregs
+
 
 # =============================================================================
 
@@ -710,38 +708,39 @@ def compute_mmcm_clkregs_frac(divide, duty, phase):
     assert phase > -360.0 and phase < 360.0, phase
 
     # Decompose the fractional divider
-    divide_int  = int(divide)
+    divide_int = int(divide)
     divide_frac = int((divide - divide_int) / 0.125)
 
     # Calculate wf_fall_time and wf_rise_time
-    even_part_high = divide_int // 2;
-    even_part_low  = even_part_high;
+    even_part_high = divide_int // 2
+    even_part_low = even_part_high
 
-    odd = divide_int - even_part_high - even_part_low;
-    odd_and_frac = (8 * odd) + divide_frac;
+    odd = divide_int - even_part_high - even_part_low
+    odd_and_frac = (8 * odd) + divide_frac
 
-    lt_frac = even_part_high - int(odd_and_frac <= 9);
-    ht_frac = even_part_low  - int(odd_and_frac <= 8);
+    lt_frac = even_part_high - int(odd_and_frac <= 9)
+    ht_frac = even_part_low - int(odd_and_frac <= 8)
 
     pm_fall = (odd << 2) + (divide_frac >> 1)
     pm_rise = 0
 
-    wf_fall_frac = int(((odd_and_frac >= 2) and (odd_and_frac <= 9)) or ((divide_frac == 1) and (divide_int == 2)));
-    wf_rise_frac = int( (odd_and_frac >= 1) and (odd_and_frac <= 8));
+    wf_fall_frac = int(((odd_and_frac >= 2) and (odd_and_frac <= 9))
+                       or ((divide_frac == 1) and (divide_int == 2)))
+    wf_rise_frac = int((odd_and_frac >= 1) and (odd_and_frac <= 8))
 
     # Calculate phase shift in fractional cycles
-    a_per_in_octets   = int((8 * divide_int) + divide_frac);
+    a_per_in_octets = int((8 * divide_int) + divide_frac)
     a_phase_in_cycles = int(((phase + 0.01) * a_per_in_octets) // 360)
 
     dt_calc = int(((phase + 0.01) * a_per_in_octets / 8) // 360)
     dt = dt_calc & 0xFF
 
-    pm_rise_frac_filtered = a_phase_in_cycles % 8;
-    pm_fall_frac_filtered = (pm_fall + pm_rise_frac_filtered) % 8;
+    pm_rise_frac_filtered = a_phase_in_cycles % 8
+    pm_fall_frac_filtered = (pm_fall + pm_rise_frac_filtered) % 8
 
     # Assemble the final clock registers content
     # CLKREG1: PHASE_MUX[2:0], RESERVED, HIGH_TIME[5:0], LOW_TIME[5:0]
-    clkregs  = lt_frac
+    clkregs = lt_frac
     clkregs |= ht_frac << 6
     clkregs |= pm_rise_frac_filtered << 13
 
@@ -758,4 +757,3 @@ def compute_mmcm_clkregs_frac(divide, duty, phase):
 
     clkregs = "{:038b}".format(clkregs)[::-1]
     return clkregs
-
