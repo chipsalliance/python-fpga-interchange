@@ -29,7 +29,9 @@ from collections import namedtuple
 from enum import Enum
 from itertools import product
 
-from ..generic import FasmGenerator, PhysCellInstance, invert_bitstring
+from fpga_interchange.fasm_generators.generic import FasmGenerator, \
+                                                     PhysCellInstance, \
+                                                     invert_bitstring
 from .xc7_iobs import iob_settings
 from .xc7_cmt import compute_pll_lookup, compute_pll_clkregs
 from .xc7_cmt import compute_mmcm_lookup, compute_mmcm_clkregs, \

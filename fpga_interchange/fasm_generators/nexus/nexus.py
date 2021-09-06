@@ -16,7 +16,7 @@ from collections import namedtuple
 from enum import Enum
 from itertools import product
 
-from ..generic import FasmGenerator
+from fpga_interchange.fasm_generators.generic import FasmGenerator
 
 VCC_NET = "GLOBAL_LOGIC1"
 GND_NET = "GLOBAL_LOGIC0"
