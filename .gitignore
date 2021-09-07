@@ -1,6 +1,5 @@
 # Python
 __pycache__
-__init__.py
 __main__.py
 src
 *egg-info*
