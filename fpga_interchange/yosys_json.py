@@ -129,8 +129,30 @@ def yosys_encodes_as_bitvec(param):
     ]
 
 
+def check_floating_point_formatting(param, value):
+    """
+    Some floating point params strings may get encoded as integers
+    in binary format while they should really be floating point strings.
+    """
+
+    if param.string_format != ParameterFormat.FLOATING_POINT:
+        return value
+
+    # check if the floating point has been encoded in a bitvector
+    if "." in value:
+        return value
+
+    # check if the parameter value is a bitvector
+    for digit in value:
+        if digit not in ["0", "1"]:
+            return value
+
+    return f"{int(value, 2)}.0"
+
+
 def convert_parameters(device, cell, cell_type, property_map):
     """ Convert cell parameters to match expression type from default. """
+
     for name in property_map.keys():
         definition = device.get_parameter_definition(cell_type, name)
         if definition is None:
@@ -141,7 +163,9 @@ def convert_parameters(device, cell, cell_type, property_map):
         if not yosys_encodes_as_bitvec(definition):
             # Non-integer like parameters come from yosys as a string, leave
             # them alone.
-            property_map[name] = check_trailing_space(property_map[name])
+            value = check_trailing_space(property_map[name])
+            property_map[name] = check_floating_point_formatting(
+                definition, value)
             continue
 
         yosys_value = property_map[name]
