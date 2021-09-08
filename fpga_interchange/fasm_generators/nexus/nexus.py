@@ -32,7 +32,7 @@ class NexusFasmGenerator(FasmGenerator):
 
         site_thru_pips, lut_thru_pips = self.fill_pip_features(
             pip_feature_format, {},
-            avail_lut_thrus, [],
+            avail_lut_thrus,
             wire_rename=lambda x: x.replace(":", "__"))
         self.handle_lut_thru(lut_thru_pips)
 
