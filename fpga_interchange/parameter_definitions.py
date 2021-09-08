@@ -227,9 +227,9 @@ class ParameterDefinition():
         assert self.is_integer_like(), (self.name, self.string_format)
 
         if self.string_format == ParameterFormat.BOOLEAN:
-            if str_value == "FALSE":
+            if str_value in ["FALSE", "0", "1'b0"]:
                 return 0
-            elif str_value == "TRUE":
+            elif str_value in ["TRUE", "1", "1'b1"]:
                 return 1
             else:
                 raise ValueError(
