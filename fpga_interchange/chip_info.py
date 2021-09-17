@@ -831,19 +831,75 @@ class ClusterConnectionGraph():
             bba.u32(len(getattr(self, field)))
 
 
+class ClusterPhysicalPlacementEntry():
+    def __init__(self, idx, bels):
+        self.idx = idx
+        self.bels = list(bels)
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.idx, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        bba.label(
+            self.field_label(label_prefix, 'bels'), 'constids')
+        for bel in self.bels:
+            bba.str_id(bel)
+
+    def append_bba(self, bba, label_prefix):
+        bba.ref(self.field_label(label_prefix, 'bels'))
+        bba.u32(len(self.bels))
+
+
+class ClusterPhysicalPlacements():
+    fields = ['placements']
+    field_types = ['ClusterPhysicalPlacementEntryPOD']
+
+    def __init__(self, site_type, placements):
+        self.site_type = site_type
+        self.placements = []
+        for idx,place in enumerate(placements):
+            self.placements.append(ClusterPhysicalPlacementEntry(idx, place))
+
+    def field_label(self, label_prefix, field):
+        prefix = '{}.{}.{}'.format(label_prefix, self.site_type, field)
+        return prefix
+
+    def append_children_bba(self, bba, label_prefix):
+        label = label_prefix
+
+        for field, field_type in zip(self.fields, self.field_types):
+            for value in getattr(self, field):
+                value.append_children_bba(
+                    bba, self.field_label(label_prefix, field))
+
+        for field, field_type in zip(self.fields, self.field_types):
+            bba.label(self.field_label(label_prefix, field), field_type)
+            for value in getattr(self, field):
+                value.append_bba(bba, self.field_label(label_prefix, field))
+
+    def append_bba (self, bba, label_prefix):
+        bba.str_id(self.site_type)
+        for field in self.fields:
+            bba.ref(self.field_label(label_prefix, field))
+            bba.u32(len(getattr(self, field)))
+
+
 class Cluster():
     fields = [
         'chainable_ports', 'cluster_cell_ports', 'required_cells',
-        'connection_graph'
+        'connection_graph', 'phy_graph'
     ]
     field_types = [
         'ChainablePortPOD', 'ClusterCellPortPOD', 'ClusterRequiredCellPOD',
-        'ClusterConnectionGraphPOD'
+        'ClusterConnectionGraphPOD', 'ClusterPhysicalPlacementsPOD'
     ]
 
     def __init__(self, name, chainable_ports, root_cell_types, cluster_cells,
                  out_of_site_clusters, disallow_other_cells, from_macro,
-                 required_cells, connection_graph):
+                 required_cells, connection_graph, phy_graph):
         # Chain name
         self.name = name
 
@@ -876,6 +932,10 @@ class Cluster():
         self.connection_graph = []
         for node in connection_graph:
             self.connection_graph.append(ClusterConnectionGraph(*node))
+
+        self.phy_graph = []
+        for node in phy_graph:
+            self.phy_graph.append(ClusterPhysicalPlacements(*node))
 
     def field_label(self, label_prefix, field):
         prefix = '{}.{}.{}'.format(label_prefix, self.name, field)

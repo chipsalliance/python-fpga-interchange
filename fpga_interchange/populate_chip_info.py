@@ -1760,7 +1760,7 @@ def populate_macros(device, chip_info):
             chip_info.macros.append(macro)
 
 
-def clusters_from_macros(device):
+def clusters_from_macros(device, debug=False):
     def check(graph):
         visited = {}
 
@@ -1836,7 +1836,7 @@ def clusters_from_macros(device):
         return sources
 
     def check_if_in_site(cell_instances, cell_site_type_map, device,
-                         cell_site_type_bels_map):
+                         cell_site_type_bels_map, logical_connections, root_cell):
         constraints = device.get_constraints()
         base_set = None
         for cell in cell_instances.items():
@@ -1845,7 +1845,7 @@ def clusters_from_macros(device):
             else:
                 base_set = base_set & cell_site_type_map[cell[1].cell_name]
         if len(base_set) == 0:
-            return False
+            return True, None
 
         site_tags = {}
         for site_type in base_set:
@@ -1867,7 +1867,7 @@ def clusters_from_macros(device):
                                     if site_tags[matcher.site_type][
                                             constraint.
                                             tag] != constraint.state:
-                                        return False
+                                        return True, None
                                 else:
                                     site_tags[matcher.site_type][
                                         constraint.tag] = constraint.state
@@ -1875,11 +1875,20 @@ def clusters_from_macros(device):
         for cell, count in count_cell_type_instances.items():
             for site in base_set:
                 if count > len(cell_site_type_bels_map[(cell, site)]):
-                    return False
+                    return True, None
 
         for site in base_set:
-            site_type = device.get_site_type(device.get_site_type_index(site))
-        return True
+            site_resource = device.get_site_type(device.get_site_type_index(site))
+            cell_to_bel_map = {}
+            for cell in cell_instances.items():
+                cell_to_bel_map[cell[0]]= cell_site_type_bels_map[
+                (cell[1].cell_name, site_resource.site_type)]
+            from pprint import pprint
+            #pprint(cell_to_bel_map)
+            #pprint(logical_connections)
+            #for bel in site_resource.bels:
+            #    print(bel.__dict__)
+        return False, None
 
     def find_connection_graph(nets, cell_instances, cell_pin_direction_map,
                               const_cells, root):
@@ -1955,6 +1964,7 @@ def clusters_from_macros(device):
 
         cell_site_type_map = {}
         cell_site_type_to_bels_map = {}
+        cell_bel_site_type_to_bel_pins_map = {}
         for mapping in device.yield_cell_bel_mappings():
             if mapping.cell not in cell_site_type_map:
                 cell_site_type_map[mapping.cell] = set()
@@ -1968,6 +1978,9 @@ def clusters_from_macros(device):
         constants = device.get_constants()
 
         for macro in macro_lib.cells.items():
+            if debug:
+                print("Processing: ", macro[0])
+
             graph = {}
             instance_to_cell_map = {}
 
@@ -1986,6 +1999,9 @@ def clusters_from_macros(device):
                 new_nets[net[0].upper()] = Net(net[1].name.upper(),
                                                net[1].property_map, new_ports)
             old_nets = {}
+
+            if debug:
+                print("\tExpanding macro")
 
             while new_cell_instances != old_cell_instances:
                 old_cell_instances = new_cell_instances
@@ -2042,6 +2058,10 @@ def clusters_from_macros(device):
 
             cell_instances = {}
             nets = {}
+
+            if debug:
+                print("\tRemoving const nets")
+
             # Remove const cells and nets that were driven by them,
             # as they could create false root_cells
             VCC_cell = constants.VCC_CELL_TYPE
@@ -2089,12 +2109,17 @@ def clusters_from_macros(device):
                     for sink in sinks:
                         graph[source].append((sink, 1))
                         graph[sink].append((source, 0))
+
             cluster = {}
             cluster['name'] = macro[0]
             # If we can't find good root use any cell as root cell
             key = list(cell_instances.keys())[0]
             cluster['root_cell_types'] = [cell_instances[key].cell_name]
             # Check if connection graph is a tree
+
+            if debug:
+                print("\tChecking connections graph")
+
             subgraphs, cycle = check(graph)
             assert not cycle, "Code is not design to cope with cycles inside macros"
             root = None
@@ -2106,27 +2131,55 @@ def clusters_from_macros(device):
             else:
                 root = source_cells(graph)[0]
                 cluster['root_cell_types'] = [cell_instances[root].cell_name]
-            if check_if_in_site(cell_instances, cell_site_type_map, device,
-                                cell_site_type_to_bels_map):
-                cluster['out_of_site_clusters'] = False
-            else:
-                cluster['out_of_site_clusters'] = True
+
+            cluster['connection_graph'] = find_connection_graph(
+                old_nets, cell_instances, cell_pin_direction_map,
+                [VCC_cell, GND_cell], root)
+            if cluster['connection_graph'] is None:
+                continue
+
+            cluster['out_of_site_clusters'], cluster['phy_graph'] = check_if_in_site(
+                cell_instances, cell_site_type_map, device,
+                cell_site_type_to_bels_map, cluster['connection_graph'], root)
+
+            if macro[0] == "RAM32M":
+                cluster["phy_graph"] = [
+                    ('SLICEM',
+                     [('C5LUT','C6LUT','B5LUT','B6LUT','A5LUT','A6LUT','D5LUT','D6LUT')])
+                ]
+            if macro[0] == "RAM64M":
+                cluster["phy_graph"] = [
+                    ('SLICEM',
+                     [('C6LUT','B6LUT','A6LUT','D6LUT')])
+                ]
+            if macro[0] == "RAM32X1D":
+                cluster["phy_graph"] = [
+                    ('SLICEM',
+                     [('C5LUT','D5LUT'),
+                      ('C6LUT','D6LUT'),
+                      ('A5LUT','B5LUT'),
+                      ('A6LUT','B6LUT')])
+                ]
+
+
             cluster["disallow_other_cells"] = False
             cluster['chainable_ports'] = []
             cluster['from_macro'] = True
             cluster['required_cells'] = []
             count_cell_type_instances = {}
+
+            if debug:
+                print("\tListing required cells")
+
             for cell in cell_instances.items():
                 if cell[1].cell_name not in count_cell_type_instances:
                     count_cell_type_instances[cell[1].cell_name] = 0
                 count_cell_type_instances[cell[1].cell_name] += 1
             for cell_type, count in count_cell_type_instances.items():
                 cluster['required_cells'].append((cell_type, count))
-            cluster['connection_graph'] = find_connection_graph(
-                old_nets, cell_instances, cell_pin_direction_map,
-                [VCC_cell, GND_cell], root)
-            if cluster['connection_graph'] is not None:
+            if cluster['phy_graph'] is not None:
                 clusters.append(cluster)
+
     return clusters
 
 
@@ -2254,7 +2307,8 @@ def populate_chip_info(device, constids, device_config):
                               cluster.get("disallow_other_cells", False),
                               cluster.get("from_macro", False),
                               cluster.get("required_cells", []),
-                              cluster.get("connection_graph", []))
+                              cluster.get("connection_graph", []),
+                              cluster.get("phy_graph", []))
 
         chip_info.clusters.append(cluster_obj)
 
