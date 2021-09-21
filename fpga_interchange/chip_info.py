@@ -843,8 +843,7 @@ class ClusterPhysicalPlacementEntry():
     def append_children_bba(self, bba, label_prefix):
         label = label_prefix
 
-        bba.label(
-            self.field_label(label_prefix, 'bels'), 'constids')
+        bba.label(self.field_label(label_prefix, 'bels'), 'constids')
         for bel in self.bels:
             bba.str_id(bel)
 
@@ -860,7 +859,7 @@ class ClusterPhysicalPlacements():
     def __init__(self, site_type, placements):
         self.site_type = site_type
         self.placements = []
-        for idx,place in enumerate(placements):
+        for idx, place in enumerate(placements):
             self.placements.append(ClusterPhysicalPlacementEntry(idx, place))
 
     def field_label(self, label_prefix, field):
@@ -880,7 +879,7 @@ class ClusterPhysicalPlacements():
             for value in getattr(self, field):
                 value.append_bba(bba, self.field_label(label_prefix, field))
 
-    def append_bba (self, bba, label_prefix):
+    def append_bba(self, bba, label_prefix):
         bba.str_id(self.site_type)
         for field in self.fields:
             bba.ref(self.field_label(label_prefix, field))

@@ -1836,7 +1836,8 @@ def clusters_from_macros(device, debug=False):
         return sources
 
     def check_if_in_site(cell_instances, cell_site_type_map, device,
-                         cell_site_type_bels_map, logical_connections, root_cell):
+                         cell_site_type_bels_map, logical_connections,
+                         root_cell):
         constraints = device.get_constraints()
         base_set = None
         for cell in cell_instances.items():
@@ -1878,11 +1879,12 @@ def clusters_from_macros(device, debug=False):
                     return True, None
 
         for site in base_set:
-            site_resource = device.get_site_type(device.get_site_type_index(site))
+            site_resource = device.get_site_type(
+                device.get_site_type_index(site))
             cell_to_bel_map = {}
             for cell in cell_instances.items():
-                cell_to_bel_map[cell[0]]= cell_site_type_bels_map[
-                (cell[1].cell_name, site_resource.site_type)]
+                cell_to_bel_map[cell[0]] = cell_site_type_bels_map[(
+                    cell[1].cell_name, site_resource.site_type)]
             from pprint import pprint
             #pprint(cell_to_bel_map)
             #pprint(logical_connections)
@@ -2138,29 +2140,24 @@ def clusters_from_macros(device, debug=False):
             if cluster['connection_graph'] is None:
                 continue
 
-            cluster['out_of_site_clusters'], cluster['phy_graph'] = check_if_in_site(
-                cell_instances, cell_site_type_map, device,
-                cell_site_type_to_bels_map, cluster['connection_graph'], root)
+            cluster['out_of_site_clusters'], cluster[
+                'phy_graph'] = check_if_in_site(
+                    cell_instances, cell_site_type_map, device,
+                    cell_site_type_to_bels_map, cluster['connection_graph'],
+                    root)
 
             if macro[0] == "RAM32M":
-                cluster["phy_graph"] = [
-                    ('SLICEM',
-                     [('C5LUT','C6LUT','B5LUT','B6LUT','A5LUT','A6LUT','D5LUT','D6LUT')])
-                ]
+                cluster["phy_graph"] = [('SLICEM', [('C5LUT', 'C6LUT', 'B5LUT',
+                                                     'B6LUT', 'A5LUT', 'A6LUT',
+                                                     'D5LUT', 'D6LUT')])]
             if macro[0] == "RAM64M":
-                cluster["phy_graph"] = [
-                    ('SLICEM',
-                     [('C6LUT','B6LUT','A6LUT','D6LUT')])
-                ]
+                cluster["phy_graph"] = [('SLICEM', [('C6LUT', 'B6LUT', 'A6LUT',
+                                                     'D6LUT')])]
             if macro[0] == "RAM32X1D":
-                cluster["phy_graph"] = [
-                    ('SLICEM',
-                     [('C5LUT','D5LUT'),
-                      ('C6LUT','D6LUT'),
-                      ('A5LUT','B5LUT'),
-                      ('A6LUT','B6LUT')])
-                ]
-
+                cluster["phy_graph"] = [('SLICEM', [('C5LUT', 'D5LUT'),
+                                                    ('C6LUT', 'D6LUT'),
+                                                    ('A5LUT', 'B5LUT'),
+                                                    ('A6LUT', 'B6LUT')])]
 
             cluster["disallow_other_cells"] = False
             cluster['chainable_ports'] = []
