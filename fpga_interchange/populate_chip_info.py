@@ -1760,7 +1760,7 @@ def populate_macros(device, chip_info):
             chip_info.macros.append(macro)
 
 
-def clusters_from_macros(device, debug=False):
+def clusters_from_macros(device, phy_placements, debug=False):
     def check(graph):
         visited = {}
 
@@ -1947,7 +1947,7 @@ def clusters_from_macros(device, debug=False):
             ret_value.append((idx, node['cell_type'], node['connections'],
                               node['used_ports']))
         ret_value.sort()
-        return ret_value
+        return ret_value, idx_map
 
     prims = device.get_primitive_library()
 
@@ -2134,7 +2134,7 @@ def clusters_from_macros(device, debug=False):
                 root = source_cells(graph)[0]
                 cluster['root_cell_types'] = [cell_instances[root].cell_name]
 
-            cluster['connection_graph'] = find_connection_graph(
+            cluster['connection_graph'], cell_idx_map = find_connection_graph(
                 old_nets, cell_instances, cell_pin_direction_map,
                 [VCC_cell, GND_cell], root)
             if cluster['connection_graph'] is None:
@@ -2146,18 +2146,18 @@ def clusters_from_macros(device, debug=False):
                     cell_site_type_to_bels_map, cluster['connection_graph'],
                     root)
 
-            if macro[0] == "RAM32M":
-                cluster["phy_graph"] = [('SLICEM', [('C5LUT', 'C6LUT', 'B5LUT',
-                                                     'B6LUT', 'A5LUT', 'A6LUT',
-                                                     'D5LUT', 'D6LUT')])]
-            if macro[0] == "RAM64M":
-                cluster["phy_graph"] = [('SLICEM', [('C6LUT', 'B6LUT', 'A6LUT',
-                                                     'D6LUT')])]
-            if macro[0] == "RAM32X1D":
-                cluster["phy_graph"] = [('SLICEM', [('C5LUT', 'D5LUT'),
-                                                    ('C6LUT', 'D6LUT'),
-                                                    ('A5LUT', 'B5LUT'),
-                                                    ('A6LUT', 'B6LUT')])]
+            if macro[0] in phy_placements:
+                cluster['phy_graph'] = []
+                for site, places in phy_placements[macro[0]].items():
+                    site_placements = []
+                    length = len(places[list(cell_instances.keys())[0]])
+                    for i in range(length):
+                        l = [None] * len(cell_instances)
+                        for cell in cell_instances.keys():
+                            l[cell_idx_map[cell]] = places[cell][i]
+                        l = tuple(l)
+                        site_placements.append(l)
+                    cluster['phy_graph'].append(tuple([site, site_placements]))
 
             cluster["disallow_other_cells"] = False
             cluster['chainable_ports'] = []
@@ -2223,6 +2223,7 @@ def populate_chip_info(device, constids, device_config):
     disabled_cell_bel_map = device_config.get('disabled_cell_bel_map', [])
     global_buffer_cells = device_config.get('global_buffer_cells', [])
     clusters = device_config.get('clusters', [])
+    macro_clusters = device_config.get('macro_clusters', [])
 
     cell_bel_mapper = CellBelMapper(device, constids, disabled_cell_bel_map)
 
@@ -2283,7 +2284,19 @@ def populate_chip_info(device, constids, device_config):
 
     populate_macros(device, chip_info)
     populate_macro_rules(device, chip_info)
-    clusters.extend(clusters_from_macros(device))
+
+    phy_placements_dict = {}
+
+    for macro_cluster in macro_clusters:
+        macro_dict = {}
+        phy_placements_dict[macro_cluster['name']] = macro_dict
+        for site in macro_cluster['sites']:
+            site_dict = {}
+            macro_dict[site['site']] = site_dict
+            for cell in site['cells']:
+                site_dict[cell['cell']] = cell['bels']
+
+    clusters.extend(clusters_from_macros(device, phy_placements_dict))
 
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
