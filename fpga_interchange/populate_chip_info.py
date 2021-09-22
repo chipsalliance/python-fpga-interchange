@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 from collections import namedtuple
+import itertools
 
 from fpga_interchange.chip_info import ChipInfo, BelShortedPins, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
@@ -547,13 +548,11 @@ class FlattenedTileType():
             for wire, pins in shorted_pins.items():
                 if len(pins) < 2:
                     continue
-                for pin1 in pins:
-                    for pin2 in pins:
-                        if pin1 == pin2:
-                            continue
-                        flat_bel.connected_pins.append(
-                            BelShortedPins(device.strs[pin1],
-                                           device.strs[pin2]))
+                for pin1, pin2 in itertools.product(pins, repeat=2):
+                    if pin1 == pin2:
+                        continue
+                    flat_bel.connected_pins.append(
+                        BelShortedPins(device.strs[pin1], device.strs[pin2]))
 
             # If this BEL is a local inverter, mark which BEL port is the
             # inverting vs non-inverting input.
@@ -1761,6 +1760,18 @@ def populate_macros(device, chip_info):
 
 
 def clusters_from_macros(device, phy_placements, debug=False):
+    """
+    This functions converts macros defined in device resources into cluster definitions.
+    It starts with reducing macro into cells and nets, works with recursive macros.
+    Then it creates connection map between cells based on logical nets.
+    If graph has more then 1 subgraph, root cell is chosen from source cells,
+    otherwise function will try to find root cell, if it failes root cell is
+    also chosen from source cells.
+
+    Out of site property is calculated based cell constraints,
+    sites where cells can be placed and number of cell that can fit into single site.
+    """
+
     def check(graph):
         visited = {}
 
@@ -1792,11 +1803,11 @@ def clusters_from_macros(device, phy_placements, debug=False):
     def search_for_root(graph):
         sources = []
         sinks = []
-        for node in graph.items():
-            if all([x[1] == 1 for x in node[1]]):
-                sources.append(node[0])
-            elif all([x[1] == 0 for x in node[1]]):
-                sinks.append(node[0])
+        for node_name, node_data in graph.items():
+            if all([x[1] == 1 for x in node_data]):
+                sources.append(node_name)
+            elif all([x[1] == 0 for x in node_data]):
+                sinks.append(node_name)
         # Solve for trivial
         if len(sinks) == 1:
             return sinks[0]
@@ -1830,35 +1841,35 @@ def clusters_from_macros(device, phy_placements, debug=False):
 
     def source_cells(graph):
         sources = []
-        for node in graph.items():
-            if all([x[1] == 1 for x in node[1]]):
-                sources.append(node[0])
+        for node_name, node_data in graph.items():
+            if all([x[1] == 1 for x in node_data]):
+                sources.append(node_name)
         return sources
 
-    def check_if_in_site(cell_instances, cell_site_type_map, device,
-                         cell_site_type_bels_map, logical_connections,
-                         root_cell):
+    def check_if_out_site(cell_instances, cell_site_type_map, device,
+                          cell_site_type_bels_map, logical_connections,
+                          root_cell):
         constraints = device.get_constraints()
         base_set = None
-        for cell in cell_instances.items():
+        for cell_name, cell_data in cell_instances.items():
             if base_set is None:
-                base_set = cell_site_type_map[cell[1].cell_name]
+                base_set = cell_site_type_map[cell_data.cell_name]
             else:
-                base_set = base_set & cell_site_type_map[cell[1].cell_name]
+                base_set = base_set & cell_site_type_map[cell_data.cell_name]
         if len(base_set) == 0:
-            return True, None
+            return True
 
         site_tags = {}
         for site_type in base_set:
             site_tags[site_type] = {}
 
         count_cell_type_instances = {}
-        for cell in cell_instances.items():
-            if cell[1].cell_name not in count_cell_type_instances:
-                count_cell_type_instances[cell[1].cell_name] = 0
-            count_cell_type_instances[cell[1].cell_name] += 1
-            if cell[1].cell_name in constraints.cells:
-                for constraint in constraints.cells[cell[1].
+        for cell_name, cell_data in cell_instances.items():
+            if cell_data.cell_name not in count_cell_type_instances:
+                count_cell_type_instances[cell_data.cell_name] = 0
+            count_cell_type_instances[cell_data.cell_name] += 1
+            if cell_data.cell_name in constraints.cells:
+                for constraint in constraints.cells[cell_data.
                                                     cell_name].constraints:
                     for matcher in constraint.matchers:
                         if isinstance(matcher, SiteTypeMatcher):
@@ -1868,7 +1879,7 @@ def clusters_from_macros(device, phy_placements, debug=False):
                                     if site_tags[matcher.site_type][
                                             constraint.
                                             tag] != constraint.state:
-                                        return True, None
+                                        return True
                                 else:
                                     site_tags[matcher.site_type][
                                         constraint.tag] = constraint.state
@@ -1876,21 +1887,16 @@ def clusters_from_macros(device, phy_placements, debug=False):
         for cell, count in count_cell_type_instances.items():
             for site in base_set:
                 if count > len(cell_site_type_bels_map[(cell, site)]):
-                    return True, None
+                    return True
 
         for site in base_set:
             site_resource = device.get_site_type(
                 device.get_site_type_index(site))
             cell_to_bel_map = {}
-            for cell in cell_instances.items():
-                cell_to_bel_map[cell[0]] = cell_site_type_bels_map[(
-                    cell[1].cell_name, site_resource.site_type)]
-            from pprint import pprint
-            #pprint(cell_to_bel_map)
-            #pprint(logical_connections)
-            #for bel in site_resource.bels:
-            #    print(bel.__dict__)
-        return False, None
+            for cell_name, cell_data in cell_instances.items():
+                cell_to_bel_map[cell_name] = cell_site_type_bels_map[(
+                    cell_data.cell_name, site_resource.site_type)]
+        return False
 
     def find_connection_graph(nets, cell_instances, cell_pin_direction_map,
                               const_cells, root):
@@ -1908,18 +1914,18 @@ def clusters_from_macros(device, phy_placements, debug=False):
         for node in cell_instances:
             used_ports[node] = []
             connections_map[node] = {}
-            for net in nets.items():
+            for net_name, net_data in nets.items():
                 cells_in_net = set(
-                    [port.instance_name for port in net[1].ports])
+                    [port.instance_name for port in net_data.ports])
                 if node in cells_in_net:
-                    for port in net[1].ports:
+                    for port in net_data.ports:
                         if port.instance_name == node:
                             node_pin = port.name
                             used_ports[node].append(port.name)
                             node_cell_name = cell_instances[node].cell_name
                             node_pin_dir = cell_pin_direction_map[
                                 node_cell_name][node_pin]
-                            for port in net[1].ports:
+                            for port in net_data.ports:
                                 if port.instance_name is not None and\
                                    port.instance_name != node and\
                                    port.instance_name in cell_instances:
@@ -1938,8 +1944,10 @@ def clusters_from_macros(device, phy_placements, debug=False):
             temp = []
             temp_value[idx_map[node]] = {}
             temp_value[idx_map[node]]['cell_type'] = _dict.cell_name
-            for connected_cell in connections_map[node].items():
-                temp.append((connected_cell[1], idx_map[connected_cell[0]]))
+            for connected_cell_name, connected_cell_data in connections_map[
+                    node].items():
+                temp.append((connected_cell_data,
+                             idx_map[connected_cell_name]))
             temp_value[idx_map[node]]['connections'] = temp
             temp_value[idx_map[node]]['used_ports'] = used_ports[node]
         ret_value = []
@@ -1979,27 +1987,27 @@ def clusters_from_macros(device, phy_placements, debug=False):
 
         constants = device.get_constants()
 
-        for macro in macro_lib.cells.items():
+        for macro_name, macro_data in macro_lib.cells.items():
             if debug:
-                print("Processing: ", macro[0])
+                print("Processing: ", macro_name)
 
             graph = {}
             instance_to_cell_map = {}
 
-            new_cell_instances = macro[1].cell_instances
+            new_cell_instances = macro_data.cell_instances
             old_cell_instances = {}
             new_nets = {}
-            for net in macro[1].nets.items():
+            for net_name, net_data in macro_data.nets.items():
                 new_ports = []
-                for port in net[1].ports:
+                for port in net_data.ports:
                     port_name = port.name.upper()
                     port_idx = port.idx
                     port_instance_name = port.instance_name
                     new_ports.append(
                         PortInstance(port_name, port_instance_name, port_idx))
 
-                new_nets[net[0].upper()] = Net(net[1].name.upper(),
-                                               net[1].property_map, new_ports)
+                new_nets[net_name.upper()] = Net(
+                    net_data.name.upper(), net_data.property_map, new_ports)
             old_nets = {}
 
             if debug:
@@ -2011,23 +2019,27 @@ def clusters_from_macros(device, phy_placements, debug=False):
                 new_cell_instances = {}
                 new_nets = {}
                 nets_dict = {}
-                for cell_instance in old_cell_instances.items():
-                    cell_name = cell_instance[1].cell_name
-                    if cell_name not in macros_expansion.keys():
-                        new_cell_instances[cell_instance[0]] = cell_instance[1]
-                    elif cell_name in primitives and\
-                        cell_instance[1].capnp_name == primitives[cell_name].capnp_index:
-                        new_cell_instances[cell_instance[0]] = cell_instance[1]
+                for cell_instance_name, cell_instance_data in old_cell_instances.items(
+                ):
+                    _cell_name = cell_instance_data.cell_name
+                    if _cell_name not in macros_expansion.keys():
+                        new_cell_instances[
+                            cell_instance_name] = cell_instance_data
+                    elif _cell_name in primitives and\
+                        cell_instance_data.capnp_name == primitives[cell_name].capnp_index:
+                        new_cell_instances[
+                            cell_instance_name] = cell_instance_data
                     else:
-                        cell_instance = cell_instance[0]
-                        for cell in macros_expansion[
-                                cell_name].cell_instances.items():
+                        cell_instance = cell_instance_name
+                        for cell_name, cell_data in macros_expansion[
+                                _cell_name].cell_instances.items():
                             new_cell_instances[cell_instance + "/" +
-                                               cell[0]] = cell[1]
+                                               cell_name] = cell_data
                         nets_dict[cell_instance] = {}
-                        for net in macros_expansion[cell_name].nets.items():
+                        for net_name, net_data in macros_expansion[
+                                _cell_name].nets.items():
                             new_ports = []
-                            for port in net[1].ports:
+                            for port in net_data.ports:
                                 port_name = port.name.upper()
                                 port_idx = port.idx
                                 port_instance_name = port.instance_name
@@ -2036,13 +2048,13 @@ def clusters_from_macros(device, phy_placements, debug=False):
                                 new_ports.append(
                                     PortInstance(port_name, port_instance_name,
                                                  port_idx))
-                            nets_dict[cell_instance][net[0].upper()] =\
-                                Net(cell_instance + "/" + net[1].name.upper(),
-                                    net[1].property_map, new_ports)
+                            nets_dict[cell_instance][net_name.upper()] =\
+                                Net(cell_instance + "/" + net_data.name.upper(),
+                                    net_data.property_map, new_ports)
 
-                for net in old_nets.items():
+                for net_name, net_data in old_nets.items():
                     new_ports = []
-                    for port in net[1].ports:
+                    for port in net_data.ports:
                         cell_instance_name = port.instance_name
                         if cell_instance_name not in nets_dict:
                             new_ports.append(port)
@@ -2051,12 +2063,12 @@ def clusters_from_macros(device, phy_placements, debug=False):
                             for _port in _net.ports:
                                 if _port.instance_name is not None:
                                     new_ports.append(_port)
-                    new_nets[net[0]] = Net(net[1].name, net[1].property_map,
-                                           new_ports)
+                    new_nets[net_name] = Net(net_data.name,
+                                             net_data.property_map, new_ports)
                 if len(nets_dict) != 0:
                     for key in nets_dict.keys():
-                        for net in nets_dict[key].items():
-                            new_nets[str(key) + "/" + str(net[0])] = net[1]
+                        for net_name, net_data in nets_dict[key].items():
+                            new_nets[str(key) + "/" + str(net_name)] = net_data
 
             cell_instances = {}
             nets = {}
@@ -2068,33 +2080,34 @@ def clusters_from_macros(device, phy_placements, debug=False):
             # as they could create false root_cells
             VCC_cell = constants.VCC_CELL_TYPE
             GND_cell = constants.GND_CELL_TYPE
-            for net in old_nets.items():
+            for net_name, net_data in old_nets.items():
                 add = True
-                for port in net[1].ports:
+                for port in net_data.ports:
                     temp = port.instance_name
                     temp_name = port.name
                     if temp is not None:
                         temp = old_cell_instances[temp]
                         if temp.cell_name in [VCC_cell, GND_cell]:
                             add = False
-                    elif temp_name in macro[1].ports and\
-                         macro[1].ports[temp_name].direction != Direction.Inout:
+                    elif temp_name in macro_data.ports and\
+                         macro_data.ports[temp_name].direction != Direction.Inout:
                         add = False
                 if add:
-                    nets[net[0]] = net[1]
+                    nets[net_name] = net_data
 
-            for cell in old_cell_instances.items():
-                if cell[1].cell_name not in [VCC_cell, GND_cell]:
-                    cell_instances[cell[0]] = cell[1]
+            for cell_name, cell_data in old_cell_instances.items():
+                if cell_data.cell_name not in [VCC_cell, GND_cell]:
+                    cell_instances[cell_name] = cell_data
 
-            for cell_instance in cell_instances.items():
-                cell_name = cell_instance[1].cell_name
-                instance_to_cell_map[cell_instance[0]] = cell_name
-                graph[cell_instance[0]] = []
-            for net in nets.items():
+            for cell_instance_name, cell_instance_data in cell_instances.items(
+            ):
+                cell_name = cell_instance_data.cell_name
+                instance_to_cell_map[cell_instance_name] = cell_name
+                graph[cell_instance_name] = []
+            for net_name, net_data in nets.items():
                 sources = []
                 sinks = []
-                for port in net[1].ports:
+                for port in net_data.ports:
                     if port.instance_name is not None:
                         cell = instance_to_cell_map[port.instance_name]
                         if len(cell_pin_direction_map[cell]) == 0:
@@ -2113,15 +2126,12 @@ def clusters_from_macros(device, phy_placements, debug=False):
                         graph[sink].append((source, 0))
 
             cluster = {}
-            cluster['name'] = macro[0]
-            # If we can't find good root use any cell as root cell
-            key = list(cell_instances.keys())[0]
-            cluster['root_cell_types'] = [cell_instances[key].cell_name]
-            # Check if connection graph is a tree
+            cluster['name'] = macro_name
 
             if debug:
                 print("\tChecking connections graph")
 
+            # Check if connection graph is a tree
             subgraphs, cycle = check(graph)
             assert not cycle, "Code is not design to cope with cycles inside macros"
             root = None
@@ -2129,6 +2139,8 @@ def clusters_from_macros(device, phy_placements, debug=False):
             if subgraphs == 1:
                 # If grah is a tree, search for node, such that when it's remved ther is no connection from any source to any sink
                 root = search_for_root(graph)
+                if root is None:
+                    root = source_cells(graph)[0]
                 cluster['root_cell_types'] = [cell_instances[root].cell_name]
             else:
                 root = source_cells(graph)[0]
@@ -2140,15 +2152,14 @@ def clusters_from_macros(device, phy_placements, debug=False):
             if cluster['connection_graph'] is None:
                 continue
 
-            cluster['out_of_site_clusters'], cluster[
-                'phy_graph'] = check_if_in_site(
-                    cell_instances, cell_site_type_map, device,
-                    cell_site_type_to_bels_map, cluster['connection_graph'],
-                    root)
+            cluster['out_of_site_clusters'] = check_if_out_site(
+                cell_instances, cell_site_type_map, device,
+                cell_site_type_to_bels_map, cluster['connection_graph'], root)
 
-            if macro[0] in phy_placements:
+            cluster['phy_graph'] = None
+            if macro_name in phy_placements:
                 cluster['phy_graph'] = []
-                for site, places in phy_placements[macro[0]].items():
+                for site, places in phy_placements[macro_name].items():
                     site_placements = []
                     length = len(places[list(cell_instances.keys())[0]])
                     for i in range(length):
@@ -2168,10 +2179,10 @@ def clusters_from_macros(device, phy_placements, debug=False):
             if debug:
                 print("\tListing required cells")
 
-            for cell in cell_instances.items():
-                if cell[1].cell_name not in count_cell_type_instances:
-                    count_cell_type_instances[cell[1].cell_name] = 0
-                count_cell_type_instances[cell[1].cell_name] += 1
+            for cell_name, cell_data in cell_instances.items():
+                if cell_data.cell_name not in count_cell_type_instances:
+                    count_cell_type_instances[cell_data.cell_name] = 0
+                count_cell_type_instances[cell_data.cell_name] += 1
             for cell_type, count in count_cell_type_instances.items():
                 cluster['required_cells'].append((cell_type, count))
             if cluster['phy_graph'] is not None:
