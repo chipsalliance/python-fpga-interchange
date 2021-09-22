@@ -1991,6 +1991,9 @@ def clusters_from_macros(device, phy_placements, debug=False):
             if debug:
                 print("Processing: ", macro_name)
 
+            if macro_name not in phy_placements:
+                continue
+
             graph = {}
             instance_to_cell_map = {}
 
@@ -2125,11 +2128,11 @@ def clusters_from_macros(device, phy_placements, debug=False):
                         graph[source].append((sink, 1))
                         graph[sink].append((source, 0))
 
-            cluster = {}
-            cluster['name'] = macro_name
-
             if debug:
                 print("\tChecking connections graph")
+
+            cluster = {}
+            cluster['name'] = macro_name
 
             # Check if connection graph is a tree
             subgraphs, cycle = check(graph)
@@ -2156,20 +2159,6 @@ def clusters_from_macros(device, phy_placements, debug=False):
                 cell_instances, cell_site_type_map, device,
                 cell_site_type_to_bels_map, cluster['connection_graph'], root)
 
-            cluster['phy_graph'] = None
-            if macro_name in phy_placements:
-                cluster['phy_graph'] = []
-                for site, places in phy_placements[macro_name].items():
-                    site_placements = []
-                    length = len(places[list(cell_instances.keys())[0]])
-                    for i in range(length):
-                        l = [None] * len(cell_instances)
-                        for cell in cell_instances.keys():
-                            l[cell_idx_map[cell]] = places[cell][i]
-                        l = tuple(l)
-                        site_placements.append(l)
-                    cluster['phy_graph'].append(tuple([site, site_placements]))
-
             cluster["disallow_other_cells"] = False
             cluster['chainable_ports'] = []
             cluster['from_macro'] = True
@@ -2185,8 +2174,22 @@ def clusters_from_macros(device, phy_placements, debug=False):
                 count_cell_type_instances[cell_data.cell_name] += 1
             for cell_type, count in count_cell_type_instances.items():
                 cluster['required_cells'].append((cell_type, count))
-            if cluster['phy_graph'] is not None:
-                clusters.append(cluster)
+
+            cluster['phy_graph'] = None
+            if macro_name in phy_placements:
+                cluster['phy_graph'] = []
+                for site, places in phy_placements[macro_name].items():
+                    site_placements = []
+                    length = len(places[list(cell_instances.keys())[0]])
+                    for i in range(length):
+                        l = [None] * len(cell_instances)
+                        for cell in cell_instances.keys():
+                            l[cell_idx_map[cell]] = places[cell][i]
+                        l = tuple(l)
+                        site_placements.append(l)
+                    cluster['phy_graph'].append(tuple([site, site_placements]))
+
+            clusters.append(cluster)
 
     return clusters
 
