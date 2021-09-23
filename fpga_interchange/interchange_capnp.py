@@ -633,12 +633,14 @@ def to_logical_netlist(netlist_capnp, strs=None):
             view=strs[cell_instance_capnp.view],
             cell_name=strs[netlist_capnp.cellDecls[cell_instance_capnp.cell].
                            name],
-            property_map=prop_map)
+            property_map=prop_map,
+            capnp_name=cell_instance_capnp.cell)
 
     for cell_capnp in netlist_capnp.cellList:
         cell_decl = netlist_capnp.cellDecls[cell_capnp.index]
         cell = Cell(
             name=strs[cell_decl.name],
+            capnp_index=cell_capnp.index,
             property_map=convert_property_map(cell_decl.propMap),
         )
         cell.view = strs[cell_decl.view]

@@ -10,8 +10,9 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 from collections import namedtuple
+import itertools
 
-from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
+from fpga_interchange.chip_info import ChipInfo, BelShortedPins, BelInfo, TileTypeInfo, \
         TileWireInfo, BelPort, PipInfo, TileInstInfo, SiteInstInfo, NodeInfo, \
         TileWireRef, CellBelMap, ParameterPins, CellBelPin, ConstraintTag, \
         CellConstraint, ConstraintType, Package, PackagePin, LutCell, \
@@ -19,10 +20,13 @@ from fpga_interchange.chip_info import ChipInfo, BelInfo, TileTypeInfo, \
         WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, \
         MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin, Cluster
 from fpga_interchange.constraints.model import Tag, Placement, \
-        ImpliesConstraint, RequiresConstraint
+        ImpliesConstraint, RequiresConstraint, SiteTypeMatcher
 from fpga_interchange.constraint_generator import ConstraintPrototype
 from fpga_interchange.device_resources import convert_wire_category
+import fpga_interchange.device_resources
 from fpga_interchange.nextpnr import PortType
+from fpga_interchange.logical_netlist import PortInstance, Net
+from fpga_interchange.device_resources import Direction
 
 
 class FlattenedWireType(Enum):
@@ -69,6 +73,7 @@ class FlattenedBel():
 
         self.valid_cells = set()
         self.lut_element = lut_element
+        self.connected_pins = []
 
     def add_port(self, device, bel_pin, wire_index):
         self.ports.append(
@@ -525,6 +530,7 @@ class FlattenedTileType():
                 if bel_key in cell_bel_mapper.bels_for_cell(cell):
                     flat_bel.valid_cells.add(cell)
 
+            shorted_pins = {}
             for pin_idx, pin in enumerate(bel.pins):
                 assert pin not in bel_pin_index_to_bel_index
                 bel_pin_index_to_bel_index[pin] = bel_idx, pin_idx
@@ -535,6 +541,18 @@ class FlattenedTileType():
                 if wire_idx != -1:
                     self.wires[wire_idx].bel_pins.append(
                         (bel_index, device.strs[bel_pin.name]))
+                    if wire_idx not in shorted_pins:
+                        shorted_pins[wire_idx] = []
+                    shorted_pins[wire_idx].append(bel_pin.name)
+
+            for wire, pins in shorted_pins.items():
+                if len(pins) < 2:
+                    continue
+                for pin1, pin2 in itertools.product(pins, repeat=2):
+                    if pin1 == pin2:
+                        continue
+                    flat_bel.connected_pins.append(
+                        BelShortedPins(device.strs[pin1], device.strs[pin2]))
 
             # If this BEL is a local inverter, mark which BEL port is the
             # inverting vs non-inverting input.
@@ -680,6 +698,7 @@ class FlattenedTileType():
             bel_info.lut_element = bel.lut_element
             bel_info.non_inverting_pin = bel.non_inverting_pin
             bel_info.inverting_pin = bel.inverting_pin
+            bel_info.connected_pins = bel.connected_pins
 
             site_type = self.sites[bel.site_index].site_type_name
 
@@ -1740,6 +1759,441 @@ def populate_macros(device, chip_info):
             chip_info.macros.append(macro)
 
 
+def clusters_from_macros(device, phy_placements, debug=False):
+    """
+    This functions converts macros defined in device resources into cluster definitions.
+    It starts with reducing macro into cells and nets, works with recursive macros.
+    Then it creates connection map between cells based on logical nets.
+    If graph has more then 1 subgraph, root cell is chosen from source cells,
+    otherwise function will try to find root cell, if it failes root cell is
+    also chosen from source cells.
+
+    Out of site property is calculated based cell constraints,
+    sites where cells can be placed and number of cell that can fit into single site.
+    """
+
+    def check(graph):
+        visited = {}
+
+        def bfs(node, graph, visited):
+            queue = [node]
+            visited[node] = (node, None)
+            while len(queue) > 0:
+                node = queue.pop(0)
+                for edge in graph[node]:
+                    if edge[0] not in visited:
+                        visited[edge[0]] = (node, edge[1])
+                        queue.append(edge[0])
+                    # This graph can have multiple edges from one cell to another one
+                    elif edge[0] != visited[node][0] and\
+                         (visited[edge[0]][0] != node or\
+                          visited[edge[0]][1] != edge[1]):
+                        return False
+            return True
+
+        subgraphs = 0
+        cycle = False
+        for key in graph.keys():
+            if key not in visited:
+                subgraphs += 1
+                if not bfs(key, graph, visited):
+                    cycle = True
+        return (subgraphs, cycle)
+
+    def search_for_root(graph):
+        sources = []
+        sinks = []
+        for node_name, node_data in graph.items():
+            if all([x[1] == 1 for x in node_data]):
+                sources.append(node_name)
+            elif all([x[1] == 0 for x in node_data]):
+                sinks.append(node_name)
+        # Solve for trivial
+        if len(sinks) == 1:
+            return sinks[0]
+        if len(sources) == 1:
+            return sources[0]
+
+        ver = list(graph.keys())
+        # Remove sources and sinks. If they were to be root cell,
+        # we would have found them in previous step
+        for s in sources + sinks:
+            ver.remove(s)
+
+        for v in ver:
+            visited = {}
+            queue = []
+            for s in sources:
+                if s != v:
+                    queue.append(s)
+                    visited[s] = s
+            while len(queue) > 0:
+                node = queue.pop(0)
+                for edge in graph[node]:
+                    if edge[1] == 1 and edge[0] != v:
+                        visited[edge[0]] = node
+                        queue.append(edge[0])
+            # If all sinks are unrechable we have found root cell
+            if all([s not in visited for s in sinks]):
+                return v
+        # We couldn't find root cell
+        return None
+
+    def source_cells(graph):
+        sources = []
+        for node_name, node_data in graph.items():
+            if all([x[1] == 1 for x in node_data]):
+                sources.append(node_name)
+        return sources
+
+    def check_if_out_site(cell_instances, cell_site_type_map, device,
+                          cell_site_type_bels_map, logical_connections,
+                          root_cell):
+        constraints = device.get_constraints()
+        base_set = None
+        for cell_name, cell_data in cell_instances.items():
+            if base_set is None:
+                base_set = cell_site_type_map[cell_data.cell_name]
+            else:
+                base_set = base_set & cell_site_type_map[cell_data.cell_name]
+        if len(base_set) == 0:
+            return True
+
+        site_tags = {}
+        for site_type in base_set:
+            site_tags[site_type] = {}
+
+        count_cell_type_instances = {}
+        for cell_name, cell_data in cell_instances.items():
+            if cell_data.cell_name not in count_cell_type_instances:
+                count_cell_type_instances[cell_data.cell_name] = 0
+            count_cell_type_instances[cell_data.cell_name] += 1
+            if cell_data.cell_name in constraints.cells:
+                for constraint in constraints.cells[cell_data.
+                                                    cell_name].constraints:
+                    for matcher in constraint.matchers:
+                        if isinstance(matcher, SiteTypeMatcher):
+                            if matcher.site_type in base_set:
+                                if constraint.tag in site_tags[matcher.
+                                                               site_type]:
+                                    if site_tags[matcher.site_type][
+                                            constraint.
+                                            tag] != constraint.state:
+                                        return True
+                                else:
+                                    site_tags[matcher.site_type][
+                                        constraint.tag] = constraint.state
+
+        for cell, count in count_cell_type_instances.items():
+            for site in base_set:
+                if count > len(cell_site_type_bels_map[(cell, site)]):
+                    return True
+
+        for site in base_set:
+            site_resource = device.get_site_type(
+                device.get_site_type_index(site))
+            cell_to_bel_map = {}
+            for cell_name, cell_data in cell_instances.items():
+                cell_to_bel_map[cell_name] = cell_site_type_bels_map[(
+                    cell_data.cell_name, site_resource.site_type)]
+        return False
+
+    def find_connection_graph(nets, cell_instances, cell_pin_direction_map,
+                              const_cells, root):
+        used_ports = {}
+        idx_map = {}
+        idx_map[root] = 0
+        idx = 1
+        for cell_instance in cell_instances:
+            if cell_instance != root:
+                idx_map[cell_instance] = idx
+                idx += 1
+
+        connections_map = {}
+
+        for node in cell_instances:
+            used_ports[node] = []
+            connections_map[node] = {}
+            for net_name, net_data in nets.items():
+                cells_in_net = set(
+                    [port.instance_name for port in net_data.ports])
+                if node in cells_in_net:
+                    for port in net_data.ports:
+                        if port.instance_name == node:
+                            node_pin = port.name
+                            used_ports[node].append(port.name)
+                            node_cell_name = cell_instances[node].cell_name
+                            node_pin_dir = cell_pin_direction_map[
+                                node_cell_name][node_pin]
+                            for port in net_data.ports:
+                                if port.instance_name is not None and\
+                                   port.instance_name != node and\
+                                   port.instance_name in cell_instances:
+                                    cell_name = port.instance_name
+                                    cell = cell_instances[cell_name].cell_name
+                                    pin = port.name
+                                    connection_type = 2 if cell_pin_direction_map[
+                                        cell][pin] == node_pin_dir else int(
+                                            node_pin_dir)
+                                    if cell_name not in connections_map[node]:
+                                        connections_map[node][cell_name] = []
+                                    connections_map[node][cell_name].append(
+                                        (connection_type, node_pin, pin, cell))
+        temp_value = {}
+        for node, _dict in cell_instances.items():
+            temp = []
+            temp_value[idx_map[node]] = {}
+            temp_value[idx_map[node]]['cell_type'] = _dict.cell_name
+            for connected_cell_name, connected_cell_data in connections_map[
+                    node].items():
+                temp.append((connected_cell_data,
+                             idx_map[connected_cell_name]))
+            temp_value[idx_map[node]]['connections'] = temp
+            temp_value[idx_map[node]]['used_ports'] = used_ports[node]
+        ret_value = []
+        for idx, node in temp_value.items():
+            ret_value.append((idx, node['cell_type'], node['connections'],
+                              node['used_ports']))
+        ret_value.sort()
+        return ret_value, idx_map
+
+    prims = device.get_primitive_library()
+
+    clusters = []
+    if 'macros' in prims.libraries:
+        macro_lib = prims.libraries['macros']
+        cell_pin_direction_map = {}
+
+        macros_expansion = macro_lib.cells
+        primitives = prims.libraries['primitives'].cells
+        for cell_name, prim in primitives.items():
+            cell_pin_direction_map[cell_name] = {}
+            for port_name, port in prim.ports.items():
+                cell_pin_direction_map[cell_name][port_name] =\
+                    port.direction == Direction.Output
+
+        cell_site_type_map = {}
+        cell_site_type_to_bels_map = {}
+        cell_bel_site_type_to_bel_pins_map = {}
+        for mapping in device.yield_cell_bel_mappings():
+            if mapping.cell not in cell_site_type_map:
+                cell_site_type_map[mapping.cell] = set()
+            for site_type, bel in mapping.site_types_and_bels:
+                cell_site_type_map[mapping.cell].add(site_type)
+                if (mapping.cell, site_type) not in cell_site_type_to_bels_map:
+                    cell_site_type_to_bels_map[(mapping.cell, site_type)] = []
+                cell_site_type_to_bels_map[(mapping.cell,
+                                            site_type)].append(bel)
+
+        constants = device.get_constants()
+
+        for macro_name, macro_data in macro_lib.cells.items():
+            if debug:
+                print("Processing: ", macro_name)
+
+            if macro_name not in phy_placements:
+                continue
+
+            graph = {}
+            instance_to_cell_map = {}
+
+            new_cell_instances = macro_data.cell_instances
+            old_cell_instances = {}
+            new_nets = {}
+            for net_name, net_data in macro_data.nets.items():
+                new_ports = []
+                for port in net_data.ports:
+                    port_name = port.name.upper()
+                    port_idx = port.idx
+                    port_instance_name = port.instance_name
+                    new_ports.append(
+                        PortInstance(port_name, port_instance_name, port_idx))
+
+                new_nets[net_name.upper()] = Net(
+                    net_data.name.upper(), net_data.property_map, new_ports)
+            old_nets = {}
+
+            if debug:
+                print("\tExpanding macro")
+
+            while new_cell_instances != old_cell_instances:
+                old_cell_instances = new_cell_instances
+                old_nets = new_nets
+                new_cell_instances = {}
+                new_nets = {}
+                nets_dict = {}
+                for cell_instance_name, cell_instance_data in old_cell_instances.items(
+                ):
+                    _cell_name = cell_instance_data.cell_name
+                    if _cell_name not in macros_expansion.keys():
+                        new_cell_instances[
+                            cell_instance_name] = cell_instance_data
+                    elif _cell_name in primitives and\
+                        cell_instance_data.capnp_name == primitives[cell_name].capnp_index:
+                        new_cell_instances[
+                            cell_instance_name] = cell_instance_data
+                    else:
+                        cell_instance = cell_instance_name
+                        for cell_name, cell_data in macros_expansion[
+                                _cell_name].cell_instances.items():
+                            new_cell_instances[cell_instance + "/" +
+                                               cell_name] = cell_data
+                        nets_dict[cell_instance] = {}
+                        for net_name, net_data in macros_expansion[
+                                _cell_name].nets.items():
+                            new_ports = []
+                            for port in net_data.ports:
+                                port_name = port.name.upper()
+                                port_idx = port.idx
+                                port_instance_name = port.instance_name
+                                if port.instance_name is not None:
+                                    port_instance_name = cell_instance + "/" + port.instance_name
+                                new_ports.append(
+                                    PortInstance(port_name, port_instance_name,
+                                                 port_idx))
+                            nets_dict[cell_instance][net_name.upper()] =\
+                                Net(cell_instance + "/" + net_data.name.upper(),
+                                    net_data.property_map, new_ports)
+
+                for net_name, net_data in old_nets.items():
+                    new_ports = []
+                    for port in net_data.ports:
+                        cell_instance_name = port.instance_name
+                        if cell_instance_name not in nets_dict:
+                            new_ports.append(port)
+                        else:
+                            _net = nets_dict[cell_instance_name].pop(port.name)
+                            for _port in _net.ports:
+                                if _port.instance_name is not None:
+                                    new_ports.append(_port)
+                    new_nets[net_name] = Net(net_data.name,
+                                             net_data.property_map, new_ports)
+                if len(nets_dict) != 0:
+                    for key in nets_dict.keys():
+                        for net_name, net_data in nets_dict[key].items():
+                            new_nets[str(key) + "/" + str(net_name)] = net_data
+
+            cell_instances = {}
+            nets = {}
+
+            if debug:
+                print("\tRemoving const nets")
+
+            # Remove const cells and nets that were driven by them,
+            # as they could create false root_cells
+            VCC_cell = constants.VCC_CELL_TYPE
+            GND_cell = constants.GND_CELL_TYPE
+            for net_name, net_data in old_nets.items():
+                add = True
+                for port in net_data.ports:
+                    temp = port.instance_name
+                    temp_name = port.name
+                    if temp is not None:
+                        temp = old_cell_instances[temp]
+                        if temp.cell_name in [VCC_cell, GND_cell]:
+                            add = False
+                    elif temp_name in macro_data.ports and\
+                         macro_data.ports[temp_name].direction != Direction.Inout:
+                        add = False
+                if add:
+                    nets[net_name] = net_data
+
+            for cell_name, cell_data in old_cell_instances.items():
+                if cell_data.cell_name not in [VCC_cell, GND_cell]:
+                    cell_instances[cell_name] = cell_data
+
+            for cell_instance_name, cell_instance_data in cell_instances.items(
+            ):
+                cell_name = cell_instance_data.cell_name
+                instance_to_cell_map[cell_instance_name] = cell_name
+                graph[cell_instance_name] = []
+            for net_name, net_data in nets.items():
+                sources = []
+                sinks = []
+                for port in net_data.ports:
+                    if port.instance_name is not None:
+                        cell = instance_to_cell_map[port.instance_name]
+                        if len(cell_pin_direction_map[cell]) == 0:
+                            continue
+                        direction = cell_pin_direction_map[cell][port.name]
+                        if direction:
+                            sources.append(port.instance_name)
+                        else:
+                            sinks.append(port.instance_name)
+                if sources == [] or sinks == []:
+                    continue
+
+                for source in sources:
+                    for sink in sinks:
+                        graph[source].append((sink, 1))
+                        graph[sink].append((source, 0))
+
+            if debug:
+                print("\tChecking connections graph")
+
+            cluster = {}
+            cluster['name'] = macro_name
+
+            # Check if connection graph is a tree
+            subgraphs, cycle = check(graph)
+            assert not cycle, "Code is not design to cope with cycles inside macros"
+            root = None
+            sources = None
+            if subgraphs == 1:
+                # If grah is a tree, search for node, such that when it's remved ther is no connection from any source to any sink
+                root = search_for_root(graph)
+                if root is None:
+                    root = source_cells(graph)[0]
+                cluster['root_cell_types'] = [cell_instances[root].cell_name]
+            else:
+                root = source_cells(graph)[0]
+                cluster['root_cell_types'] = [cell_instances[root].cell_name]
+
+            cluster['connection_graph'], cell_idx_map = find_connection_graph(
+                old_nets, cell_instances, cell_pin_direction_map,
+                [VCC_cell, GND_cell], root)
+            if cluster['connection_graph'] is None:
+                continue
+
+            cluster['out_of_site_clusters'] = check_if_out_site(
+                cell_instances, cell_site_type_map, device,
+                cell_site_type_to_bels_map, cluster['connection_graph'], root)
+
+            cluster["disallow_other_cells"] = False
+            cluster['chainable_ports'] = []
+            cluster['from_macro'] = True
+            cluster['required_cells'] = []
+            count_cell_type_instances = {}
+
+            if debug:
+                print("\tListing required cells")
+
+            for cell_name, cell_data in cell_instances.items():
+                if cell_data.cell_name not in count_cell_type_instances:
+                    count_cell_type_instances[cell_data.cell_name] = 0
+                count_cell_type_instances[cell_data.cell_name] += 1
+            for cell_type, count in count_cell_type_instances.items():
+                cluster['required_cells'].append((cell_type, count))
+
+            cluster['phy_graph'] = None
+            if macro_name in phy_placements:
+                cluster['phy_graph'] = []
+                for site, places in phy_placements[macro_name].items():
+                    site_placements = []
+                    length = len(places[list(cell_instances.keys())[0]])
+                    for i in range(length):
+                        l = [None] * len(cell_instances)
+                        for cell in cell_instances.keys():
+                            l[cell_idx_map[cell]] = places[cell][i]
+                        l = tuple(l)
+                        site_placements.append(l)
+                    cluster['phy_graph'].append(tuple([site, site_placements]))
+
+            clusters.append(cluster)
+
+    return clusters
+
+
 def populate_macro_rules(device, chip_info):
     for rule in device.device_resource_capnp.exceptionMap:
         exp_data = MacroExpansion()
@@ -1783,6 +2237,7 @@ def populate_chip_info(device, constids, device_config):
     disabled_cell_bel_map = device_config.get('disabled_cell_bel_map', [])
     global_buffer_cells = device_config.get('global_buffer_cells', [])
     clusters = device_config.get('clusters', [])
+    macro_clusters = device_config.get('macro_clusters', [])
 
     cell_bel_mapper = CellBelMapper(device, constids, disabled_cell_bel_map)
 
@@ -1844,6 +2299,19 @@ def populate_chip_info(device, constids, device_config):
     populate_macros(device, chip_info)
     populate_macro_rules(device, chip_info)
 
+    phy_placements_dict = {}
+
+    for macro_cluster in macro_clusters:
+        macro_dict = {}
+        phy_placements_dict[macro_cluster['name']] = macro_dict
+        for site in macro_cluster['sites']:
+            site_dict = {}
+            macro_dict[site['site']] = site_dict
+            for cell in site['cells']:
+                site_dict[cell['cell']] = cell['bels']
+
+    clusters.extend(clusters_from_macros(device, phy_placements_dict))
+
     tile_wire_to_wire_in_tile_index = []
     num_tile_wires = []
 
@@ -1860,7 +2328,11 @@ def populate_chip_info(device, constids, device_config):
                               cluster["root_cell_types"],
                               cluster.get("cluster_cells", []),
                               cluster.get("out_of_site_clusters", False),
-                              cluster.get("disallow_other_cells", False))
+                              cluster.get("disallow_other_cells", False),
+                              cluster.get("from_macro", False),
+                              cluster.get("required_cells", []),
+                              cluster.get("connection_graph", []),
+                              cluster.get("phy_graph", []))
 
         chip_info.clusters.append(cluster_obj)
 

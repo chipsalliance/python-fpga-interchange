@@ -763,6 +763,9 @@ class DeviceResources():
                 key = wire.tile, wire.wire
                 self.tile_wire_index_to_node_index[key] = node_idx
 
+    def get_site_type_index(self, site_type_name):
+        return self.site_type_name_to_index[site_type_name]
+
     def get_site_type(self, site_type_index):
         """ Get SiteType object for specified site type index. """
         if site_type_index not in self.site_types:
