@@ -17,6 +17,7 @@
 
 import argparse
 import sys
+import re
 
 # ============================================================================
 
@@ -50,12 +51,16 @@ def main():
     with open(args.base_timing, 'r') as f:
         for line in f.readlines():
             line = line.split()
+            line[0] = re.sub(r"\\\\*", '\\', line[0])
+            print(line[0])
             baseline[line[0]] = int(float(line[1]))
 
     comp = {}
     with open(args.compare_timing, 'r') as f:
         for line in f.readlines():
             line = line.split()
+            line[0] = re.sub(r"\\\\*", '\\', line[0])
+            print(line[0])
             comp[line[0]] = int(float(line[1]))
 
     map_net = {}
