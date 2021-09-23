@@ -77,6 +77,10 @@ buckets:
 disabled_routethroughs:
   - BUFGCTRL
   - BUFR
+  - A6LUT
+  - B6LUT
+  - C6LUT
+  - D6LUT
 # Do not allow cells to be placed at BELs
 disabled_cell_bel_map:
   - cell: FDRE
