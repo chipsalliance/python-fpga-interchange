@@ -1164,7 +1164,7 @@ class XC7FasmGenerator(FasmGenerator):
         tile_types = ["CLBLL_L", "CLBLL_R", "CLBLM_L", "CLBLM_R"]
         routing_bels = self.get_routing_bels(tile_types)
 
-        used_muxes = ["SRUSEDMUX", "CEUSEDMUX"]
+        used_muxes = ["SRUSEDMUX", "CEUSEDMUX", "WA7USED", "WA8USED"]
 
         excluded_bels = [
             "{}USED".format(bel) for bel in ["A", "B", "C", "D", "COUT"]
