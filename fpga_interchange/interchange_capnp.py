@@ -67,7 +67,7 @@ DEFAULT_COMPRESSION_TYPE = CompressionFormat.GZIP
 # Set traversal limit to maximum to effectively disable.
 NO_TRAVERSAL_LIMIT = 2**63 - 1
 
-NESTING_LIMIT = 256
+NESTING_LIMIT = 1024
 
 # Level 6 is much faster than level 9, but still has a reasonable compression
 # level.
