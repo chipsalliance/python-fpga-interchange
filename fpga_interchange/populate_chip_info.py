@@ -2159,7 +2159,7 @@ def clusters_from_macros(device, phy_placements, debug=False):
                 cell_instances, cell_site_type_map, device,
                 cell_site_type_to_bels_map, cluster['connection_graph'], root)
 
-            cluster["disallow_other_cells"] = False
+            cluster["disallow_other_cells"] = True
             cluster['chainable_ports'] = []
             cluster['from_macro'] = True
             cluster['required_cells'] = []
