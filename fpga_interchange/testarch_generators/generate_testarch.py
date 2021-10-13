@@ -14,10 +14,10 @@ import argparse
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.interchange_capnp import Interchange, CompressionFormat, write_capnp_file
 
-from device_resources_builder import BelCategory, ConstantType
-from device_resources_builder import DeviceResources, DeviceResourcesCapnp
+from fpga_interchange.testarch_generators.device_resources_builder import BelCategory, ConstantType
+from fpga_interchange.testarch_generators.device_resources_builder import DeviceResources, DeviceResourcesCapnp
 
-from device_resources_builder import CellBelMapping, CellBelMappingEntry
+from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry
 
 # =============================================================================
 
@@ -27,12 +27,14 @@ class TestArchGenerator():
     Test architecture generator
     """
 
-    def __init__(self):
+    def __init__(self, package):
         self.device = DeviceResources()
 
         self.grid_size = (10, 10)
         self.num_intra_nodes = 8
         self.num_inter_nodes = 8
+
+        self.package = package
 
     def make_slice_site_type(self):
         """
@@ -328,7 +330,7 @@ class TestArchGenerator():
 
     def make_package_data(self):
 
-        package = self.device.add_package("BGA5000")
+        package = self.device.add_package(self.package)
 
         pad_id = 0
         for site in self.device.sites.values():
@@ -514,14 +516,17 @@ def main():
 
     parser = argparse.ArgumentParser(description="Generates testarch FPGA")
     parser.add_argument(
-        "--schema_dir",
+        "--schema-dir",
         required=True,
         help="Path to FPGA interchange capnp schema files")
+    parser.add_argument(
+        "--out-file", default="test_arch.device", help="Output file name")
+    parser.add_argument("--package", default="TESTPKG", help="Package name")
 
     args = parser.parse_args()
 
     # Run the test architecture generator
-    gen = TestArchGenerator()
+    gen = TestArchGenerator(args.package)
     gen.generate()
 
     # Initialize the writer (or "serializer")
@@ -534,7 +539,7 @@ def main():
 
     # Serialize
     device_resources = writer.to_capnp()
-    with open("device_resources.device.gz", "wb") as fp:
+    with open(args.out_file, "wb") as fp:
         write_capnp_file(
             device_resources,
             fp)  #, compression_format=CompressionFormat.UNCOMPRESSED)
