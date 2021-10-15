@@ -1174,10 +1174,6 @@ class DeviceResourcesCapnp():
         # Strings
         self.build_string_index()
 
-        device.init("strList", len(self.string_list))
-        for i, s in enumerate(self.string_list):
-            device.strList[i] = s
-
         # Node and PIP timings
         self.write_timings(device)
 
@@ -1200,19 +1196,17 @@ class DeviceResourcesCapnp():
         self.write_cell_bel_mappings(device)
 
         # Logical netlist containing primitives and macros
+        # Fix names, as logical network should use string IDs from global string table, see issue #47
         device.primLibs = output_logical_netlist(
             logical_netlist_schema=self.logical_netlist_schema,
             libraries=self.device.cell_libraries,
             name="Testarch_primitives",
             top_instance_name=None,
             top_instance=None,
-        )
+            indexed_strings=self.string_list)
 
-        # Fix names, as logical network should use string IDs from global string table, see issue #47
-        for port in device.primLibs.portList:
-            port.name = self.get_string_id(device.primLibs.strList[port.name])
-        for cell in device.primLibs.cellDecls:
-            cell.name = self.get_string_id(device.primLibs.strList[cell.name])
-        device.primLibs.strList = []
+        device.init("strList", len(self.string_list))
+        for i, s in enumerate(self.string_list):
+            device.strList[i] = s
 
         return device
