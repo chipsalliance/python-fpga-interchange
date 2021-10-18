@@ -346,27 +346,27 @@ class TestArchGenerator():
         self.device.cell_libraries["primitives"] = library
 
         cell = Cell("LUT")
-        cell.add_port("A0", Direction.Input)
-        cell.add_port("A1", Direction.Input)
-        cell.add_port("A2", Direction.Input)
-        cell.add_port("A3", Direction.Input)
+        cell.add_port("A0", Direction.Input, {"comb_sinks": "O"})
+        cell.add_port("A1", Direction.Input, {"comb_sinks": "O"})
+        cell.add_port("A2", Direction.Input, {"comb_sinks": "O"})
+        cell.add_port("A3", Direction.Input, {"comb_sinks": "O"})
         cell.add_port("O", Direction.Output)
         library.add_cell(cell)
 
         cell = Cell("DFF")
-        cell.add_port("D", Direction.Input)
-        cell.add_port("R", Direction.Input)
-        cell.add_port("C", Direction.Input)
-        cell.add_port("Q", Direction.Output)
+        cell.add_port("D", Direction.Input, {"comb_sinks": "Q"})
+        cell.add_port("R", Direction.Input, {"comb_sinks": "Q"})
+        cell.add_port("C", Direction.Input, {"is_clock": True})
+        cell.add_port("Q", Direction.Output, {"clock": "C"})
         library.add_cell(cell)
 
         cell = Cell("IB")
         cell.add_port("I", Direction.Output)
-        cell.add_port("P", Direction.Input)
+        cell.add_port("P", Direction.Input, {"comb_sinks": "I"})
         library.add_cell(cell)
 
         cell = Cell("OB")
-        cell.add_port("O", Direction.Input)
+        cell.add_port("O", Direction.Input, {"comb_sinks": "P"})
         cell.add_port("P", Direction.Output)
         library.add_cell(cell)
 
