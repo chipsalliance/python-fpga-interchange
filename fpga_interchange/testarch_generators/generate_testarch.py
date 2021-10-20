@@ -345,7 +345,7 @@ class TestArchGenerator():
         library = Library("primitives")
         self.device.cell_libraries["primitives"] = library
 
-        cell = Cell("LUT")
+        cell = Cell(name="LUT", property_map={"INIT": 0})
         cell.add_port("A0", Direction.Input)
         cell.add_port("A1", Direction.Input)
         cell.add_port("A2", Direction.Input)
