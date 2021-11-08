@@ -371,7 +371,7 @@ class DeviceResources():
         self.wire_str_map = {}
 
         self.wire_type_list = []
-        self.wire_type_map ={}
+        self.wire_type_map = {}
 
         # Constant generators
         self.constants = {}
@@ -466,7 +466,10 @@ class DeviceResources():
             return self.wire_type_map[wire_type]
 
         # Create the wire, map strings
-        wire = Wire(tile=add_string(tile_name), wire=add_string(wire_name), wire_type=add_wire_type(wire_type))
+        wire = Wire(
+            tile=add_string(tile_name),
+            wire=add_string(wire_name),
+            wire_type=add_wire_type(wire_type))
         wire_id = len(self.wires)
 
         # Add the wire
@@ -518,8 +521,7 @@ class DeviceResources():
         wire = Wire(
             tile=get_string(self.wires[wire_id].tile),
             wire=get_string(self.wires[wire_id].wire),
-            wire_type=get_wire_type(self.wires[wire_id].wire_type)
-        )
+            wire_type=get_wire_type(self.wires[wire_id].wire_type))
 
         return wire
 

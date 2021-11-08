@@ -496,8 +496,9 @@ class TestArchGenerator():
         # Add pip imings
         # Values are taken at random, resisitance, input and output capacitance are chosen
         # to be samewhat inline with values calculated from skaywater PDK
-        self.device.add_PIPTiming("tilePIP"     , 3e-16, 1e-16, 5e-10, 0.5, 4e-16)
-        self.device.add_PIPTiming("intraTilePIP", 1e-16, 4e-17, 3e-10, 0.1, 2e-16)
+        self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 5e-10, 0.5, 4e-16)
+        self.device.add_PIPTiming("intraTilePIP", 1e-16, 4e-17, 3e-10, 0.1,
+                                  2e-16)
 
         # Add node timing
         # Value taken from skywater PDK for metal layer 1,
