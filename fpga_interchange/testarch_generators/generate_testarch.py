@@ -13,11 +13,12 @@ import argparse
 
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.interchange_capnp import Interchange, CompressionFormat, write_capnp_file
+from fpga_interchange.parameter_definitions import ParameterFormat
 
 from fpga_interchange.testarch_generators.device_resources_builder import BelCategory, ConstantType
 from fpga_interchange.testarch_generators.device_resources_builder import DeviceResources, DeviceResourcesCapnp
 
-from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry
+from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry, Parameter
 
 # =============================================================================
 
@@ -128,22 +129,18 @@ class TestArchGenerator():
         bel_ib.add_pin("I", Direction.Output)
         bel_ib.add_pin("P", Direction.Input)
 
-        bel_ipad = site_type.add_bel("IPAD", "IPAD", BelCategory.LOGIC)
-        bel_ipad.add_pin("I", Direction.Output)
-
         # OPAD bel
         bel_ob = site_type.add_bel("OB", "OB", BelCategory.LOGIC)
         bel_ob.add_pin("O", Direction.Input)
         bel_ob.add_pin("P", Direction.Output)
 
-        bel_opad = site_type.add_bel("OPAD", "OPAD", BelCategory.LOGIC)
-        bel_opad.add_pin("O", Direction.Input)
+        bel_opad = site_type.add_bel("PAD", "PAD", BelCategory.LOGIC)
+        bel_opad.add_pin("P", Direction.Inout)
 
         # Wires
         site_type.add_wire("I", [("IB", "I"), ("I", "I")])
         site_type.add_wire("O", [("OB", "O"), ("O", "O")])
-        site_type.add_wire("OP", [("IB", "P"), ("IPAD", "I")])
-        site_type.add_wire("IP", [("OB", "P"), ("OPAD", "O")])
+        site_type.add_wire("P", [("IB", "P"), ("OB", "P"), ("PAD", "P")])
 
     def make_power_site_type(self):
 
@@ -335,8 +332,7 @@ class TestArchGenerator():
         pad_id = 0
         for site in self.device.sites.values():
             if site.type == "IOPAD":
-                package.add_pin("A{}".format(pad_id), site.name, "IPAD")
-                package.add_pin("B{}".format(pad_id), site.name, "OPAD")
+                package.add_pin("A{}".format(pad_id), site.name, "PAD")
                 pad_id += 1
 
     def make_primitives_library(self):
@@ -345,7 +341,7 @@ class TestArchGenerator():
         library = Library("primitives")
         self.device.cell_libraries["primitives"] = library
 
-        cell = Cell(name="LUT", property_map={"INIT": 0})
+        cell = Cell(name="LUT", property_map={"INIT": "4'b0"})
         cell.add_port("A0", Direction.Input)
         cell.add_port("A1", Direction.Input)
         cell.add_port("A2", Direction.Input)
@@ -475,6 +471,11 @@ class TestArchGenerator():
                 }))
         self.device.add_cell_bel_mapping(mapping)
 
+    def make_parameters(self):
+        param = Parameter("INIT", ParameterFormat.VERILOG_BINARY, "4'b0")
+
+        self.device.add_parameter("LUT", param)
+
     def generate(self):
         self.make_iob_site_type()
         self.make_slice_site_type()
@@ -492,6 +493,7 @@ class TestArchGenerator():
 
         self.make_primitives_library()
         self.make_cell_bel_mappings()
+        self.make_parameters()
 
         # Add pip imings
         # Values are taken at random, resisitance, input and output capacitance are chosen
