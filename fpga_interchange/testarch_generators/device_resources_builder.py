@@ -70,6 +70,13 @@ class CellBelMapping():
         self.entries = []
 
 
+class Parameter():
+    def __init__(self, name, format, default):
+        self.name = name
+        self.format = format
+        self.default = default
+
+
 class BelPin():
     def __init__(self, name, direction):
         self.name = name
@@ -392,6 +399,9 @@ class DeviceResources():
         # Cell types to BELs mappings
         self.cell_bel_mappings = {}
 
+        # Parameter definitions
+        self.parameters = {}
+
     def add_site_type(self, name):
         """
         Adds a new site type to the device
@@ -589,6 +599,15 @@ class DeviceResources():
         assert mapping.cell_type not in self.cell_bel_mappings, mapping.cell_type
         self.cell_bel_mappings[mapping.cell_type] = mapping
 
+    def add_parameter(self, cell_type, param):
+        """
+        Adds a new parameter definition
+        """
+        if cell_type not in self.parameters:
+            self.parameters[cell_type] = list()
+
+        self.parameters[cell_type].append(param)
+
     def print_stats(self):
         """
         Prints out some statistics
@@ -730,6 +749,11 @@ class DeviceResourcesCapnp():
                 self.add_string_id(cell.name)
                 for port_name in cell.ports.keys():
                     self.add_string_id(port_name)
+
+        for k, v in self.device.parameters.items():
+            for param in v:
+                self.add_string_id(param.name)
+                self.add_string_id(param.default)
 
     def write_timings(self, device):
         self.node_timing_map = {}
@@ -1193,6 +1217,21 @@ class DeviceResourcesCapnp():
 
                 pin_delay.site = site_type
 
+    def write_parameters(self, device):
+        device.parameterDefs.init("cells", len(self.device.parameters))
+
+        for i, (cell, params) in enumerate(self.device.parameters.items()):
+            param_defs = device.parameterDefs.cells[i]
+            param_defs.cellType = self.get_string_id(cell)
+
+            param_defs.init("parameters", len(params))
+            for i, param in enumerate(params):
+                param_def = param_defs.parameters[i]
+                param_def.name = self.get_string_id(param.name)
+                param_def.format = param.format.value
+                param_def.default.key = self.get_string_id(param.name)
+                param_def.default.textValue = self.get_string_id(param.default)
+
     def to_capnp(self):
         """
         Encodes stuff into a cap'n'proto message.
@@ -1226,6 +1265,9 @@ class DeviceResourcesCapnp():
 
         # Cell <-> BEL mappings
         self.write_cell_bel_mappings(device)
+
+        # Device packages
+        self.write_parameters(device)
 
         # Logical netlist containing primitives and macros
         # Fix names, as logical network should use string IDs from global string table, see issue #47

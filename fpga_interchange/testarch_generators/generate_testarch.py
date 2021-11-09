@@ -13,11 +13,12 @@ import argparse
 
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.interchange_capnp import Interchange, CompressionFormat, write_capnp_file
+from fpga_interchange.parameter_definitions import ParameterFormat
 
 from fpga_interchange.testarch_generators.device_resources_builder import BelCategory, ConstantType
 from fpga_interchange.testarch_generators.device_resources_builder import DeviceResources, DeviceResourcesCapnp
 
-from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry
+from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry, Parameter
 
 # =============================================================================
 
@@ -340,7 +341,7 @@ class TestArchGenerator():
         library = Library("primitives")
         self.device.cell_libraries["primitives"] = library
 
-        cell = Cell(name="LUT", property_map={"INIT": 0})
+        cell = Cell(name="LUT", property_map={"INIT": "4'b0"})
         cell.add_port("A0", Direction.Input)
         cell.add_port("A1", Direction.Input)
         cell.add_port("A2", Direction.Input)
@@ -470,6 +471,11 @@ class TestArchGenerator():
                 }))
         self.device.add_cell_bel_mapping(mapping)
 
+    def make_parameters(self):
+        param = Parameter("INIT", ParameterFormat.VERILOG_BINARY, "4'b0")
+
+        self.device.add_parameter("LUT", param)
+
     def generate(self):
         self.make_iob_site_type()
         self.make_slice_site_type()
@@ -487,6 +493,7 @@ class TestArchGenerator():
 
         self.make_primitives_library()
         self.make_cell_bel_mappings()
+        self.make_parameters()
 
         # Add pip imings
         # Values are taken at random, resisitance, input and output capacitance are chosen
