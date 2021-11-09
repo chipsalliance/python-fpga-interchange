@@ -193,7 +193,7 @@ class TestArchGenerator():
                 else:
                     assert False
 
-                tile_type.add_wire(wire_name)
+                tile_type.add_wire(wire_name, ("Tile-Site", "general"))
                 site.primary_pins_to_tile_wires[pin.name] = wire_name
 
         if tile_type_name == "NULL":
@@ -201,18 +201,18 @@ class TestArchGenerator():
         # Add tile wires for intra nodes
         for i in range(self.num_intra_nodes):
             name = "INTRA_{}".format(i)
-            tile_type.add_wire(name)
+            tile_type.add_wire(name, ("Local", "general"))
 
         # Add tile wires for incoming and outgoin inter-tile connections
         for direction in ["N", "S", "E", "W"]:
 
             for i in range(self.num_inter_nodes):
                 name = "OUT_{}_{}".format(direction, i)
-                tile_type.add_wire(name)
+                tile_type.add_wire(name, ("Interconnect", "general"))
 
             for i in range(self.num_inter_nodes):
                 name = "INP_{}_{}".format(direction, i)
-                tile_type.add_wire(name)
+                tile_type.add_wire(name, ("Interconnect", "general"))
 
         # Add PIPs that connect tile wires for the site with intra wires
         wires_for_site = [w for w in tile_type.wires if w.startswith("TO_")]
@@ -220,14 +220,14 @@ class TestArchGenerator():
             for i in range(self.num_intra_nodes):
                 src_wire = "INTRA_{}".format(i)
                 tile_type.add_pip(
-                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
+                    src_wire, dst_wire, "intraTilePIP", is_buffered21=False)
 
         wires_for_site = [w for w in tile_type.wires if w.startswith("FROM_")]
         for src_wire in wires_for_site:
             for i in range(self.num_intra_nodes):
                 dst_wire = "INTRA_{}".format(i)
                 tile_type.add_pip(
-                    src_wire, dst_wire, "tilePIP", is_buffered21=False)
+                    src_wire, dst_wire, "intraTilePIP", is_buffered21=False)
 
         # Input tile wires to intra wires and vice-versa
         for direction in ["N", "S", "E", "W"]:
@@ -497,6 +497,8 @@ class TestArchGenerator():
         # Values are taken at random, resisitance, input and output capacitance are chosen
         # to be samewhat inline with values calculated from skaywater PDK
         self.device.add_PIPTiming("tilePIP", 3e-16, 1e-16, 5e-10, 0.5, 4e-16)
+        self.device.add_PIPTiming("intraTilePIP", 1e-16, 4e-17, 3e-10, 0.1,
+                                  2e-16)
 
         # Add node timing
         # Value taken from skywater PDK for metal layer 1,

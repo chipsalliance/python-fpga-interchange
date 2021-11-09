@@ -254,6 +254,7 @@ class TileType():
 
         self.site_types = {}  # dict(name) -> SiteTypeInTileType
         self.wires = set()
+        self.wire_type = {}
         self.pips = set()
         self.constants = {}  # dict(constant) -> set(wire_name)
 
@@ -271,11 +272,12 @@ class TileType():
         self.site_types[ref] = SiteTypeInTileType(ref, type)
         return self.site_types[ref]
 
-    def add_wire(self, name):
+    def add_wire(self, name, wire_type):
         """
         Adds a new wire to the tile type
         """
         assert name not in self.wires, name
+        self.wire_type[name] = wire_type
         self.wires.add(name)
 
         return name
@@ -338,7 +340,7 @@ class Tile():
             self.sites[site.ref] = site
 
 
-Wire = namedtuple("Wire", "tile wire")
+Wire = namedtuple("Wire", "tile wire wire_type")
 
 # =============================================================================
 
@@ -367,6 +369,9 @@ class DeviceResources():
         # Special string map for wires to save memory
         self.wire_str_list = []
         self.wire_str_map = {}
+
+        self.wire_type_list = []
+        self.wire_type_map = {}
 
         # Constant generators
         self.constants = {}
@@ -440,7 +445,7 @@ class DeviceResources():
 
         return tile
 
-    def add_wire(self, tile_name, wire_name):
+    def add_wire(self, tile_name, wire_name, wire_type):
         """
         Adds a new instance of a tile wire. Returns the global wire index.
         """
@@ -453,8 +458,18 @@ class DeviceResources():
 
             return self.wire_str_map[s]
 
+        def add_wire_type(wire_type):
+            if wire_type not in self.wire_type_map:
+                self.wire_type_map[wire_type] = len(self.wire_type_list)
+                self.wire_type_list.append(wire_type)
+
+            return self.wire_type_map[wire_type]
+
         # Create the wire, map strings
-        wire = Wire(tile=add_string(tile_name), wire=add_string(wire_name))
+        wire = Wire(
+            tile=add_string(tile_name),
+            wire=add_string(wire_name),
+            wire_type=add_wire_type(wire_type))
         wire_id = len(self.wires)
 
         # Add the wire
@@ -497,12 +512,16 @@ class DeviceResources():
             assert i < len(self.wire_str_list), i
             return self.wire_str_list[i]
 
+        def get_wire_type(i):
+            assert i < len(self.wire_type_list), i
+            return self.wire_type_list[i]
+
         assert wire_id < len(self.wires), wire_id
 
         wire = Wire(
             tile=get_string(self.wires[wire_id].tile),
             wire=get_string(self.wires[wire_id].wire),
-        )
+            wire_type=get_wire_type(self.wires[wire_id].wire_type))
 
         return wire
 
@@ -540,7 +559,7 @@ class DeviceResources():
 
         # Add all wires
         for wire in tile_type.wires:
-            self.add_wire(tile_name, wire)
+            self.add_wire(tile_name, wire, tile_type.wire_type[wire])
 
     def add_const_source(self, site_name, bel_name, bel_port, constant):
         assert (site_name, bel_name,
@@ -679,6 +698,10 @@ class DeviceResourcesCapnp():
             self.add_string_id(tile_type.name)
             for wire in tile_type.wires:
                 self.add_string_id(wire)
+
+        # Index strings for wire_tpyes
+        for wire_type in self.device.wire_type_list:
+            self.add_string_id(wire_type[0])
 
         # Index strings for tiles
         for tile in self.device.tiles.values():
@@ -983,6 +1006,13 @@ class DeviceResourcesCapnp():
                 site_capnp.name = self.get_string_id(site.name)
                 site_capnp.type = j
 
+    def write_wire_types(self, device):
+        device.init("wireTypes", len(self.device.wire_type_list))
+        for i, wire_type in enumerate(self.device.wire_type_list):
+            wire_type_capnp = device.wireTypes[i]
+            wire_type_capnp.name = self.get_string_id(wire_type[0])
+            wire_type_capnp.category = wire_type[1]
+
     def write_wires(self, device):
         """
         Packs all wire objects to the cap'n'proto schema
@@ -996,6 +1026,7 @@ class DeviceResourcesCapnp():
             wire = self.device.get_wire(i)
             wire_capnp.tile = self.get_string_id(wire.tile)
             wire_capnp.wire = self.get_string_id(wire.wire)
+            wire_capnp.type = self.device.wire_type_map[wire.wire_type]
 
     def write_nodes(self, device):
         """
@@ -1184,6 +1215,7 @@ class DeviceResourcesCapnp():
         # Tiles
         self.write_tiles(device)
         # Wires
+        self.write_wire_types(device)
         self.write_wires(device)
         # Nodes
         self.write_nodes(device)

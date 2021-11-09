@@ -12,7 +12,7 @@ lutElements:
   luts:
     - width: 16
       bels:
-      - name: LUT4
+      - name: LUT
         inputPins:
         - I0
         - I1
