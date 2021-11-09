@@ -341,7 +341,7 @@ class TestArchGenerator():
         library = Library("primitives")
         self.device.cell_libraries["primitives"] = library
 
-        cell = Cell(name="LUT", property_map={"INIT": "4'b0"})
+        cell = Cell(name="LUT", property_map={"INIT": "16'h0000"})
         cell.add_port("A0", Direction.Input)
         cell.add_port("A1", Direction.Input)
         cell.add_port("A2", Direction.Input)
@@ -472,7 +472,7 @@ class TestArchGenerator():
         self.device.add_cell_bel_mapping(mapping)
 
     def make_parameters(self):
-        param = Parameter("INIT", ParameterFormat.VERILOG_BINARY, "4'b0")
+        param = Parameter("INIT", ParameterFormat.VERILOG_HEX, "16'h0000")
 
         self.device.add_parameter("LUT", param)
 
