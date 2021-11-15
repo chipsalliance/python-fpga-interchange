@@ -59,3 +59,5 @@ python3 -mfpga_interchange.constraints.tool \
     xc7a35tcpg236-1_constraints.device \
     simple.netlist
 ```
+
+This repository was moved to CHIPS Alliance as of commit `b13ee55ebce` As part of the CHIPS due diligence process for non-Apache 2.0 projects, all contributors for over 1% of the codebase signed the CHIPS CLA: Antmicro (corporate CLA), Google (corporate CLA), gatecat (individual CLA). Any further contributions require a CLA to comply with the CHIPS Alliance IP policy.
