@@ -141,6 +141,15 @@ class SiteWire():
         self.bel_pins.add(bel_pin)
 
 
+class LutBel():
+    def __init__(self, name, inputPins, outputPin, lowBit, highBit):
+        self.name = name
+        self.inputPins = inputPins
+        self.outputPin = outputPin
+        self.lowBit = lowBit
+        self.highBit = highBit
+
+
 class SitePip():
     def __init__(self,
                  src_bel_pin,
@@ -161,6 +170,7 @@ class SiteType():
         self.bels = {}  # dict(name) -> Bel
         self.pips = set()
         self.wires = {}  # dict(name) -> SiteWire
+        self.lutElement = {}
 
 
 #        self.alt_site_types = []
@@ -224,6 +234,11 @@ class SiteType():
         self.pips.add(pip)
 
         return pip
+
+    def addLutElement(self, width, lut_bel):
+        if width not in self.lutElement.keys():
+            self.lutElement[width] = []
+        self.lutElement[width].append(lut_bel)
 
 
 class SiteTypeInTileType():
@@ -401,6 +416,8 @@ class DeviceResources():
 
         # Parameter definitions
         self.parameters = {}
+        self.lutCells = []
+        self.lutElements = []
 
     def add_site_type(self, name):
         """
@@ -608,6 +625,9 @@ class DeviceResources():
 
         self.parameters[cell_type].append(param)
 
+    def add_LutCell(self, name, inputPins, eq=None):
+        self.lutCells.append((name, inputPins, eq))
+
     def print_stats(self):
         """
         Prints out some statistics
@@ -797,6 +817,12 @@ class DeviceResourcesCapnp():
         # Write each site type
         device.init("siteTypeList", len(site_type_list))
         for i, site_type in enumerate(site_type_list):
+            lutElement = []
+            for width, lutBels in site_type.lutElement.items():
+                lutElement.append((width, lutBels))
+            if len(lutElement):
+                self.device.lutElements.append((site_type.name, lutElement))
+
             site_type_capnp = device.siteTypeList[i]
             site_type_capnp.name = self.get_string_id(site_type.name)
 
@@ -1232,6 +1258,38 @@ class DeviceResourcesCapnp():
                 param_def.default.key = self.get_string_id(param.name)
                 param_def.default.textValue = self.get_string_id(param.default)
 
+    def write_lut_definitions(self, device):
+        device.lutDefinitions.init("lutCells", len(self.device.lutCells))
+        for i, (name, inputPins, eq) in enumerate(self.device.lutCells):
+            lutCell = device.lutDefinitions.lutCells[i]
+            lutCell.cell = name
+            lutCell.init("inputPins", len(inputPins))
+            for i, pin in enumerate(inputPins):
+                lutCell.inputPins[i] = pin
+            if eq is not None:
+                lutCell.equation.initParam = eq
+            else:
+                lutCell.equation.invalid = None
+
+        device.lutDefinitions.init("lutElements", len(self.device.lutElements))
+        for i, (site, luts) in enumerate(self.device.lutElements):
+            lutElement = device.lutDefinitions.lutElements[i]
+            lutElement.site = site
+            lutElement.init("luts", len(luts))
+            for j, (width, bels) in enumerate(luts):
+                lut = lutElement.luts[j]
+                lut.width = width
+                lut.init("bels", len(bels))
+                for k, lutBel in enumerate(bels):
+                    bel = lut.bels[k]
+                    bel.name = lutBel.name
+                    bel.outputPin = lutBel.outputPin
+                    bel.lowBit = lutBel.lowBit
+                    bel.highBit = lutBel.highBit
+                    bel.init("inputPins", len(lutBel.inputPins))
+                    for l, inputPin in enumerate(lutBel.inputPins):
+                        bel.inputPins[l] = inputPin
+
     def to_capnp(self):
         """
         Encodes stuff into a cap'n'proto message.
@@ -1268,6 +1326,7 @@ class DeviceResourcesCapnp():
 
         # Device packages
         self.write_parameters(device)
+        self.write_lut_definitions(device)
 
         # Logical netlist containing primitives and macros
         # Fix names, as logical network should use string IDs from global string table, see issue #47
