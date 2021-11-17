@@ -142,12 +142,12 @@ class SiteWire():
 
 
 class LutBel():
-    def __init__(self, name, inputPins, outputPin, lowBit, highBit):
+    def __init__(self, name, input_pins, output_pin, low_bit, high_bit):
         self.name = name
-        self.inputPins = inputPins
-        self.outputPin = outputPin
-        self.lowBit = lowBit
-        self.highBit = highBit
+        self.input_pins = input_pins
+        self.output_pin = output_pin
+        self.low_bit = low_bit
+        self.high_bit = high_bit
 
 
 class SitePip():
@@ -170,7 +170,7 @@ class SiteType():
         self.bels = {}  # dict(name) -> Bel
         self.pips = set()
         self.wires = {}  # dict(name) -> SiteWire
-        self.lutElement = {}
+        self.lut_element = {}
 
 
 #        self.alt_site_types = []
@@ -235,10 +235,10 @@ class SiteType():
 
         return pip
 
-    def addLutElement(self, width, lut_bel):
-        if width not in self.lutElement.keys():
-            self.lutElement[width] = []
-        self.lutElement[width].append(lut_bel)
+    def add_lut_element(self, width, lut_bel):
+        if width not in self.lut_element.keys():
+            self.lut_element[width] = []
+        self.lut_element[width].append(lut_bel)
 
 
 class SiteTypeInTileType():
@@ -416,8 +416,8 @@ class DeviceResources():
 
         # Parameter definitions
         self.parameters = {}
-        self.lutCells = []
-        self.lutElements = []
+        self.lut_cells = []
+        self.lut_elements = []
 
     def add_site_type(self, name):
         """
@@ -625,8 +625,8 @@ class DeviceResources():
 
         self.parameters[cell_type].append(param)
 
-    def add_LutCell(self, name, inputPins, eq=None):
-        self.lutCells.append((name, inputPins, eq))
+    def add_lut_cell(self, name, input_pins, eq=None):
+        self.lut_cells.append((name, input_pins, eq))
 
     def print_stats(self):
         """
@@ -817,11 +817,11 @@ class DeviceResourcesCapnp():
         # Write each site type
         device.init("siteTypeList", len(site_type_list))
         for i, site_type in enumerate(site_type_list):
-            lutElement = []
-            for width, lutBels in site_type.lutElement.items():
-                lutElement.append((width, lutBels))
-            if len(lutElement):
-                self.device.lutElements.append((site_type.name, lutElement))
+            lut_element = []
+            for width, lutBels in site_type.lut_element.items():
+                lut_element.append((width, lutBels))
+            if len(lut_element):
+                self.device.lut_elements.append((site_type.name, lut_element))
 
             site_type_capnp = device.siteTypeList[i]
             site_type_capnp.name = self.get_string_id(site_type.name)
@@ -1259,36 +1259,37 @@ class DeviceResourcesCapnp():
                 param_def.default.textValue = self.get_string_id(param.default)
 
     def write_lut_definitions(self, device):
-        device.lutDefinitions.init("lutCells", len(self.device.lutCells))
-        for i, (name, inputPins, eq) in enumerate(self.device.lutCells):
-            lutCell = device.lutDefinitions.lutCells[i]
-            lutCell.cell = name
-            lutCell.init("inputPins", len(inputPins))
-            for i, pin in enumerate(inputPins):
-                lutCell.inputPins[i] = pin
+        device.lutDefinitions.init("lutCells", len(self.device.lut_cells))
+        for i, (name, input_pins, eq) in enumerate(self.device.lut_cells):
+            lut_cell = device.lutDefinitions.lutCells[i]
+            lut_cell.cell = name
+            lut_cell.init("inputPins", len(input_pins))
+            for i, pin in enumerate(input_pins):
+                lut_cell.inputPins[i] = pin
             if eq is not None:
-                lutCell.equation.initParam = eq
+                lut_cell.equation.initParam = eq
             else:
-                lutCell.equation.invalid = None
+                lut_cell.equation.invalid = None
 
-        device.lutDefinitions.init("lutElements", len(self.device.lutElements))
-        for i, (site, luts) in enumerate(self.device.lutElements):
-            lutElement = device.lutDefinitions.lutElements[i]
-            lutElement.site = site
-            lutElement.init("luts", len(luts))
+        device.lutDefinitions.init("lutElements",
+                                   len(self.device.lut_elements))
+        for i, (site, luts) in enumerate(self.device.lut_elements):
+            lut_element = device.lutDefinitions.lutElements[i]
+            lut_element.site = site
+            lut_element.init("luts", len(luts))
             for j, (width, bels) in enumerate(luts):
-                lut = lutElement.luts[j]
+                lut = lut_element.luts[j]
                 lut.width = width
                 lut.init("bels", len(bels))
-                for k, lutBel in enumerate(bels):
+                for k, lut_bel in enumerate(bels):
                     bel = lut.bels[k]
-                    bel.name = lutBel.name
-                    bel.outputPin = lutBel.outputPin
-                    bel.lowBit = lutBel.lowBit
-                    bel.highBit = lutBel.highBit
-                    bel.init("inputPins", len(lutBel.inputPins))
-                    for l, inputPin in enumerate(lutBel.inputPins):
-                        bel.inputPins[l] = inputPin
+                    bel.name = lut_bel.name
+                    bel.outputPin = lut_bel.output_pin
+                    bel.lowBit = lut_bel.low_bit
+                    bel.highBit = lut_bel.high_bit
+                    bel.init("inputPins", len(lut_bel.input_pins))
+                    for l, input_pin in enumerate(lut_bel.input_pins):
+                        bel.inputPins[l] = input_pin
 
     def to_capnp(self):
         """

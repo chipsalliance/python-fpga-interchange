@@ -4,7 +4,11 @@ global_buffer_bels:
 buckets:
 - bucket: LUTS
   cells:
-    - LUT
+    - LUT1
+    - LUT2
+    - LUT3
+    - LUT4
 - bucket: FFS
   cells:
-    - DFF
+    - DFFS
+    - DFFR

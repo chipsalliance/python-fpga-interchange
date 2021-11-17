@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 
 import argparse
+import math
 
 from fpga_interchange.logical_netlist import Library, Cell, Direction, CellInstance, LogicalNetlist
 from fpga_interchange.interchange_capnp import Interchange, CompressionFormat, write_capnp_file
@@ -68,19 +69,19 @@ class TestArchGenerator():
 
         # LUT4 BEL
         bel_lut = site_type.add_bel("LUT", "LUT4", BelCategory.LOGIC)
-        bel_lut.add_pin("I0", Direction.Input)
-        bel_lut.add_pin("I1", Direction.Input)
-        bel_lut.add_pin("I2", Direction.Input)
-        bel_lut.add_pin("I3", Direction.Input)
+        bel_lut.add_pin("A1", Direction.Input)
+        bel_lut.add_pin("A2", Direction.Input)
+        bel_lut.add_pin("A3", Direction.Input)
+        bel_lut.add_pin("A4", Direction.Input)
         bel_lut.add_pin("O", Direction.Output)
 
-        lut_bel = LutBel("LUT", ["I0", 'I1', 'I2', 'I3'], 'O', 0, 15)
+        lut_bel = LutBel("LUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
 
-        site_type.addLutElement(16, lut_bel)
+        site_type.add_lut_element(16, lut_bel)
 
         # DFF BEL
         bel_ff = site_type.add_bel("FF", "DFF", BelCategory.LOGIC)
-        bel_ff.add_pin("R", Direction.Input)
+        bel_ff.add_pin("SR", Direction.Input)
         bel_ff.add_pin("C", Direction.Input)
         bel_ff.add_pin("D", Direction.Input)
         bel_ff.add_pin("Q", Direction.Output)
@@ -92,12 +93,12 @@ class TestArchGenerator():
         bel_mux.add_pin("O", Direction.Output)
 
         # Site wires
-        w = site_type.add_wire("L0_to_I0", [("L0", "L0"), ("LUT", "I0")])
-        w = site_type.add_wire("L1_to_I1", [("L1", "L1"), ("LUT", "I1")])
-        w = site_type.add_wire("L2_to_I2", [("L2", "L2"), ("LUT", "I2")])
-        w = site_type.add_wire("L3_to_I3", [("L3", "L3"), ("LUT", "I3")])
+        w = site_type.add_wire("L0_to_A1", [("L0", "L0"), ("LUT", "A1")])
+        w = site_type.add_wire("L1_to_A2", [("L1", "L1"), ("LUT", "A2")])
+        w = site_type.add_wire("L2_to_A3", [("L2", "L2"), ("LUT", "A3")])
+        w = site_type.add_wire("L3_to_A4", [("L3", "L3"), ("LUT", "A4")])
 
-        w = site_type.add_wire("RST", [("R", "R"), ("FF", "R")])
+        w = site_type.add_wire("RST", [("R", "R"), ("FF", "SR")])
         w = site_type.add_wire("CLR", [("C", "C"), ("FF", "C")])
         w = site_type.add_wire("DIN", [("D", "D"), ("FFMUX", "I1")])
 
@@ -345,23 +346,39 @@ class TestArchGenerator():
         library = Library("primitives")
         self.device.cell_libraries["primitives"] = library
 
-        cell = Cell(name="LUT", property_map={"INIT": "16'h0000"})
-        cell.add_port("A0", Direction.Input)
-        cell.add_port("A1", Direction.Input)
-        cell.add_port("A2", Direction.Input)
-        cell.add_port("A3", Direction.Input)
-        cell.add_port("O", Direction.Output)
-        library.add_cell(cell)
-        param = Parameter("INIT", ParameterFormat.VERILOG_HEX, "16'h0000")
-        self.device.add_parameter("LUT", param)
-        self.device.add_LutCell("LUT", ['A0', 'A1', 'A2', 'A3'], 'INIT')
+        def make_luts(max_size):
+            for lut_size in range(1, max_size + 1):
+                name = f"LUT{lut_size}"
+                init = f"{2 ** lut_size}'h0"
+                cell = Cell(name=name, property_map={"INIT": init})
 
-        cell = Cell("DFF")
-        cell.add_port("D", Direction.Input)
-        cell.add_port("R", Direction.Input)
-        cell.add_port("C", Direction.Input)
-        cell.add_port("Q", Direction.Output)
-        library.add_cell(cell)
+                print(name, init)
+
+                in_ports = list()
+                for port in range(lut_size):
+                    port_name = f"I{port}"
+                    cell.add_port(port_name, Direction.Input)
+                    in_ports.append(port_name)
+
+                cell.add_port("O", Direction.Output)
+                library.add_cell(cell)
+
+                param = Parameter("INIT", ParameterFormat.VERILOG_HEX, init)
+                self.device.add_parameter(name, param)
+                self.device.add_lut_cell(name, in_ports, 'INIT')
+
+        make_luts(4)
+
+        def make_dffs(rst_types):
+            for rst_type in rst_types:
+                cell = Cell(f"DFF{rst_type}")
+                cell.add_port("D", Direction.Input)
+                cell.add_port(rst_type, Direction.Input)
+                cell.add_port("C", Direction.Input)
+                cell.add_port("Q", Direction.Output)
+                library.add_cell(cell)
+
+        make_dffs(["S", "R"])
 
         cell = Cell("IB")
         cell.add_port("I", Direction.Output)
@@ -389,25 +406,33 @@ class TestArchGenerator():
 
         # TODO: Pass all the information via device.add_cell_bel_mapping()
         delay_mapping = [
-            ('I0', 'O', (None, 50e-12, None, None, None, None), 'comb'),
-            ('I1', 'O', (None, 50e-12, None, None, None, None), 'comb'),
-            ('I2', 'O', (None, 50e-12, None, None, None, None), 'comb'),
-            ('I3', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('A1', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('A2', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('A3', 'O', (None, 50e-12, None, None, None, None), 'comb'),
+            ('A4', 'O', (None, 50e-12, None, None, None, None), 'comb'),
         ]
-        mapping = CellBelMapping("LUT")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="SLICE",
-                bel="LUT",
-                pin_map={
-                    "A0": "I0",
-                    "A1": "I1",
-                    "A2": "I2",
-                    "A3": "I3",
-                    "O": "O",
-                },
-                delay_mapping=delay_mapping))
-        self.device.add_cell_bel_mapping(mapping)
+
+        def make_lut_mapping(max_size):
+            bel_pins = [f"A{pin}" for pin in range(1, max_size + 1)]
+            cell_pins = [f"I{pin}" for pin in range(max_size)]
+
+            for lut_size in range(1, max_size + 1):
+                name = f"LUT{lut_size}"
+                pin_map = dict(
+                    zip(cell_pins[0:lut_size], bel_pins[0:lut_size]))
+                pin_map["O"] = "O"
+
+                mapping = CellBelMapping(name)
+                mapping.entries.append(
+                    CellBelMappingEntry(
+                        site_type="SLICE",
+                        bel="LUT",
+                        pin_map=pin_map,
+                        delay_mapping=delay_mapping[0:lut_size]))
+
+                self.device.add_cell_bel_mapping(mapping)
+
+        make_lut_mapping(4)
 
         delay_mapping = [
             ('D', ('C', 'rise'), (None, 5e-12, None, None, None, None),
@@ -416,21 +441,26 @@ class TestArchGenerator():
              'hold'),
             (('C', 'rise'), 'Q', (None, 6e-12, None, None, None, None),
              'clk2q'),
-            ('R', 'Q', (None, 24e-12, None, None, None, None), 'comb'),
+            ('SR', 'Q', (None, 24e-12, None, None, None, None), 'comb'),
         ]
-        mapping = CellBelMapping("DFF")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="SLICE",
-                bel="FF",
-                pin_map={
-                    "D": "D",
-                    "R": "R",
-                    "C": "C",
-                    "Q": "Q",
-                },
-                delay_mapping=delay_mapping))
-        self.device.add_cell_bel_mapping(mapping)
+
+        def make_dff_mapping(rst_types):
+            for rst_type in rst_types:
+                mapping = CellBelMapping(f"DFF{rst_type}")
+                mapping.entries.append(
+                    CellBelMappingEntry(
+                        site_type="SLICE",
+                        bel="FF",
+                        pin_map={
+                            "D": "D",
+                            rst_type: "SR",
+                            "C": "C",
+                            "Q": "Q",
+                        },
+                        delay_mapping=delay_mapping))
+                self.device.add_cell_bel_mapping(mapping)
+
+        make_dff_mapping(["S", "R"])
 
         mapping = CellBelMapping("FFMUX")
         mapping.entries.append(
