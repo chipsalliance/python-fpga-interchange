@@ -18,7 +18,7 @@ from fpga_interchange.parameter_definitions import ParameterFormat
 from fpga_interchange.testarch_generators.device_resources_builder import BelCategory, ConstantType
 from fpga_interchange.testarch_generators.device_resources_builder import DeviceResources, DeviceResourcesCapnp
 
-from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry, Parameter
+from fpga_interchange.testarch_generators.device_resources_builder import CellBelMapping, CellBelMappingEntry, Parameter, LutBel
 
 # =============================================================================
 
@@ -73,6 +73,10 @@ class TestArchGenerator():
         bel_lut.add_pin("I2", Direction.Input)
         bel_lut.add_pin("I3", Direction.Input)
         bel_lut.add_pin("O", Direction.Output)
+
+        lut_bel = LutBel("LUT", ["I0", 'I1', 'I2', 'I3'], 'O', 0, 15)
+
+        site_type.addLutElement(16, lut_bel)
 
         # DFF BEL
         bel_ff = site_type.add_bel("FF", "DFF", BelCategory.LOGIC)
@@ -348,6 +352,9 @@ class TestArchGenerator():
         cell.add_port("A3", Direction.Input)
         cell.add_port("O", Direction.Output)
         library.add_cell(cell)
+        param = Parameter("INIT", ParameterFormat.VERILOG_HEX, "16'h0000")
+        self.device.add_parameter("LUT", param)
+        self.device.add_LutCell("LUT", ['A0', 'A1', 'A2', 'A3'], 'INIT')
 
         cell = Cell("DFF")
         cell.add_port("D", Direction.Input)
@@ -472,9 +479,7 @@ class TestArchGenerator():
         self.device.add_cell_bel_mapping(mapping)
 
     def make_parameters(self):
-        param = Parameter("INIT", ParameterFormat.VERILOG_HEX, "16'h0000")
-
-        self.device.add_parameter("LUT", param)
+        pass
 
     def generate(self):
         self.make_iob_site_type()
