@@ -33,7 +33,10 @@ class TestArchGenerator():
         self.device = DeviceResources()
 
         self.grid_size = (10, 10)
-        self.num_intra_nodes = 8
+
+        # Number of connections within tiles
+        self.num_intra_nodes = 16
+        # Number of connections between tiles
         self.num_inter_nodes = 8
 
         self.args = args
@@ -47,84 +50,159 @@ class TestArchGenerator():
         site_type = self.device.add_site_type("SLICE")
 
         # Site pins (with BELs added automatically)
-        site_type.add_pin("L0", Direction.Input,
+        site_type.add_pin("L0_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("L1", Direction.Input,
+        site_type.add_pin("L1_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("L2", Direction.Input,
+        site_type.add_pin("L2_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("L3", Direction.Input,
+        site_type.add_pin("L3_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("O", Direction.Output,
+        site_type.add_pin("O_0", Direction.Output,
                           (None, 1.7, None, None, None, None))
 
-        site_type.add_pin("R", Direction.Input,
+        site_type.add_pin("R_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("C", Direction.Input,
+        site_type.add_pin("D_0", Direction.Input,
                           (None, 2e-16, None, None, None, None))
-        site_type.add_pin("D", Direction.Input,
-                          (None, 2e-16, None, None, None, None))
-        site_type.add_pin("Q", Direction.Output,
+        site_type.add_pin("Q_0", Direction.Output,
                           (None, 1.9, None, None, None, None))
 
+        site_type.add_pin("L0_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L1_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L2_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("L3_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("O_1", Direction.Output,
+                          (None, 1.7, None, None, None, None))
+
+        site_type.add_pin("R_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("D_1", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+        site_type.add_pin("Q_1", Direction.Output,
+                          (None, 1.9, None, None, None, None))
+
+        # Unique clock input
+        site_type.add_pin("CLK", Direction.Input,
+                          (None, 2e-16, None, None, None, None))
+
         # LUT4 BEL
-        bel_lut = site_type.add_bel("LUT", "LUT4", BelCategory.LOGIC)
+        a_lut_bel = LutBel("ALUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
+        b_lut_bel = LutBel("BLUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
+
+        site_type.add_lut_element(16, a_lut_bel)
+        site_type.add_lut_element(16, b_lut_bel)
+
+        bel_lut = site_type.add_bel("ALUT", "LUT4", BelCategory.LOGIC)
         bel_lut.add_pin("A1", Direction.Input)
         bel_lut.add_pin("A2", Direction.Input)
         bel_lut.add_pin("A3", Direction.Input)
         bel_lut.add_pin("A4", Direction.Input)
         bel_lut.add_pin("O", Direction.Output)
 
-        lut_bel = LutBel("LUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
-
-        site_type.add_lut_element(16, lut_bel)
+        bel_lut = site_type.add_bel("BLUT", "LUT4", BelCategory.LOGIC)
+        bel_lut.add_pin("A1", Direction.Input)
+        bel_lut.add_pin("A2", Direction.Input)
+        bel_lut.add_pin("A3", Direction.Input)
+        bel_lut.add_pin("A4", Direction.Input)
+        bel_lut.add_pin("O", Direction.Output)
 
         # DFF BEL
-        bel_ff = site_type.add_bel("FF", "DFF", BelCategory.LOGIC)
+        bel_ff = site_type.add_bel("AFF", "DFF", BelCategory.LOGIC)
         bel_ff.add_pin("SR", Direction.Input)
         bel_ff.add_pin("C", Direction.Input)
         bel_ff.add_pin("D", Direction.Input)
         bel_ff.add_pin("Q", Direction.Output)
 
-        # DFF input mux BEL (routing)
+        bel_ff = site_type.add_bel("BFF", "DFF", BelCategory.LOGIC)
+        bel_ff.add_pin("SR", Direction.Input)
+        bel_ff.add_pin("C", Direction.Input)
+        bel_ff.add_pin("D", Direction.Input)
+        bel_ff.add_pin("Q", Direction.Output)
+
         if not self.args.no_ffmux:
-            bel_mux = site_type.add_bel("FFMUX", "MUX2", BelCategory.ROUTING)
+            bel_mux = site_type.add_bel("AFFMUX", "MUX2", BelCategory.ROUTING)
             bel_mux.add_pin("I0", Direction.Input)
             bel_mux.add_pin("I1", Direction.Input)
             bel_mux.add_pin("O", Direction.Output)
 
-        # Site wires
-        w = site_type.add_wire("L0_to_A1", [("L0", "L0"), ("LUT", "A1")])
-        w = site_type.add_wire("L1_to_A2", [("L1", "L1"), ("LUT", "A2")])
-        w = site_type.add_wire("L2_to_A3", [("L2", "L2"), ("LUT", "A3")])
-        w = site_type.add_wire("L3_to_A4", [("L3", "L3"), ("LUT", "A4")])
+            bel_mux = site_type.add_bel("BFFMUX", "MUX2", BelCategory.ROUTING)
+            bel_mux.add_pin("I0", Direction.Input)
+            bel_mux.add_pin("I1", Direction.Input)
+            bel_mux.add_pin("O", Direction.Output)
 
-        w = site_type.add_wire("RST", [("R", "R"), ("FF", "SR")])
-        w = site_type.add_wire("CLR", [("C", "C"), ("FF", "C")])
+        # LUT wires
+        w = site_type.add_wire("L0_0_to_A1", [("L0_0", "L0_0"),
+                                              ("ALUT", "A1")])
+        w = site_type.add_wire("L1_0_to_A2", [("L1_0", "L1_0"),
+                                              ("ALUT", "A2")])
+        w = site_type.add_wire("L2_0_to_A3", [("L2_0", "L2_0"),
+                                              ("ALUT", "A3")])
+        w = site_type.add_wire("L3_0_to_A4", [("L3_0", "L3_0"),
+                                              ("ALUT", "A4")])
+
+        w = site_type.add_wire("L0_1_to_A1", [("L0_1", "L0_1"),
+                                              ("BLUT", "A1")])
+        w = site_type.add_wire("L1_1_to_A2", [("L1_1", "L1_1"),
+                                              ("BLUT", "A2")])
+        w = site_type.add_wire("L2_1_to_A3", [("L2_1", "L2_1"),
+                                              ("BLUT", "A3")])
+        w = site_type.add_wire("L3_1_to_A4", [("L3_1", "L3_1"),
+                                              ("BLUT", "A4")])
+
+        # FF wires
+        w = site_type.add_wire("RST_0", [("R_0", "R_0"), ("AFF", "SR")])
+        w = site_type.add_wire("RST_1", [("R_1", "R_1"), ("BFF", "SR")])
+
         if not self.args.no_ffmux:
-            w = site_type.add_wire("DIN", [("D", "D"), ("FFMUX", "I1")])
+            w = site_type.add_wire("DIN_0", [("D_0", "D_0"), ("AFFMUX", "I1")])
+            w = site_type.add_wire("DIN_1", [("D_1", "D_1"), ("BFFMUX", "I1")])
 
-        w = site_type.add_wire("LUT_O")
-        w.connect_to_bel_pin("LUT", "O")
-        w.connect_to_bel_pin("O", "O")
+        # Clock wire
+        w = site_type.add_wire("CLK", [("CLK", "CLK"), ("AFF", "C"),
+                                       ("BFF", "C")])
+
+        w = site_type.add_wire("ALUT_O")
+        w.connect_to_bel_pin("ALUT", "O")
+        w.connect_to_bel_pin("O_0", "O_0")
+
+        w = site_type.add_wire("BLUT_O")
+        w.connect_to_bel_pin("BLUT", "O")
+        w.connect_to_bel_pin("O_1", "O_1")
 
         if not self.args.no_ffmux:
-            w.connect_to_bel_pin("FFMUX", "I0")
+            w.connect_to_bel_pin("AFFMUX", "I0")
+            w.connect_to_bel_pin("BFFMUX", "I0")
         else:
-            w.connect_to_bel_pin("FF", "D")
+            w.connect_to_bel_pin("AFF", "D")
+            w.connect_to_bel_pin("BFF", "D")
 
         if not self.args.no_ffmux:
-            w = site_type.add_wire("MUX_O")
-            w.connect_to_bel_pin("FFMUX", "O")
-            w.connect_to_bel_pin("FF", "D")
+            w = site_type.add_wire("AMUX_O")
+            w.connect_to_bel_pin("AFFMUX", "O")
+            w.connect_to_bel_pin("AFF", "D")
 
-        w = site_type.add_wire("FF_OUT", [("FF", "Q"), ("Q", "Q")])
+            w = site_type.add_wire("BMUX_O")
+            w.connect_to_bel_pin("BFFMUX", "O")
+            w.connect_to_bel_pin("BFF", "D")
+
+        w = site_type.add_wire("AFF_OUT", [("AFF", "Q"), ("Q_0", "Q_0")])
+        w = site_type.add_wire("BFF_OUT", [("BFF", "Q"), ("Q_1", "Q_1")])
 
         # Site PIPs
         if not self.args.no_ffmux:
-            site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"),
+            site_type.add_pip(("AFFMUX", "I0"), ("AFFMUX", "O"),
                               (None, 5e-12, None, None, None, None))
-            site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"),
+            site_type.add_pip(("AFFMUX", "I1"), ("AFFMUX", "O"),
+                              (None, 5e-12, None, None, None, None))
+
+            site_type.add_pip(("BFFMUX", "I0"), ("BFFMUX", "O"),
+                              (None, 5e-12, None, None, None, None))
+            site_type.add_pip(("BFFMUX", "I1"), ("BFFMUX", "O"),
                               (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
@@ -434,7 +512,7 @@ class TestArchGenerator():
                 mapping.entries.append(
                     CellBelMappingEntry(
                         site_type="SLICE",
-                        bel="LUT",
+                        bels=["ALUT", "BLUT"],
                         pin_map=pin_map,
                         delay_mapping=delay_mapping[0:lut_size]))
 
@@ -458,7 +536,7 @@ class TestArchGenerator():
                 mapping.entries.append(
                     CellBelMappingEntry(
                         site_type="SLICE",
-                        bel="FF",
+                        bels=["AFF", "BFF"],
                         pin_map={
                             "D": "D",
                             rst_type: "SR",
@@ -470,23 +548,10 @@ class TestArchGenerator():
 
         make_dff_mapping(["S", "R"])
 
-        if not self.args.no_ffmux:
-            mapping = CellBelMapping("FFMUX")
-            mapping.entries.append(
-                CellBelMappingEntry(
-                    site_type="SLICE",
-                    bel="FFMUX",
-                    pin_map={
-                        "I0": "I0",
-                        "I1": "I1",
-                        "O": "O",
-                    }))
-            self.device.add_cell_bel_mapping(mapping)
-
         mapping = CellBelMapping("IB")
         mapping.entries.append(
             CellBelMappingEntry(
-                site_type="IOPAD", bel="IB", pin_map={
+                site_type="IOPAD", bels=["IB"], pin_map={
                     "I": "I",
                     "P": "P",
                 }))
@@ -495,7 +560,7 @@ class TestArchGenerator():
         mapping = CellBelMapping("OB")
         mapping.entries.append(
             CellBelMappingEntry(
-                site_type="IOPAD", bel="OB", pin_map={
+                site_type="IOPAD", bels=["OB"], pin_map={
                     "O": "O",
                     "P": "P",
                 }))
@@ -504,7 +569,7 @@ class TestArchGenerator():
         mapping = CellBelMapping("GND")
         mapping.entries.append(
             CellBelMappingEntry(
-                site_type="POWER", bel="GND", pin_map={
+                site_type="POWER", bels=["GND"], pin_map={
                     "G": "G",
                 }))
         self.device.add_cell_bel_mapping(mapping)
@@ -512,7 +577,7 @@ class TestArchGenerator():
         mapping = CellBelMapping("VCC")
         mapping.entries.append(
             CellBelMappingEntry(
-                site_type="POWER", bel="VCC", pin_map={
+                site_type="POWER", bels=["VCC"], pin_map={
                     "V": "V",
                 }))
         self.device.add_cell_bel_mapping(mapping)
