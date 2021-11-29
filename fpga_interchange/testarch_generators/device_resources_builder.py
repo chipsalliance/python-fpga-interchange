@@ -57,9 +57,9 @@ class Package():
 
 
 class CellBelMappingEntry():
-    def __init__(self, site_type, bel, pin_map, delay_mapping=[]):
+    def __init__(self, site_type, bels, pin_map, delay_mapping=[]):
         self.site_type = site_type
-        self.bel = bel
+        self.bels = bels
         self.pin_map = pin_map  # dict(cell_pin) -> bel_pin
         self.delays = delay_mapping
 
@@ -1175,10 +1175,11 @@ class DeviceResourcesCapnp():
                 if entry.site_type not in entries[key]:
                     entries[key][entry.site_type] = []
 
-                entries[key][entry.site_type].append(entry.bel)
+                entries[key][entry.site_type].extend(entry.bels)
                 site_type = site_name_siteType[entry.site_type]
-                delays.extend(
-                    [(site_type, entry.bel, delay) for delay in entry.delays])
+                for bel in entry.bels:
+                    delays.extend(
+                        [(site_type, bel, delay) for delay in entry.delays])
 
             # Encode
             cell_bel_mapping_capnp.init("commonPins", len(entries))
