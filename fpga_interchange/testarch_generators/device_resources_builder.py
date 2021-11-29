@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: ISC
 from enum import Enum
 from collections import namedtuple
+import itertools
 
 from fpga_interchange.logical_netlist import Direction
 from fpga_interchange.interchange_capnp import output_logical_netlist
@@ -341,10 +342,12 @@ class Site():
 
 
 class Tile():
-    def __init__(self, name, tile_type, loc):
+    def __init__(self, name, tile_type, loc, off1=(0, 0), off2=(0, 0)):
         self.name = name
         self.type = tile_type.name
         self.loc = loc  # as (col, row)
+        self.off1 = off1
+        self.off2 = off2
 
         # Add site instances of site types from the tile type
         self.sites = {}
@@ -437,7 +440,7 @@ class DeviceResources():
 
         return self.tile_types[name]
 
-    def add_tile(self, name, type, loc):
+    def add_tile(self, name, type, loc, off1=(0, 0), off2=(0, 0)):
         """
         Adds a new tile to the device
         """
@@ -447,15 +450,18 @@ class DeviceResources():
         tile_type = self.tile_types[type]
 
         # Create the tile
-        tile = Tile(name, tile_type, loc)
+        tile = Tile(name, tile_type, loc, off1, off2)
         tile_id = id(tile)
 
         # Add it
         assert tile_id not in self.tiles
         self.tiles[tile_id] = tile
 
-        assert loc not in self.tiles_by_loc, loc
-        self.tiles_by_loc[loc] = tile_id
+        for i in itertools.product(
+                range(loc[0] - off1[0], loc[0] + off2[0] + 1),
+                range(loc[1] - off1[1], loc[1] + off2[1] + 1)):
+            assert i not in self.tiles_by_loc, i
+            self.tiles_by_loc[i] = tile_id
 
         assert name not in self.tiles_by_name, name
         self.tiles_by_name[name] = tile_id
@@ -1043,6 +1049,10 @@ class DeviceResourcesCapnp():
             tile_capnp.type = self.tile_type_map[tile.type]
             tile_capnp.col = tile.loc[0]
             tile_capnp.row = tile.loc[1]
+            tile_capnp.colNegOff = tile.off1[0]
+            tile_capnp.rowNegOff = tile.off1[1]
+            tile_capnp.colPosOff = tile.off2[0]
+            tile_capnp.rowPosOff = tile.off2[1]
 
             # Get the site list of the tile type
             tile_site_list = self.tile_site_list[tile.type]

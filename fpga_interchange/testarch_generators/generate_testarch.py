@@ -206,7 +206,7 @@ class TestArchGenerator():
                 tile_type.add_wire(wire_name, ("Tile-Site", "general"))
                 site.primary_pins_to_tile_wires[pin.name] = wire_name
 
-        if tile_type_name == "NULL":
+        if tile_type_name.startswith("NULL"):
             return
         # Add tile wires for intra nodes
         for i in range(self.num_intra_nodes):
@@ -263,7 +263,8 @@ class TestArchGenerator():
         for y in range(self.grid_size[1]):
             for x in range(self.grid_size[0]):
 
-                is_0_0 = x == 0 and y == 0
+                is_corner = x in {0, self.grid_size[0] - 1
+                                  } and y in {0, self.grid_size[1] - 1}
                 is_perimeter = y in [0, self.grid_size[1] - 1] or \
                                x in [0, self.grid_size[0] - 1]
                 is_centre = y == self.grid_size[
@@ -271,8 +272,8 @@ class TestArchGenerator():
 
                 suffix = "_X{}Y{}".format(x, y)
 
-                if is_0_0:
-                    self.device.add_tile("NULL", "NULL", (x, y))
+                if is_corner:
+                    self.device.add_tile("NULL" + suffix, "NULL", (x, y))
                 elif is_perimeter:
                     self.device.add_tile("IOB" + suffix, "IOB", (x, y))
                 elif is_centre:
@@ -303,7 +304,9 @@ class TestArchGenerator():
             return (pos[0] + ofs[0], pos[1] + ofs[1])
 
         for loc, tile_id in self.device.tiles_by_loc.items():
-            if loc == (0, 0):
+            is_corner = loc[0] in {0, self.grid_size[0] - 1
+                                   } and loc[1] in {0, self.grid_size[1] - 1}
+            if is_corner:
                 continue
             tile = self.device.tiles[tile_id]
             tile_type = self.device.tile_types[tile.type]
@@ -323,7 +326,10 @@ class TestArchGenerator():
                     wire_ids = [self.device.get_wire_id(tile.name, wire_name)]
 
                     other_loc = offset_loc(loc, offset)
-                    if other_loc == (0, 0):
+                    is_corner = other_loc[0] in {
+                        0, self.grid_size[0] - 1
+                    } and other_loc[1] in {0, self.grid_size[1] - 1}
+                    if is_corner:
                         continue
                     if other_loc[0] >= 0 and other_loc[0] < self.grid_size[0] and \
                        other_loc[1] >= 0 and other_loc[1] < self.grid_size[1]:
@@ -525,7 +531,7 @@ class TestArchGenerator():
         self.make_slice_site_type()
         self.make_power_site_type()
 
-        self.make_tile_type("CLB", ["SLICE"])
+        self.make_tile_type("CLB", ["SLICE", "SLICE"])
         self.make_tile_type("IOB", ["IOPAD"])
         self.make_tile_type("PWR", ["POWER"])
         self.make_tile_type("NULL", [])
