@@ -29,14 +29,14 @@ class TestArchGenerator():
     Test architecture generator
     """
 
-    def __init__(self, package):
+    def __init__(self, args):
         self.device = DeviceResources()
 
         self.grid_size = (10, 10)
         self.num_intra_nodes = 8
         self.num_inter_nodes = 8
 
-        self.package = package
+        self.args = args
 
     def make_slice_site_type(self):
         """
@@ -87,10 +87,11 @@ class TestArchGenerator():
         bel_ff.add_pin("Q", Direction.Output)
 
         # DFF input mux BEL (routing)
-        bel_mux = site_type.add_bel("FFMUX", "MUX2", BelCategory.ROUTING)
-        bel_mux.add_pin("I0", Direction.Input)
-        bel_mux.add_pin("I1", Direction.Input)
-        bel_mux.add_pin("O", Direction.Output)
+        if not self.args.no_ffmux:
+            bel_mux = site_type.add_bel("FFMUX", "MUX2", BelCategory.ROUTING)
+            bel_mux.add_pin("I0", Direction.Input)
+            bel_mux.add_pin("I1", Direction.Input)
+            bel_mux.add_pin("O", Direction.Output)
 
         # Site wires
         w = site_type.add_wire("L0_to_A1", [("L0", "L0"), ("LUT", "A1")])
@@ -100,24 +101,31 @@ class TestArchGenerator():
 
         w = site_type.add_wire("RST", [("R", "R"), ("FF", "SR")])
         w = site_type.add_wire("CLR", [("C", "C"), ("FF", "C")])
-        w = site_type.add_wire("DIN", [("D", "D"), ("FFMUX", "I1")])
+        if not self.args.no_ffmux:
+            w = site_type.add_wire("DIN", [("D", "D"), ("FFMUX", "I1")])
 
         w = site_type.add_wire("LUT_O")
         w.connect_to_bel_pin("LUT", "O")
-        w.connect_to_bel_pin("FFMUX", "I0")
         w.connect_to_bel_pin("O", "O")
 
-        w = site_type.add_wire("MUX_O")
-        w.connect_to_bel_pin("FFMUX", "O")
-        w.connect_to_bel_pin("FF", "D")
+        if not self.args.no_ffmux:
+            w.connect_to_bel_pin("FFMUX", "I0")
+        else:
+            w.connect_to_bel_pin("FF", "D")
+
+        if not self.args.no_ffmux:
+            w = site_type.add_wire("MUX_O")
+            w.connect_to_bel_pin("FFMUX", "O")
+            w.connect_to_bel_pin("FF", "D")
 
         w = site_type.add_wire("FF_OUT", [("FF", "Q"), ("Q", "Q")])
 
         # Site PIPs
-        site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"),
-                          (None, 5e-12, None, None, None, None))
-        site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"),
-                          (None, 5e-12, None, None, None, None))
+        if not self.args.no_ffmux:
+            site_type.add_pip(("FFMUX", "I0"), ("FFMUX", "O"),
+                              (None, 5e-12, None, None, None, None))
+            site_type.add_pip(("FFMUX", "I1"), ("FFMUX", "O"),
+                              (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
 
@@ -332,7 +340,7 @@ class TestArchGenerator():
 
     def make_package_data(self):
 
-        package = self.device.add_package(self.package)
+        package = self.device.add_package(self.args.package)
 
         pad_id = 0
         for site in self.device.sites.values():
@@ -462,17 +470,18 @@ class TestArchGenerator():
 
         make_dff_mapping(["S", "R"])
 
-        mapping = CellBelMapping("FFMUX")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="SLICE",
-                bel="FFMUX",
-                pin_map={
-                    "I0": "I0",
-                    "I1": "I1",
-                    "O": "O",
-                }))
-        self.device.add_cell_bel_mapping(mapping)
+        if not self.args.no_ffmux:
+            mapping = CellBelMapping("FFMUX")
+            mapping.entries.append(
+                CellBelMappingEntry(
+                    site_type="SLICE",
+                    bel="FFMUX",
+                    pin_map={
+                        "I0": "I0",
+                        "I1": "I1",
+                        "O": "O",
+                    }))
+            self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("IB")
         mapping.entries.append(
@@ -561,11 +570,17 @@ def main():
     parser.add_argument(
         "--out-file", default="test_arch.device", help="Output file name")
     parser.add_argument("--package", default="TESTPKG", help="Package name")
+    parser.add_argument(
+        "--no-ffmux",
+        action="store_true",
+        help=
+        "Do not add the mux that selects FF input forcing it to require LUT-thru"
+    )
 
     args = parser.parse_args()
 
     # Run the test architecture generator
-    gen = TestArchGenerator(args.package)
+    gen = TestArchGenerator(args)
     gen.generate()
 
     # Initialize the writer (or "serializer")
