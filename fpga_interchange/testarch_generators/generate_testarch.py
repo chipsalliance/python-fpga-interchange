@@ -170,15 +170,18 @@ class TestArchGenerator():
         w.connect_to_bel_pin("ALUT", "O")
         w.connect_to_bel_pin("O_0", "O_0")
 
+        if not self.args.no_ffmux:
+            w.connect_to_bel_pin("AFFMUX", "I0")
+        else:
+            w.connect_to_bel_pin("AFF", "D")
+
         w = site_type.add_wire("BLUT_O")
         w.connect_to_bel_pin("BLUT", "O")
         w.connect_to_bel_pin("O_1", "O_1")
 
         if not self.args.no_ffmux:
-            w.connect_to_bel_pin("AFFMUX", "I0")
             w.connect_to_bel_pin("BFFMUX", "I0")
         else:
-            w.connect_to_bel_pin("AFF", "D")
             w.connect_to_bel_pin("BFF", "D")
 
         if not self.args.no_ffmux:
@@ -204,6 +207,24 @@ class TestArchGenerator():
                               (None, 5e-12, None, None, None, None))
             site_type.add_pip(("BFFMUX", "I1"), ("BFFMUX", "O"),
                               (None, 5e-12, None, None, None, None))
+
+        site_type.add_pip(("ALUT", "A1"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A2"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A3"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A4"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+
+        site_type.add_pip(("BLUT", "A1"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A2"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A3"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A4"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
 
