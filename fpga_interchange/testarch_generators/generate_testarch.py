@@ -170,15 +170,18 @@ class TestArchGenerator():
         w.connect_to_bel_pin("ALUT", "O")
         w.connect_to_bel_pin("O_0", "O_0")
 
+        if not self.args.no_ffmux:
+            w.connect_to_bel_pin("AFFMUX", "I0")
+        else:
+            w.connect_to_bel_pin("AFF", "D")
+
         w = site_type.add_wire("BLUT_O")
         w.connect_to_bel_pin("BLUT", "O")
         w.connect_to_bel_pin("O_1", "O_1")
 
         if not self.args.no_ffmux:
-            w.connect_to_bel_pin("AFFMUX", "I0")
             w.connect_to_bel_pin("BFFMUX", "I0")
         else:
-            w.connect_to_bel_pin("AFF", "D")
             w.connect_to_bel_pin("BFF", "D")
 
         if not self.args.no_ffmux:
