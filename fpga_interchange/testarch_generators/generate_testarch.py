@@ -208,6 +208,24 @@ class TestArchGenerator():
             site_type.add_pip(("BFFMUX", "I1"), ("BFFMUX", "O"),
                               (None, 5e-12, None, None, None, None))
 
+        site_type.add_pip(("ALUT", "A1"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A2"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A3"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("ALUT", "A4"), ("ALUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+
+        site_type.add_pip(("BLUT", "A1"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A2"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A3"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+        site_type.add_pip(("BLUT", "A4"), ("BLUT", "O"),
+                          (None, 5e-12, None, None, None, None))
+
     def make_iob_site_type(self):
 
         # The site
