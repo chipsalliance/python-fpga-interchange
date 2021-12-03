@@ -229,6 +229,7 @@ class TestArchGenerator():
 
             if is_inpad:
                 site_type.add_pin("I", Direction.Output)
+                site_type.add_pin("NO_BUF_I", Direction.Output)
 
                 bel_ib = site_type.add_bel("IB", "IB", BelCategory.LOGIC)
                 bel_ib.add_pin("I", Direction.Output)
@@ -237,6 +238,7 @@ class TestArchGenerator():
                 site_type.add_wire("I", [("IB", "I"), ("I", "I")])
 
                 wires.append(("IB", "P"))
+                wires.append(("NO_BUF_I", "NO_BUF_I"))
 
             if is_outpad:
                 site_type.add_pin("O", Direction.Input)
