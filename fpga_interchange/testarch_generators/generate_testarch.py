@@ -227,32 +227,55 @@ class TestArchGenerator():
                           (None, 5e-12, None, None, None, None))
 
     def make_iob_site_type(self):
+        """ Generates the IO site types, with different internal structures.
 
-        # The site
-        site_type = self.device.add_site_type("IOPAD")
+            - IPAD: only input PAD
+            - OPAD: only output PAD
+            - IOPAD: both input and output PAD
+        """
 
-        # Site pins (with BELs added automatically)
-        site_type.add_pin("I", Direction.Output)
-        site_type.add_pin("O", Direction.Input)
+        ipad = "IPAD"
+        opad = "OPAD"
+        iopad = "IOPAD"
 
-        # TODO Change to use one pad for both input and output buffers
-        # IPAD bel
-        bel_ib = site_type.add_bel("IB", "IB", BelCategory.LOGIC)
-        bel_ib.add_pin("I", Direction.Output)
-        bel_ib.add_pin("P", Direction.Input)
+        for pad in [ipad, opad, iopad]:
+            # The site
+            site_type = self.device.add_site_type(pad)
 
-        # OPAD bel
-        bel_ob = site_type.add_bel("OB", "OB", BelCategory.LOGIC)
-        bel_ob.add_pin("O", Direction.Input)
-        bel_ob.add_pin("P", Direction.Output)
+            is_inpad = pad in [ipad, iopad]
+            is_outpad = pad in [opad, iopad]
 
-        bel_opad = site_type.add_bel("PAD", "PAD", BelCategory.LOGIC)
-        bel_opad.add_pin("P", Direction.Inout)
+            # Wires
+            wires = [("PAD", "P")]
 
-        # Wires
-        site_type.add_wire("I", [("IB", "I"), ("I", "I")])
-        site_type.add_wire("O", [("OB", "O"), ("O", "O")])
-        site_type.add_wire("P", [("IB", "P"), ("OB", "P"), ("PAD", "P")])
+            if is_inpad:
+                site_type.add_pin("I", Direction.Output)
+                site_type.add_pin("NO_BUF_I", Direction.Output)
+
+                bel_ib = site_type.add_bel("IB", "IB", BelCategory.LOGIC)
+                bel_ib.add_pin("I", Direction.Output)
+                bel_ib.add_pin("P", Direction.Input)
+
+                site_type.add_wire("I", [("IB", "I"), ("I", "I")])
+
+                wires.append(("IB", "P"))
+                wires.append(("NO_BUF_I", "NO_BUF_I"))
+
+            if is_outpad:
+                site_type.add_pin("O", Direction.Input)
+
+                bel_ob = site_type.add_bel("OB", "OB", BelCategory.LOGIC)
+                bel_ob.add_pin("O", Direction.Input)
+                bel_ob.add_pin("P", Direction.Output)
+
+                site_type.add_wire("O", [("OB", "O"), ("O", "O")])
+
+                wires.append(("OB", "P"))
+
+            bel_pad = site_type.add_bel("PAD", "PAD", BelCategory.LOGIC)
+            bel_pad.add_pin("P", Direction.Inout)
+
+            site_type.add_wire("P", wires)
 
     def make_power_site_type(self):
 
@@ -358,22 +381,34 @@ class TestArchGenerator():
         # TODO: const. wires
 
     def make_device_grid(self):
+        width = self.grid_size[0] - 1
+        height = self.grid_size[1] - 1
 
-        for y in range(self.grid_size[1]):
-            for x in range(self.grid_size[0]):
-
+        for y in range(height + 1):
+            for x in range(width + 1):
                 is_0_0 = x == 0 and y == 0
-                is_perimeter = y in [0, self.grid_size[1] - 1] or \
-                               x in [0, self.grid_size[0] - 1]
-                is_centre = y == self.grid_size[
-                    1] // 2 and x == self.grid_size[0] // 2
+
+                is_corner = is_0_0 or \
+                            x == 0 and y == height or \
+                            x == width and y == 0 or \
+                            x == width and y == height
+
+                is_left = x == 0
+                is_right = x == height
+                is_top_bottom = y in [0, width]
+
+                is_centre = y == height // 2 and x == width // 2
 
                 suffix = "_X{}Y{}".format(x, y)
 
                 if is_0_0:
                     self.device.add_tile("NULL", "NULL", (x, y))
-                elif is_perimeter:
+                elif is_top_bottom and not is_corner:
                     self.device.add_tile("IOB" + suffix, "IOB", (x, y))
+                elif is_left:
+                    self.device.add_tile("IB" + suffix, "IB", (x, y))
+                elif is_right:
+                    self.device.add_tile("OB" + suffix, "OB", (x, y))
                 elif is_centre:
                     self.device.add_tile("PWR" + suffix, "PWR", (x, y))
                 else:
@@ -441,11 +476,23 @@ class TestArchGenerator():
 
         package = self.device.add_package(self.args.package)
 
-        pad_id = 0
+        iopad_id = 0
+        ipad_id = 0
+        opad_id = 0
         for site in self.device.sites.values():
             if site.type == "IOPAD":
-                package.add_pin("A{}".format(pad_id), site.name, "PAD")
-                pad_id += 1
+                pad_name = f"IO_{iopad_id}"
+                iopad_id += 1
+            elif site.type == "OPAD":
+                pad_name = f"O_{opad_id}"
+                opad_id += 1
+            elif site.type == "IPAD":
+                pad_name = f"I_{ipad_id}"
+                ipad_id += 1
+            else:
+                continue
+
+            package.add_pin(pad_name, site.name, "PAD")
 
     def make_primitives_library(self):
 
@@ -611,8 +658,10 @@ class TestArchGenerator():
         self.make_slice_site_type()
         self.make_power_site_type()
 
-        self.make_tile_type("CLB", ["SLICE"])
+        self.make_tile_type("CLB", ["SLICE", "SLICE"])
         self.make_tile_type("IOB", ["IOPAD"])
+        self.make_tile_type("IB", ["IPAD"])
+        self.make_tile_type("OB", ["OPAD"])
         self.make_tile_type("PWR", ["POWER"])
         self.make_tile_type("NULL", [])
 
