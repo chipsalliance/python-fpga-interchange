@@ -170,7 +170,7 @@ class SiteType():
         self.bels = {}  # dict(name) -> Bel
         self.pips = set()
         self.wires = {}  # dict(name) -> SiteWire
-        self.lut_element = {}
+        self.lut_elements = []
 
 
 #        self.alt_site_types = []
@@ -235,10 +235,11 @@ class SiteType():
 
         return pip
 
-    def add_lut_element(self, width, lut_bel):
-        if width not in self.lut_element.keys():
-            self.lut_element[width] = []
-        self.lut_element[width].append(lut_bel)
+    def add_lut_element(self, width, lut_bels):
+        self.lut_elements.append((
+            width,
+            tuple(lut_bels),
+        ))
 
 
 class SiteTypeInTileType():
@@ -817,11 +818,11 @@ class DeviceResourcesCapnp():
         # Write each site type
         device.init("siteTypeList", len(site_type_list))
         for i, site_type in enumerate(site_type_list):
-            lut_element = []
-            for width, lutBels in site_type.lut_element.items():
-                lut_element.append((width, lutBels))
-            if len(lut_element):
-                self.device.lut_elements.append((site_type.name, lut_element))
+
+            self.device.lut_elements.append((
+                site_type.name,
+                site_type.lut_elements,
+            ))
 
             site_type_capnp = device.siteTypeList[i]
             site_type_capnp.name = self.get_string_id(site_type.name)

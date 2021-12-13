@@ -94,8 +94,8 @@ class TestArchGenerator():
         a_lut_bel = LutBel("ALUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
         b_lut_bel = LutBel("BLUT", ["A1", 'A2', 'A3', 'A4'], 'O', 0, 15)
 
-        site_type.add_lut_element(16, a_lut_bel)
-        site_type.add_lut_element(16, b_lut_bel)
+        site_type.add_lut_element(16, [a_lut_bel])
+        site_type.add_lut_element(16, [b_lut_bel])
 
         bel_lut = site_type.add_bel("ALUT", "LUT4", BelCategory.LOGIC)
         bel_lut.add_pin("A1", Direction.Input)
