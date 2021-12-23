@@ -616,23 +616,29 @@ class TestArchGenerator():
 
         make_dff_mapping(["S", "R"])
 
-        mapping = CellBelMapping("IB")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="IOPAD", bels=["IB"], pin_map={
-                    "I": "I",
-                    "P": "P",
-                }))
-        self.device.add_cell_bel_mapping(mapping)
+        def make_iob_mapping(sites, bel, pin_map):
+            mapping = CellBelMapping(bel)
 
-        mapping = CellBelMapping("OB")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="IOPAD", bels=["OB"], pin_map={
-                    "O": "O",
-                    "P": "P",
-                }))
-        self.device.add_cell_bel_mapping(mapping)
+            for site in sites:
+                mapping.entries.append(
+                    CellBelMappingEntry(
+                        site_type=site, bels=[bel], pin_map=pin_map))
+
+            self.device.add_cell_bel_mapping(mapping)
+
+        make_iob_mapping(["IOPAD", "IPAD"],
+                         "IB",
+                         pin_map={
+                             "I": "I",
+                             "P": "P",
+                         })
+
+        make_iob_mapping(["IOPAD", "OPAD"],
+                         "OB",
+                         pin_map={
+                             "O": "O",
+                             "P": "P",
+                         })
 
         mapping = CellBelMapping("GND")
         mapping.entries.append(
