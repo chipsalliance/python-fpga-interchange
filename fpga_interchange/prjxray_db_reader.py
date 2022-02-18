@@ -23,19 +23,113 @@
     delays inside sites.
 """
 
+import argparse
 import os
 import json
+import re
+import itertools
+from copy import deepcopy
+
+from collections import defaultdict
+
+from sdf_timing import sdfparse
+from sdf_timing.utils import get_scale_seconds
 
 CAPACITANCE = 1e-9  # convert from prjxray internal values to farads
 RESISTANCE = 1e-6  # convert from prjxray internal values to ohms
 DELAY = 1e-9  # convert from ns to s
+
+# =============================================================================
+
+
+def expand_pattern(pattern):
+    """
+    Expands a simple reges pattern containing multiple "[<chars>]" closures
+    to all possible combinations.
+    """
+    expr = r"\[([^\[\]]+)\]"
+
+    groups = []
+    for match in re.finditer(expr, pattern):
+        groups.append(match.group(1))
+
+    strings = []
+    for subs in itertools.product(*groups):
+        s = str(pattern)
+        for i, sub in enumerate(subs):
+            s = re.sub(expr, sub, s, 1)
+        strings.append(s)
+
+    return strings
+
+
+def get_timings(site, spec, sdf_data):
+    """
+    Given a cell and instance specification as "<cell>@<instance>" finds and
+    returns the timings.
+    """
+
+    assert spec.count("@") == 1, spec
+    cell, instance = spec.split("@", maxsplit=1)
+
+    if cell not in sdf_data:
+        print("ERROR: No SDF data for cell '{}'".format(cell))
+        return None
+
+    assert instance.count("/") <= 1, (cell, instance)
+    if "/" in instance:
+        site, bel = instance.split("/")
+    else:
+        site, bel = instance, None
+
+    if site not in sdf_data[cell]:
+        print("ERROR: No SDF data for cell '{}', site '{}'".format(cell, site))
+        return None
+
+    if bel not in sdf_data[cell][site]:
+        print("ERROR: No SDF data for cell '{}', site '{}', bel '{}'".format(cell, site, bel))
+        return None
+
+    return sdf_data[cell][site][bel]
+
+
+def merge_timings(timings, overlay):
+    """
+    Overlays timing data from the "new" dict tree onto the existing "timing"
+    one.
+    """
+
+    def walk(curr, new):
+
+        assert type(curr) == type(new), (type(curr), type(new))
+
+        # Non-dict, just replace
+        if not isinstance(new, dict):
+            return new
+
+        # Merge dicts recursively
+        for k, v in new.items():
+            if k not in curr:
+                curr[k] = v
+            else:
+                curr[k] = walk(curr[k], v)
+
+        return curr
+
+    return walk(timings, overlay)
+
+# =============================================================================
 
 
 class prjxray_db_reader:
     def __init__(self, timing_dir):
         self.timing_dir = timing_dir
 
-    def extract_data(self):
+    def extract_data(self, sdf_map=None):
+
+        if sdf_map is None:
+            sdf_map = dict()
+
         return_dict = {}
         for i, _file in enumerate(os.listdir(self.timing_dir)):
             if not os.path.isfile(os.path.join(
@@ -107,8 +201,166 @@ class prjxray_db_reader:
                                   float(dic['delay'][3]) * DELAY)
                     tile_dict['sites'][siteType][sitePin] = (values, delays)
             return_dict[tile_name] = tile_dict
-        return return_dict
+
+        # Scan and parse SDFs
+        sdf_data = dict()
+
+        sdf_dir = os.path.join(self.timing_dir, "timings")
+        for fname in os.listdir(sdf_dir):
+
+            if not fname.lower().endswith(".sdf"):
+                continue
+
+            sdf_file = os.path.join(sdf_dir, fname)
+            if not os.path.isfile(sdf_file):
+                continue
+
+            tile_type, _ = os.path.splitext(fname)
+
+            if tile_type not in return_dict:
+                print("WARNING: No tile '{}'".format(tile_type))
+                continue
+
+            with open(sdf_file) as f:
+                sdf = f.read()
+
+            timings = sdfparse.parse(sdf)
+            timings = self.process_sdf_data(timings)
+
+            sdf_data.update(timings)
+
+        # Collect timings
+        timings_dict = dict()
+        for site, site_data in sdf_map.items():
+
+            if site not in timings_dict:
+                timings_dict[site] = dict()
+
+            for pattern, cell_data in site_data.items():
+
+                # Expand the BEL name pattern
+                bels = expand_pattern(pattern)
+                for bel in bels:
+
+                    if bel not in timings_dict[site]:
+                        timings_dict[site][bel] = dict()
+
+                    # Get default timing data if any
+                    defaults = dict()
+                    if "default" in cell_data:
+                        for spec in cell_data["default"]:
+                            spec = spec.format(bel=bel)
+                            ts = get_timings(site, spec, sdf_data)
+                            if ts is not None:
+                                defaults = merge_timings(defaults, ts)
+
+                        # Store timing data for any cell
+                        timings_dict[site][bel][None] = defaults
+
+                    # Overlay subsequent cell-specific entries
+                    for cell, data in cell_data.items():
+                        if cell == "default":
+                            continue
+
+                        timings = deepcopy(defaults)
+                        for spec in data:
+                            spec = spec.format(bel=bel)
+                            ts = get_timings(site, spec, sdf_data)
+                            if ts is not None:
+                                timings = merge_timings(timings, ts)
+
+                        # Store timing data for the specific cell
+                        timings_dict[site][bel][cell] = timings
+
+        return return_dict, timings_dict
+
+
+    def process_sdf_data(self, data):
+
+        # Timescale. Assume 1ns if not present in the header
+        scale = get_scale_seconds(data["header"].get("timescale", "1ns"))
+
+        def apply_timescale(d):
+            if isinstance(d, dict):
+                new_d = {}
+                for k, v in d.items():
+                    new_d[k] = apply_timescale(v)
+                return new_d
+            elif isinstance(d, float):
+                return d * scale
+            else:
+                return d
+
+        # Group timing data by cell, site and bel. Scale values to seconds
+        timings = {}
+        for cell, instances in data["cells"].items():
+            timings[cell] = defaultdict(dict)
+            for instance, paths in instances.items():
+
+                # Get site and bell name if possible
+                assert instance.count("/") <= 1, (cell, instance)
+                if "/" in instance:
+                    site, bel = instance.split("/")
+                else:
+                    site, bel = instance, None
+
+                # Filter timing data
+                keys = {"type", "from_pin", "to_pin", "from_pin_edge", "to_pin_edge", "delay_paths"}
+                paths = {t: {k: v for k, v in d.items() if k in keys} for t, d in paths.items()}
+
+                # Apply timescale
+                for key, path in paths.items():
+                    paths[key] = apply_timescale(path)
+
+                timings[cell][site][bel] = paths
+
+            timings[cell] = dict(timings[cell])
+
+        return timings
 
 
 if __name__ == "__main__":
-    print("This file conatins reader class for prjxray-db-timings")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--db-root",
+        type=str,
+        required=True,
+        help="Project XRay database root path"
+    )
+    parser.add_argument(
+        "--sdf-map",
+        type=str,
+        required=True,
+        help="Map of SDF timing entries to cell @ site and bel"
+    )
+
+    args = parser.parse_args()
+
+    # Load SDF map
+    with open(args.sdf_map, "r") as fp:
+        sdf_map = json.load(fp)
+
+    # Get data
+    reader = prjxray_db_reader(args.db_root)
+    routing_data, timings_dict = reader.extract_data(sdf_map)
+
+    # Dump data (not all of it of course)
+    print("Routing timing:")
+    for tile, tile_data in routing_data.items():
+        print("", tile)
+        print(" ", "{} wires".format(len(tile_data['wires'])))
+        print(" ", "{} pips".format(len(tile_data['pips'])))
+
+        for site, site_data in tile_data['sites'].items():
+            print(" ", "site '{}' {} pins".format(site, len(site_data)))
+
+    print("Cell timings (site/bel/cell):")
+    for site, bels in timings_dict.items():
+        print("", site)
+        for bel, cells in bels.items():
+            print(" ", bel)
+            for cell, timings in cells.items():
+                print("  ", "any" if cell is None else cell)
+                for key in timings:
+                    print("   ", key)
