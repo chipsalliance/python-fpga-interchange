@@ -122,13 +122,16 @@ def merge_timings(timings, overlay):
 
 
 class prjxray_db_reader:
-    def __init__(self, timing_dir):
+    def __init__(self, timing_dir, sdf_map_file = None):
         self.timing_dir = timing_dir
 
-    def extract_data(self, sdf_map=None):
+        self.sdf_map = dict()
+        if sdf_map_file is not None:
+            with open(sdf_map_file, "r") as fp:
+                self.sdf_map = json.load(fp)
 
-        if sdf_map is None:
-            sdf_map = dict()
+
+    def extract_data(self):
 
         return_dict = {}
         for i, _file in enumerate(os.listdir(self.timing_dir)):
@@ -231,7 +234,7 @@ class prjxray_db_reader:
 
         # Collect timings
         timings_dict = dict()
-        for site, site_data in sdf_map.items():
+        for site, site_data in self.sdf_map.items():
 
             if site not in timings_dict:
                 timings_dict[site] = dict()
@@ -337,13 +340,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load SDF map
-    with open(args.sdf_map, "r") as fp:
-        sdf_map = json.load(fp)
-
     # Get data
-    reader = prjxray_db_reader(args.db_root)
-    routing_data, timings_dict = reader.extract_data(sdf_map)
+    reader = prjxray_db_reader(args.db_root, args.sdf_map)
+    routing_data, timings_dict = reader.extract_data()
 
     # Dump data (not all of it of course)
     print("Routing timing:")
