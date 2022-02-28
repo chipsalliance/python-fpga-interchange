@@ -93,6 +93,23 @@ def get_timings(site, spec, sdf_data):
     return sdf_data[cell][site][bel]
 
 
+def map_timings(timings, pin_map):
+    """
+    Applies pin map to SDF timings dict
+    """
+    mapped_timings = dict()
+    for key, data in timings.items():
+
+        data = deepcopy(data)
+        for k in ["from_pin", "to_pin"]:
+            data[k] = pin_map.get(data[k], data[k])
+
+        key = "{}_{}_{}".format(data["type"], data["from_pin"], data["to_pin"])
+        mapped_timings[key] = data
+
+    return mapped_timings
+
+
 def merge_timings(timings, overlay):
     """
     Overlays timing data from the "new" dict tree onto the existing "timing"
@@ -241,6 +258,9 @@ class prjxray_db_reader:
 
             for pattern, cell_data in site_data.items():
 
+                # Get BEL pin map
+                pin_map = cell_data.get("pin_map", dict())
+
                 # Expand the BEL name pattern
                 bels = expand_pattern(pattern)
                 for bel in bels:
@@ -255,6 +275,7 @@ class prjxray_db_reader:
                             spec = spec.format(bel=bel)
                             ts = get_timings(site, spec, sdf_data)
                             if ts is not None:
+                                ts = map_timings(ts, pin_map)
                                 defaults = merge_timings(defaults, ts)
 
                         # Store timing data for any cell
@@ -262,7 +283,7 @@ class prjxray_db_reader:
 
                     # Overlay subsequent cell-specific entries
                     for cell, data in cell_data.items():
-                        if cell == "default":
+                        if cell in ["pin_map", "default"]:
                             continue
 
                         timings = deepcopy(defaults)
@@ -270,6 +291,7 @@ class prjxray_db_reader:
                             spec = spec.format(bel=bel)
                             ts = get_timings(site, spec, sdf_data)
                             if ts is not None:
+                                ts = map_timings(ts, pin_map)
                                 timings = merge_timings(timings, ts)
 
                         # Store timing data for the specific cell
