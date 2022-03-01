@@ -132,6 +132,180 @@ def populate_corner_model(corner_model, fast_min, fast_typ, fast_max, slow_min,
             x = getattr(corner_model.slow.slow, field)
             setattr(x, field, slow[i])
 
+def populate_pin_delays(string_map, cell_bel_mapping, timings):
+    """
+    Populates pin delays for the given cell bel pin map.
+    """
+
+    def populate_pin(pin, data, key):
+        """
+        Fills in a PinDelay struct
+        """
+        bel_pin = data[key + "_pin"]
+        edge = data[key + "_pin_edge"]
+
+        pin.pin = bel_pin
+        if edge is not None:
+            assert edge in ["posedge", "negedge"], edge
+            if edge == "posedge":
+                pin.clockEdge = "rise"
+            if edge == "negedge":
+                pin.clockEdge = "fall"
+
+    # Maps path type from SDF to the FPGA interchange schema
+    # "clk2q" is detected separately as it is not a separate type in SDF
+    TYPE_MAP = {
+        "iopath": "comb",
+        "setup": "setup",
+        "hold": "hold",
+        "recovery": "setup",
+        "removal": "hold",
+    }
+
+    pins_delay = cell_bel_mapping.init("pinsDelay", len(timings))
+    for j, timing in enumerate(timings):
+        entry = pins_delay[j]
+
+        # Site
+        entry.site = string_map[timing["site"]]
+
+        # Type
+        assert timing["type"] in TYPE_MAP, timing["type"]
+        typ = TYPE_MAP[timing["type"]]
+        if typ == "comb" and timing["from_pin_edge"] is not None:
+            typ = "clk2q"
+
+        entry.pinsDelayType = typ
+
+        # From
+        pin = entry.init("firstPin")
+        populate_pin(pin, timing, "from")
+
+        # To
+        pin = entry.init("secondPin")
+        populate_pin(pin, timing, "to")
+
+        # Timing data
+        entry.init("cornerModel")
+        corner_model = entry.cornerModel
+
+        delays_slow = timing["delays"]["slow"]
+        delays_fast = timing["delays"]["fast"]
+        populate_corner_model(corner_model,
+            delays_fast["min"], delays_fast["typ"], delays_fast["max"],
+            delays_slow["min"], delays_slow["typ"], delays_slow["max"]
+        )
+
+
+def collect_pins_delay(device, bel_pin_to_index_map, cell, pin_map, cell_timing_data):
+    """
+    Collects timing data for the given cell type and cell bel pin mapping.
+    Matches the SDF data against device resources data. Converts BEL pin names
+    to their indices.
+    """
+
+    pins_delay = dict()
+
+    for entry in pin_map.siteTypes:
+        site = device.strList[entry.siteType]
+
+        if site not in cell_timing_data:
+            print("WARNING: no timing data for site '{}'".format(site))
+            continue
+
+        for bel_i in entry.bels:
+            bel = device.strList[bel_i]
+
+            if bel not in cell_timing_data[site]:
+                print("WARNING: no timing data for site/bel '{}/{}'".format(site, bel))
+                continue
+
+            # Get timings for the specific cell. If not found then
+            # look for data for "any" cell.
+            timings = cell_timing_data[site][bel].get(cell, None)
+            if timings is None:
+                timings = cell_timing_data[site][bel].get(None, None)
+
+            if timings is None:
+                print("WARNING: not timing data for cell '{}' at site/bel '{}/{}'".format(cell, site, bel))
+                continue
+
+            # Translate the timing data
+            print(" ", "@ {}/{}".format(site, bel))
+
+            if site not in pins_delay:
+                pins_delay[site] = dict()
+
+            for path_name, path in timings.items():
+
+                pin_1 = bel_pin_to_index_map[site][bel].get(path["from_pin"], None)
+                pin_2 = bel_pin_to_index_map[site][bel].get(path["to_pin"],   None)
+                if pin_1 is None or pin_2 is None:
+                    if pin_1 is None:
+                        print("WARNING: unknown bel pin '{}.{}'".format(bel, path["from_pin"]))
+                    if pin_2 is None:
+                        print("WARNING: unknown bel pin '{}.{}'".format(bel, path["to_pin"]))
+                    continue
+
+                # Take the slow and fast corner
+                delays = path["delay_paths"]
+                corner = dict()
+                for key in ["slow", "fast"]:
+                    if key in delays:
+                        corner[key] = {
+                            "min": delays[key]["min"],
+                            "typ": delays[key]["avg"],
+                            "max": delays[key]["max"],
+                        }
+
+                # If no slow or fast data was found but there is "nominal" then
+                # use it for both.
+                if not corner and "nominal" in delays:
+                    for key in ["slow", "fast"]:
+                        corner[key] = {
+                            "min": delays["nominal"]["min"],
+                            "typ": delays["nominal"]["avg"],
+                            "max": delays["nominal"]["max"],
+                        }
+
+                if not corner:
+                    print("WARNING: no timing data for path '{}'".format(path_name))
+                    continue
+
+                if bel not in pins_delay[site]:
+                    pins_delay[site][bel] = list()
+
+                data = {
+                    "from_pin": pin_1,
+                    "from_pin_edge": path.get("from_pin_edge", None),
+                    "to_pin": pin_2,
+                    "to_pin_edge": path.get("to_pin_edge", None),
+                    "type": path["type"],
+                    "delays": corner
+                }
+                pins_delay[site][bel].append(data)
+
+                # DEBUG
+                print("   ", path_name)
+
+            # No valid data could be translated, delete the site entry
+            if not pins_delay[site]:
+                del pins_delay[site]
+
+    # Flatten entries
+    flat_pins_delay = []
+    for site, bels in pins_delay.items():
+        for bel, timings in bels.items():
+            for data in timings:
+                entry = {
+                    "site": site,
+                    "bel": bel
+                }
+                entry.update(data)
+                flat_pins_delay.append(entry)
+
+    return flat_pins_delay
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -181,118 +355,15 @@ def main():
 
     for i, mapping in enumerate(dev.cellBelMap):
         cell = dev.strList[mapping.cell]
+        print("", cell)
 
         # Common pin maps
         for pin_map in mapping.commonPins:
-            pins_delay = dict()
-
-            # Collect pins delay
-            for entry in pin_map.siteTypes:
-                site = dev.strList[entry.siteType]
-
-                if site not in cell_timing_data:
-                    print("WARNING: no timing data for site '{}'".format(site))
-                    continue
-
-                for bel_i in entry.bels:
-                    bel = dev.strList[bel_i]
-
-                    if bel not in cell_timing_data[site]:
-                        print("WARNING: no timing data for site/bel '{}/{}'".format(site, bel))
-                        continue
-
-                    # Get timings for the specific cell. If not found then
-                    # look for data for "any" cell.
-                    timings = cell_timing_data[site][bel].get(cell, None)
-                    if timings is None:
-                        timings = cell_timing_data[site][bel].get(None, None)
-
-                    if timings is None:
-                        print("WARNING: not timing data for cell '{}' at site/bel '{}/{}'".format(cell, site, bel))
-                        continue
-
-                    # Translate the timing data
-                    print("{} @ {}/{}".format(cell, site, bel))
-
-                    if site not in pins_delay:
-                        pins_delay[site] = dict()
-
-                    for path_name, path in timings.items():
-
-                        pin_1 = bel_pin_to_index_map[site][bel].get(path["from_pin"], None)
-                        pin_2 = bel_pin_to_index_map[site][bel].get(path["to_pin"],   None)
-                        if pin_1 is None or pin_2 is None:
-                            if pin_1 is None:
-                                print("WARNING: unknown bel pin '{}.{}'".format(bel, path["from_pin"]))
-                            if pin_2 is None:
-                                print("WARNING: unknown bel pin '{}.{}'".format(bel, path["to_pin"]))
-                            continue
-
-                        delays = path["delay_paths"]
-                        corner = dict()
-                        for key in ["slow", "fast"]:
-                            if key in delays:
-                                corner[key] = {
-                                    "min": delays[key]["min"],
-                                    "typ": delays[key]["avg"],
-                                    "max": delays[key]["max"],
-                                }
-
-                        if not corner and "nominal" in delays:
-                            for key in ["slow", "fast"]:
-                                corner[key] = {
-                                    "min": delays["nominal"]["min"],
-                                    "typ": delays["nominal"]["avg"],
-                                    "max": delays["nominal"]["max"],
-                                }
-
-                        if not corner:
-                            print("WARNING: no timing data for path '{}'".format(path_name))
-                            continue
-
-                        if bel not in pins_delay[site]:
-                            pins_delay[site][bel] = list()
-
-                        data = {
-                            "from_pin": pin_1,
-                            "to_pin": pin_2,
-                            "type": path["type"],
-                            "delays": corner
-                        }
-                        pins_delay[site][bel].append(data)
-
-                        # DEBUG
-                        print("", path_name, data)
-
-                    # No valid data could be translated, delete the site entry
-                    if not pins_delay[site]:
-                        del pins_delay[site]
-
-#            if pins_delay:
-#                exit(-1)
-
-            # Serialize pins delay
-            # TODO
-
+            timings = collect_pins_delay(dev, bel_pin_to_index_map, cell, pin_map, cell_timing_data)
+            populate_pin_delays(string_map, mapping, timings)
+                
         # Parameter pin maps
         # TODO
-
-#    ##
-#    for i, mapping in enumerate(dev.cellBelMap):
-#        print("{}. '{}'".format(i, dev.strList[mapping.cell]))
-#        for j, pin_map in enumerate(mapping.commonPins):
-#            print(" mapping #{}".format(j))
-#            print("  sites:")
-#            for k, site in enumerate(pin_map.siteTypes):
-#                bels = " ".join([dev.strList[bel] for bel in site.bels])
-#                print("   {}. '{}', bels: {}".format(k, dev.strList[site.siteType], bels))
-#            print("  pins:")
-#            for k, pins in enumerate(pin_map.pins):
-#                print("   {}. '{}' '{}'".format(k,
-#                    dev.strList[pins.cellPin],
-#                    dev.strList[pins.belPin]
-#                ))
-#    ##
 
     for tile, _data in timing_data.items():
         if tile not in string_map:
