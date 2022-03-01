@@ -84,6 +84,7 @@ def get_timings(site, spec, sdf_data):
 
     if site not in sdf_data[cell]:
         print("ERROR: No SDF data for cell '{}', site '{}'".format(cell, site))
+        print(sdf_data[cell].keys())
         return None
 
     if bel not in sdf_data[cell][site]:
@@ -247,7 +248,7 @@ class prjxray_db_reader:
             timings = sdfparse.parse(sdf)
             timings = self.process_sdf_data(timings)
 
-            sdf_data.update(timings)
+            sdf_data = merge_timings(sdf_data, timings)
 
         # Collect timings
         timings_dict = dict()

@@ -228,6 +228,7 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
     if site not in pins_delay:
         pins_delay[site] = dict()
 
+    used_pins = set()
     for path_name, path in timings.items():
 
         if path["from_pin"] not in pins or path["to_pin"] not in pins:
@@ -241,6 +242,9 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
             if pin_2 is None:
                 print("WARNING: unknown bel pin '{}.{}'".format(bel, path["to_pin"]))
             continue
+
+        for key in ["from_pin", "to_pin"]:
+            used_pins.add(path[key])
 
         # Take the slow and fast corner
         delays = path["delay_paths"]
@@ -293,6 +297,10 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
     if not pins_delay[site]:
         del pins_delay[site]
 
+    # Report missing pin timings
+    if pins != used_pins:
+        missing_pins = sorted(list(pins - used_pins))
+        print("WARNING: no timings for BEL pins:", ",".join(missing_pins))
 
 def main():
     parser = argparse.ArgumentParser(
