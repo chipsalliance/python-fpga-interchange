@@ -45,7 +45,8 @@ DELAY = 1e-9  # convert from ns to s
 def expand_pattern(pattern):
     """
     Expands a simple reges pattern containing multiple "[<chars>]" closures
-    to all possible combinations.
+    to all possible combinations. Returns a list of tuples containing the
+    final string together with all substituted values
     """
     expr = r"\[([^\[\]]+)\]"
 
@@ -58,7 +59,7 @@ def expand_pattern(pattern):
         s = str(pattern)
         for i, sub in enumerate(subs):
             s = re.sub(expr, sub, s, 1)
-        strings.append(s)
+        strings.append((s, subs))
 
     return strings
 
@@ -263,8 +264,8 @@ class prjxray_db_reader:
                 pin_map = cell_data.get("pin_map", dict())
 
                 # Expand the BEL name pattern
-                bels = expand_pattern(pattern)
-                for bel in bels:
+                bels_subs = expand_pattern(pattern)
+                for bel, subs in bels_subs:
 
                     if bel not in timings_dict[site]:
                         timings_dict[site][bel] = dict()
@@ -273,7 +274,7 @@ class prjxray_db_reader:
                     defaults = dict()
                     if "default" in cell_data:
                         for spec in cell_data["default"]:
-                            spec = spec.format(bel=bel)
+                            spec = spec.format(*subs, site=site, bel=bel)
                             ts = get_timings(site, spec, sdf_data)
                             if ts is not None:
                                 ts = map_timings(ts, pin_map)
@@ -289,7 +290,7 @@ class prjxray_db_reader:
 
                         timings = deepcopy(defaults)
                         for spec in data:
-                            spec = spec.format(bel=bel)
+                            spec = spec.format(*subs, site=site, bel=bel)
                             ts = get_timings(site, spec, sdf_data)
                             if ts is not None:
                                 ts = map_timings(ts, pin_map)
