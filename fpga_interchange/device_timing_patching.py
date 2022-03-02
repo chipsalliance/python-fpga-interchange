@@ -189,11 +189,19 @@ def populate_pin_delays(cell_bel_mapping, timings, string_map):
         entry.init("cornerModel")
         corner_model = entry.cornerModel
 
-        delays_slow = timing["delays"]["slow"]
-        delays_fast = timing["delays"]["fast"]
+        delays_slow = timing["delays"].get("slow",
+            {"min": None, "typ": None, "max": None})
+
+        delays_fast = timing["delays"].get("fast",
+            {"min": None, "typ": None, "max": None})
+
         populate_corner_model(corner_model,
-            delays_fast["min"], delays_fast["typ"], delays_fast["max"],
-            delays_slow["min"], delays_slow["typ"], delays_slow["max"]
+            delays_fast.get("min", None),
+            delays_fast.get("typ", None),
+            delays_fast.get("max", None),
+            delays_slow.get("min", None),
+            delays_slow.get("typ", None),
+            delays_slow.get("max", None)
         )
 
 
@@ -249,28 +257,36 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
         # Take the slow and fast corner
         delays = path["delay_paths"]
         corner = dict()
-        for key in ["slow", "fast"]:
-            if key in delays:
-                corner[key] = {
-                    "min": delays[key]["min"],
-                    "typ": delays[key]["avg"],
-                    "max": delays[key]["max"],
-                }
+        for k1 in ["slow", "fast"]:
+            if k1 in delays:
+                corner[k1] = dict()
+                for k2 in ["min", "typ", "max"]:
+                    val = delays[k1].get(k2, None)
+                    if val is not None:
+                        corner[k1][k2] = val
 
         # If no slow or fast data was found but there is "nominal" then
         # use it for both.
         if not corner and "nominal" in delays:
-            for key in ["slow", "fast"]:
-                corner[key] = {
-                    "min": delays["nominal"]["min"],
-                    "typ": delays["nominal"]["avg"],
-                    "max": delays["nominal"]["max"],
-                }
+            for k1 in ["slow", "fast"]:
+                corner[k1] = dict()
+                for k2 in ["min", "typ", "max"]:
+                    val = delays["nominal"].get(k2, None)
+                    if val is not None:
+                        corner[k1][k2] = val
 
         # No data
         if not corner:
             print("WARNING: no timing data for path '{}'".format(path_name))
             continue
+
+        # Handle negative delays
+        for k1 in corner.keys():
+            for k2 in corner[k1].keys():
+                val = corner[k1][k2]
+                if val < 0.0:
+                    print("WARNING: delay for path '{}' {} {} is negative ({:.3f}ps), clamping to 0".format(path_name, k1, k2, val * 1e12))
+                    corner[k1][k2] = 0.0
 
         if bel not in pins_delay[site]:
             pins_delay[site][bel] = dict()
