@@ -568,14 +568,20 @@ class CellConstraint():
         bba.u32(len(self.states))
 
 
+class PinEdgeType(Enum):
+    NONE = 0
+    RISE = 1
+    FALL = 2
+
+
 class PinEdge():
     def __init__(self):
         self.pin_name = ""
-        self.clock_edge = 0
+        self.clock_edge = PinEdgeType.NONE
 
     def append_bba(self, bba, label_prefix):
         bba.str_id(self.pin_name)
-        bba.u32(self.clock_edge)
+        bba.u32(self.clock_edge.value)
 
 
 class TimingCorners():
@@ -606,6 +612,9 @@ class PinTiming():
         self.type = PinTimingType.COMB
         self.value = TimingCorners()
         self.site_type_idx = 0
+
+    def append_children_bba(self, bba, label_prefix):
+        pass
 
     def append_bba(self, bba, label_prefix):
         self.from_pin.append_bba(bba, label_prefix)

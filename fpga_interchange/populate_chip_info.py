@@ -19,7 +19,7 @@ from fpga_interchange.chip_info import ChipInfo, BelShortedPins, BelInfo, TileTy
         LutElement, LutBel, CellParameter, DefaultCellConnections, DefaultCellConnection, \
         WireType, Macro, MacroNet, MacroPortInst, MacroCellInst, MacroExpansion, \
         MacroParamMapRule, MacroParamRuleType, MacroParameter, GlobalCell, GlobalCellPin, Cluster, TimingCorners, PipTiming, \
-        NodeTiming
+        NodeTiming, PinTiming, PinEdge, PinTimingType, PinEdgeType
 from fpga_interchange.constraints.model import Tag, Placement, \
         ImpliesConstraint, RequiresConstraint, SiteTypeMatcher
 from fpga_interchange.constraint_generator import ConstraintPrototype
@@ -143,7 +143,7 @@ def import_corner(corner_model, scale=1.0):
         for corner in ("min", "max"):
             val = get_value_from_model(process, corner)
             val = int(val * scale)
-            assert val >= 0 and val < 0x7FFFFFFF
+            assert val >= 0 and val < 0x7FFFFFFF, (process, corner, val)
             setattr(result, f"{process}_{corner}", val)
     return result
 
@@ -895,6 +895,11 @@ class CellBelMapper():
         self.cell_site_bel_index = {}
         self.cell_to_bel_constraints = {}
         self.bel_to_bel_buckets = {}
+        self.site_type_to_site_type_index = {}
+        self.timings = {}
+
+        for i, site_type in enumerate(device.device_resource_capnp.siteTypeList):
+            self.site_type_to_site_type_index[site_type.name] = i
 
         for cell_bel_map in device.device_resource_capnp.cellBelMap:
             cell_name = device.strs[cell_bel_map.cell]
@@ -972,6 +977,52 @@ class CellBelMapper():
                                                           param_value)] = pins
 
             self.cell_to_bel_map[cell_type] = bels
+
+            site_type_list = device.device_resource_capnp.siteTypeList
+            for pins_delay in cell_bel_map.pinsDelay:
+                site_type = device.strs[pins_delay.site]
+                site_type_index = self.site_type_to_site_type_index[pins_delay.site]
+
+                pin_delay_1 = pins_delay.firstPin
+                pin_delay_2 = pins_delay.secondPin
+
+                pin_1 = site_type_list[site_type_index].belPins[pin_delay_1.pin]
+                pin_2 = site_type_list[site_type_index].belPins[pin_delay_2.pin]
+
+                bel_1 = pin_1.bel
+                bel_2 = pin_2.bel
+                assert bel_1 == bel_2, (bel_1, bel_2)
+                bel = device.strs[bel_1]
+
+                pin_timing = PinTiming()
+
+                pin_timing.from_pin = PinEdge()
+                pin_timing.from_pin.pin_name = device.strs[pin_1.name]
+                if pin_delay_1.which() == "clockEdge":
+                    edge = str(pin_delay_1.clockEdge).upper()
+                    pin_timing.from_pin.clock_edge = PinEdgeType[edge]
+                else:
+                    pin_timing.from_pin.clock_edge = PinEdgeType.NONE
+
+                pin_timing.to_pin = PinEdge()
+                pin_timing.to_pin.pin_name = device.strs[pin_2.name]
+                if pin_delay_2.which() == "clockEdge":
+                    edge = str(pin_delay_2.clockEdge).upper()
+                    pin_timing.to_pin.clock_edge = PinEdgeType[edge]
+                else:
+                    pin_timing.to_pin.clock_edge = PinEdgeType.NONE
+
+                typ = str(pins_delay.pinsDelayType).upper()
+                pin_timing.type = PinTimingType[typ]
+
+                pin_timing.value = import_corner(pins_delay.cornerModel, DEL_SCALE)
+                pin_timing.site_type_idx = site_type_index
+
+                key = cell_type, site_type, bel
+                if key not in self.timings:
+                    self.timings[key] = list()
+
+                self.timings[key].append(pin_timing)
 
         self.bels = set()
         for site_type in device.device_resource_capnp.siteTypeList:
@@ -2478,6 +2529,9 @@ def populate_chip_info(device, constids, device_config):
                     parameter.pins.append(CellBelPin(cell_pin, bel_pin))
 
                 cell_bel_map.parameter_pins.append(parameter)
+
+        if pin_key in cell_bel_mapper.timings:
+            cell_bel_map.timing = cell_bel_mapper.timings[pin_key]
 
         cell_bel_map = chip_info.cell_map.cell_bel_map[idx]
         if idx in cell_bel_mapper.cell_to_bel_constraints:
