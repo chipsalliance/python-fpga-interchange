@@ -1,0 +1,344 @@
+{
+    "SLICEL": {
+        "[ABCD][5]LUT": {
+            "default": [
+                "LUT5@SLICEL/{bel}"
+            ]
+        },
+        "[ABCD][6]LUT": {
+            "default": [
+                "LUT6@SLICEL/{bel}"
+            ]
+        },
+        "[ABCD][5]FF": {
+            "pin_map": {
+                "CLK": "CK",
+                "DIN": "D"
+            },
+            "default": [
+                "REG_INIT_FF@{site}",
+                "REG_INIT_FF_QL@{site}"
+            ]
+        },
+        "[ABCD]FF": {
+            "pin_map": {
+                "CLK": "CK",
+                "DIN": "D"
+            },
+            "default": [
+                "REG_INIT_FF@{site}",
+                "REG_INIT_FF_QL@{site}"
+            ]
+        },
+
+        "CARRY4": {
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}",
+                "CARRY4_BX@{site}",
+                "CARRY4_CX@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "CARRY4_AMUX": {
+            "pin_map": {
+                "S0": "S0",
+                "DI0": "0",
+                "CYINIT": "1",
+                "CO0": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}"
+            ]
+        },
+        "CARRY4_BMUX": {
+            "pin_map": {
+                "S1": "S0",
+                "DI1": "0",
+                "CO1": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_BX@{site}"
+            ]
+        },
+        "CARRY4_CMUX": {
+            "pin_map": {
+                "S2": "S0",
+                "DI2": "0",
+                "CO2": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_CX@{site}"
+            ]
+        },
+        "CARRY4_DMUX": {
+            "pin_map": {
+                "S3": "S0",
+                "DI3": "0",
+                "CO3": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "CARRY4_AXOR": {
+            "pin_map": {
+                "S0": "0",
+                "CYINIT": "1",
+                "O0": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}"
+            ]
+        },
+        "CARRY4_BXOR": {
+            "pin_map": {
+                "S1": "0",
+                "O1": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_BX@{site}"
+            ]
+        },
+        "CARRY4_CXOR": {
+            "pin_map": {
+                "S2": "0",
+                "O2": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_CX@{site}"
+            ]
+        },
+        "CARRY4_DXOR": {
+            "pin_map": {
+                "S3": "0",
+                "O3": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "F7[AB]MUX": {
+            "default": [
+                "SELMUX2_1@{site}/{bel}"
+            ]
+        },
+        "F8MUX": {
+            "default": [
+                "SELMUX2_1@{site}/{bel}"
+            ]
+        }
+    },
+
+    "SLICEM": {
+        "[ABCD]5LUT": {
+            "default": [
+                "LUT5@SLICEL/{bel}"
+            ],
+            "SRL16E": [
+                "LUT_OR_MEM5LRAM@{site}",
+                "LUT_OR_MEM5LRAM@{site}/{bel}",
+                "LUT_OR_MEM5SHFREG@{site}",
+                "LUT_OR_MEM5SHFREG@{site}/{bel}"
+            ],
+            "RAMS32": [
+                "LUT_OR_MEM5LRAM@{site}",
+                "LUT_OR_MEM5LRAM@{site}/{bel}"
+            ],
+            "RAMD32": [
+                "LUT_OR_MEM5LRAM@{site}",
+                "LUT_OR_MEM5LRAM@{site}/{bel}"
+            ]
+        },
+        "[ABCD]6LUT": {
+            "default": [
+                "LUT6@SLICEL/{bel}"
+            ],
+            "SRLC32E": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}",
+                "LUT_OR_MEM6SHFREG@{site}",
+                "LUT_OR_MEM6SHFREG@{site}/{bel}"
+            ],
+            "SRLC16E": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}",
+                "LUT_OR_MEM6SHFREG@{site}",
+                "LUT_OR_MEM6SHFREG@{site}/{bel}"
+            ],
+            "SRL16E": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}",
+                "LUT_OR_MEM6SHFREG@{site}",
+                "LUT_OR_MEM6SHFREG@{site}/{bel}"
+            ],
+            "RAMS32": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}"
+            ],
+            "RAMD32": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}"
+            ],
+            "RAMS64E": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}"
+            ],
+            "RAMD64E": [
+                "LUT_OR_MEM6LRAM@{site}",
+                "LUT_OR_MEM6LRAM@{site}/{bel}"
+            ]
+        },
+        "[ABCD][5]FF": {
+            "pin_map": {
+                "CLK": "CK",
+                "DIN": "D"
+            },
+            "default": [
+                "REG_INIT_FF@{site}",
+                "REG_INIT_FF_QL@{site}"
+            ]
+        },
+        "[ABCD]FF": {
+            "pin_map": {
+                "CLK": "CK",
+                "DIN": "D"
+            },
+            "default": [
+                "REG_INIT_FF@{site}",
+                "REG_INIT_FF_QL@{site}"
+            ]
+        },
+
+        "CARRY4": {
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}",
+                "CARRY4_BX@{site}",
+                "CARRY4_CX@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "CARRY4_AMUX": {
+            "pin_map": {
+                "S0": "S0",
+                "DI0": "0",
+                "CYINIT": "1",
+                "CO0": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}"
+            ]
+        },
+        "CARRY4_BMUX": {
+            "pin_map": {
+                "S1": "S0",
+                "DI1": "0",
+                "CO1": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_BX@{site}"
+            ]
+        },
+        "CARRY4_CMUX": {
+            "pin_map": {
+                "S2": "S0",
+                "DI2": "0",
+                "CO2": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_CX@{site}"
+            ]
+        },
+        "CARRY4_DMUX": {
+            "pin_map": {
+                "S3": "S0",
+                "DI3": "0",
+                "CO3": "OUT"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "CARRY4_AXOR": {
+            "pin_map": {
+                "S0": "0",
+                "CYINIT": "1",
+                "O0": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_AX@{site}"
+            ]
+        },
+        "CARRY4_BXOR": {
+            "pin_map": {
+                "S1": "0",
+                "O1": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_BX@{site}"
+            ]
+        },
+        "CARRY4_CXOR": {
+            "pin_map": {
+                "S2": "0",
+                "O2": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_CX@{site}"
+            ]
+        },
+        "CARRY4_DXOR": {
+            "pin_map": {
+                "S3": "0",
+                "O3": "O"
+            },
+            "default": [
+                "CARRY4@{site}",
+                "CARRY4_DX@{site}"
+            ]
+        },
+
+        "F7[AB]MUX": {
+            "default": [
+                "SELMUX2_1@{site}/{bel}"
+            ]
+        },
+        "F8MUX": {
+            "default": [
+                "SELMUX2_1@{site}/{bel}"
+            ]
+        }
+    },
+
+    "BUFGCTRL": {
+        "BUFGCTRL": {
+            "pin_map": {
+                "I": "I0"
+            },
+            "default": [
+                "BUFGCTRL@BUFGCTRL"
+            ]
+        }
+    }
+}
