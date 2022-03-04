@@ -152,6 +152,14 @@ def populate_pin_delays(cell_bel_mapping, timings, string_map):
             if edge == "negedge":
                 pin.clockEdge = "fall"
 
+    # FIXME: There is no explicit information whether a pin is a clock in/out
+    # Identify clock pins by looking for clock edges in setup/hold annotations
+    clock_pins = set()
+    for timing in timings:
+        if timing["type"] in ["setup", "hold"]:
+            if timing["from_pin_edge"] is not None:
+                clock_pins.add(timing["from_pin"])
+
     # Maps path type from SDF to the FPGA interchange schema
     # "clk2q" is detected separately as it is not a separate type in SDF
     TYPE_MAP = {
@@ -170,9 +178,10 @@ def populate_pin_delays(cell_bel_mapping, timings, string_map):
         entry.site = string_map[timing["site"]]
 
         # Type
+        # FIXME: Detect clock-to-Q here
         assert timing["type"] in TYPE_MAP, timing["type"]
         typ = TYPE_MAP[timing["type"]]
-        if typ == "comb" and timing["from_pin_edge"] is not None:
+        if typ == "comb" and timing["from_pin"] in clock_pins:
             typ = "clk2q"
 
         entry.pinsDelayType = typ
@@ -180,6 +189,11 @@ def populate_pin_delays(cell_bel_mapping, timings, string_map):
         # From
         pin = entry.init("firstPin")
         populate_pin(pin, timing, "from")
+
+        # FIXME: there is no explicit clock-to-Q in prjxray SDF. Assume
+        # posedge of a clock
+        if typ == "clk2q":
+            pin.clockEdge = "rise"
 
         # To
         pin = entry.init("secondPin")
