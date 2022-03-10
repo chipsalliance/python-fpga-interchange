@@ -89,7 +89,8 @@ def get_timings(site, spec, sdf_data):
         return None
 
     if bel not in sdf_data[cell][site]:
-        print("ERROR: No SDF data for cell '{}', site '{}', bel '{}'".format(cell, site, bel))
+        print("ERROR: No SDF data for cell '{}', site '{}', bel '{}'".format(
+            cell, site, bel))
         return None
 
     return sdf_data[cell][site][bel]
@@ -137,18 +138,18 @@ def merge_timings(timings, overlay):
 
     return walk(timings, overlay)
 
+
 # =============================================================================
 
 
 class prjxray_db_reader:
-    def __init__(self, timing_dir, sdf_map_file = None):
+    def __init__(self, timing_dir, sdf_map_file=None):
         self.timing_dir = timing_dir
 
         self.sdf_map = dict()
         if sdf_map_file is not None:
             with open(sdf_map_file, "r") as fp:
                 self.sdf_map = json.load(fp)
-
 
     def extract_data(self):
 
@@ -301,7 +302,6 @@ class prjxray_db_reader:
 
         return return_dict, timings_dict
 
-
     def process_sdf_data(self, data):
 
         # Timescale. Assume 1ns if not present in the header
@@ -332,8 +332,15 @@ class prjxray_db_reader:
                     site, bel = instance, None
 
                 # Filter timing data
-                keys = {"type", "from_pin", "to_pin", "from_pin_edge", "to_pin_edge", "delay_paths"}
-                paths = {t: {k: v for k, v in d.items() if k in keys} for t, d in paths.items()}
+                keys = {
+                    "type", "from_pin", "to_pin", "from_pin_edge",
+                    "to_pin_edge", "delay_paths"
+                }
+                paths = {
+                    t: {k: v
+                        for k, v in d.items() if k in keys}
+                    for t, d in paths.items()
+                }
 
                 # Apply timescale
                 for key, path in paths.items():
@@ -353,14 +360,12 @@ if __name__ == "__main__":
         "--db-root",
         type=str,
         required=True,
-        help="Project XRay database root path"
-    )
+        help="Project XRay database root path")
     parser.add_argument(
         "--sdf-map",
         type=str,
         required=True,
-        help="Map of SDF timing entries to cell @ site and bel"
-    )
+        help="Map of SDF timing entries to cell @ site and bel")
 
     args = parser.parse_args()
 

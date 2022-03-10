@@ -898,7 +898,8 @@ class CellBelMapper():
         self.site_type_to_site_type_index = {}
         self.timings = {}
 
-        for i, site_type in enumerate(device.device_resource_capnp.siteTypeList):
+        for i, site_type in enumerate(
+                device.device_resource_capnp.siteTypeList):
             self.site_type_to_site_type_index[site_type.name] = i
 
         for cell_bel_map in device.device_resource_capnp.cellBelMap:
@@ -981,13 +982,16 @@ class CellBelMapper():
             site_type_list = device.device_resource_capnp.siteTypeList
             for pins_delay in cell_bel_map.pinsDelay:
                 site_type = device.strs[pins_delay.site]
-                site_type_index = self.site_type_to_site_type_index[pins_delay.site]
+                site_type_index = self.site_type_to_site_type_index[pins_delay.
+                                                                    site]
 
                 pin_delay_1 = pins_delay.firstPin
                 pin_delay_2 = pins_delay.secondPin
 
-                pin_1 = site_type_list[site_type_index].belPins[pin_delay_1.pin]
-                pin_2 = site_type_list[site_type_index].belPins[pin_delay_2.pin]
+                pin_1 = site_type_list[site_type_index].belPins[pin_delay_1.
+                                                                pin]
+                pin_2 = site_type_list[site_type_index].belPins[pin_delay_2.
+                                                                pin]
 
                 bel_1 = pin_1.bel
                 bel_2 = pin_2.bel
@@ -1015,7 +1019,8 @@ class CellBelMapper():
                 typ = str(pins_delay.pinsDelayType).upper()
                 pin_timing.type = PinTimingType[typ]
 
-                pin_timing.value = import_corner(pins_delay.cornerModel, DEL_SCALE)
+                pin_timing.value = import_corner(pins_delay.cornerModel,
+                                                 DEL_SCALE)
                 pin_timing.site_type_idx = site_type_index
 
                 key = cell_type, site_type, bel

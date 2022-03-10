@@ -97,6 +97,7 @@ def create_site_type_name_to_site_pin_map(device):
             siteType_name_sitePin[(i, sitePin.name)] = sitePin
     return siteType_name_sitePin
 
+
 def create_bel_pin_to_index_map(device):
     bel_pin_to_index = dict()
 
@@ -113,6 +114,7 @@ def create_bel_pin_to_index_map(device):
             bel_pin_to_index[site_type][bel][pin] = j
 
     return bel_pin_to_index
+
 
 def populate_corner_model(corner_model, fast_min, fast_typ, fast_max, slow_min,
                           slow_typ, slow_max):
@@ -131,6 +133,7 @@ def populate_corner_model(corner_model, fast_min, fast_typ, fast_max, slow_min,
         if slow[i] is not None:
             x = getattr(corner_model.slow.slow, field)
             setattr(x, field, slow[i])
+
 
 def populate_pin_delays(cell_bel_mapping, timings, string_map):
     """
@@ -203,23 +206,28 @@ def populate_pin_delays(cell_bel_mapping, timings, string_map):
         entry.init("cornerModel")
         corner_model = entry.cornerModel
 
-        delays_slow = timing["delays"].get("slow",
-            {"min": None, "typ": None, "max": None})
+        delays_slow = timing["delays"].get("slow", {
+            "min": None,
+            "typ": None,
+            "max": None
+        })
 
-        delays_fast = timing["delays"].get("fast",
-            {"min": None, "typ": None, "max": None})
+        delays_fast = timing["delays"].get("fast", {
+            "min": None,
+            "typ": None,
+            "max": None
+        })
 
-        populate_corner_model(corner_model,
-            delays_fast.get("min", None),
-            delays_fast.get("typ", None),
-            delays_fast.get("max", None),
-            delays_slow.get("min", None),
-            delays_slow.get("typ", None),
-            delays_slow.get("max", None)
-        )
+        populate_corner_model(corner_model, delays_fast.get("min", None),
+                              delays_fast.get("typ", None),
+                              delays_fast.get("max", None),
+                              delays_slow.get("min", None),
+                              delays_slow.get("typ", None),
+                              delays_slow.get("max", None))
 
 
-def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_pin_to_index_map):
+def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins,
+                       bel_pin_to_index_map):
     """
     Collects timing data for the given cell type and cell bel pin mapping.
     Matches the SDF data against device resources data. Converts BEL pin names
@@ -241,7 +249,8 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
         timings = cell_timing_data[site][bel].get(None, None)
 
     if timings is None:
-        print("WARNING: not timing data for cell '{}' at site/bel '{}/{}'".format(cell, site, bel))
+        print("WARNING: not timing data for cell '{}' at site/bel '{}/{}'".
+              format(cell, site, bel))
         return
 
     # Translate the timing data
@@ -257,12 +266,14 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
             continue
 
         pin_1 = bel_pin_to_index_map[site][bel].get(path["from_pin"], None)
-        pin_2 = bel_pin_to_index_map[site][bel].get(path["to_pin"],   None)
+        pin_2 = bel_pin_to_index_map[site][bel].get(path["to_pin"], None)
         if pin_1 is None or pin_2 is None:
             if pin_1 is None:
-                print("WARNING: unknown bel pin '{}.{}'".format(bel, path["from_pin"]))
+                print("WARNING: unknown bel pin '{}.{}'".format(
+                    bel, path["from_pin"]))
             if pin_2 is None:
-                print("WARNING: unknown bel pin '{}.{}'".format(bel, path["to_pin"]))
+                print("WARNING: unknown bel pin '{}.{}'".format(
+                    bel, path["to_pin"]))
             continue
 
         for key in ["from_pin", "to_pin"]:
@@ -299,7 +310,9 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
             for k2 in corner[k1].keys():
                 val = corner[k1][k2]
                 if val < 0.0:
-                    print("WARNING: delay for path '{}' {} {} is negative ({:.3f}ps), clamping to 0".format(path_name, k1, k2, val * 1e12))
+                    print(
+                        "WARNING: delay for path '{}' {} {} is negative ({:.3f}ps), clamping to 0"
+                        .format(path_name, k1, k2, val * 1e12))
                     corner[k1][k2] = 0.0
 
         if bel not in pins_delay[site]:
@@ -307,7 +320,8 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
 
         # Warn before overwrite
         if path_name in pins_delay[site][bel]:
-            print("WARNING: overwriting timing path '{}' for site/bel '{}/{}'".format(path_name, site, bel))
+            print("WARNING: overwriting timing path '{}' for site/bel '{}/{}'".
+                  format(path_name, site, bel))
 
         # Format the entry
         data = {
@@ -331,6 +345,7 @@ def collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_
     if pins != used_pins:
         missing_pins = sorted(list(pins - used_pins))
         print("WARNING: no timings for BEL pins:", ",".join(missing_pins))
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -390,12 +405,13 @@ def main():
             pins = set()
             for entry in pin_map.pins:
                 pins.add(dev.strList[entry.belPin])
-                
+
             for entry in pin_map.siteTypes:
                 site = dev.strList[entry.siteType]
                 for bel_i in entry.bels:
                     bel = dev.strList[bel_i]
-                    collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_pin_to_index_map)
+                    collect_pins_delay(pins_delay, cell_timing_data, cell,
+                                       site, bel, pins, bel_pin_to_index_map)
 
         # Parameter pins
         for pin_map in mapping.parameterPins:
@@ -407,7 +423,8 @@ def main():
             for entry in pin_map.parametersSiteTypes:
                 site = dev.strList[entry.siteType]
                 bel = dev.strList[entry.bel]
-                collect_pins_delay(pins_delay, cell_timing_data, cell, site, bel, pins, bel_pin_to_index_map)
+                collect_pins_delay(pins_delay, cell_timing_data, cell, site,
+                                   bel, pins, bel_pin_to_index_map)
 
         # No entries
         if not pins_delay:
@@ -428,7 +445,6 @@ def main():
 
         # Serialize
         populate_pin_delays(mapping, pins_delay_flat, string_map)
-                
 
     for tile, _data in timing_data.items():
         if tile not in string_map:
