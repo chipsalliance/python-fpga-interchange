@@ -34,6 +34,7 @@ jobs:
         make env
         git clone https://github.com/Xilinx/RapidWright.git $GITHUB_WORKSPACE/env/RapidWright
         make -C "$GITHUB_WORKSPACE/env/RapidWright" update_jars
+        make -C "$GITHUB_WORKSPACE/env/RapidWright" compile
         git clone https://github.com/capnproto/capnproto-java.git $GITHUB_WORKSPACE/env/capnproto-java
         git clone https://github.com/SymbiFlow/fpga-interchange-schema.git $GITHUB_WORKSPACE/env/fpga-interchange-schema
 
