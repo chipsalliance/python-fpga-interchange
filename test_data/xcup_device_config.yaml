@@ -143,3 +143,79 @@ disabled_site_pips:
      - H6LUT
     ipin: A6
     opin: O6
+
+macro_clusters:
+- name: RAM256X1S
+  sites:
+  - site: SLICEM
+    cells:
+    - cell: RAMS64E_D
+      bels:
+      - H6LUT
+    - cell: RAMS64E_C
+      bels:
+      - G6LUT
+    - cell: RAMS64E_B
+      bels:
+      - F6LUT
+    - cell: RAMS64E_A
+      bels:
+      - E6LUT
+    - cell: F7.A
+      bels:
+      - F7MUX_EF
+    - cell: F7.B
+      bels:
+      - F7MUX_GH
+    - cell: F8
+      bels:
+      - F8MUX_TOP
+- name: RAM512X1S
+  sites:
+  - site: SLICEM
+    cells:
+    - cell: RAMS64E1_H
+      bels:
+      - H6LUT
+    - cell: RAMS64E1_G
+      bels:
+      - G6LUT
+    - cell: RAMS64E1_F
+      bels:
+      - F6LUT
+    - cell: RAMS64E1_E
+      bels:
+      - E6LUT
+    - cell: RAMS64E1_D
+      bels:
+      - D6LUT
+    - cell: RAMS64E1_C
+      bels:
+      - C6LUT
+    - cell: RAMS64E1_B
+      bels:
+      - B6LUT
+    - cell: RAMS64E1_A
+      bels:
+      - A6LUT
+    - cell: F7.A
+      bels:
+      - F7MUX_AB
+    - cell: F7.B
+      bels:
+      - F7MUX_CD
+    - cell: F7.C
+      bels:
+      - F7MUX_EF
+    - cell: F7.D
+      bels:
+      - F7MUX_GH
+    - cell: F8.A
+      bels:
+      - F8MUX_BOT
+    - cell: F8.B
+      bels:
+      - F8MUX_TOP
+    - cell: F9
+      bels:
+      - F9MUX
