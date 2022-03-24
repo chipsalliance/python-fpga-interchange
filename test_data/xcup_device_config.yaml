@@ -33,6 +33,7 @@ global_buffer_cells:
       - name: O
         force_dedicated_routing: true # dedicated routing reaches only up to the interconnect before BUFCE_LEAF
         max_hops: 32
+      
 # How should nextpnr lump BELs during analytic placement?
 buckets:
 - bucket: FLIP_FLOPS
@@ -155,7 +156,7 @@ macro_clusters:
   - site: SLICEM
     cells:
     - { cell: SP, bels: [H6LUT] }
-    - { cell: DP, bels: [H6LUT] }
+    - { cell: DP, bels: [G6LUT] }
 - name: RAM32X16DR8
   sites:
   - site: SLICEM
@@ -285,6 +286,24 @@ macro_clusters:
     - { cell: F7.A, bels: [F7MUX_EF] }
     - { cell: F7.B, bels: [F7MUX_GH] }
     - { cell: F8, bels: [F8MUX_TOP] }
+- name: RAM256X1D
+  sites:
+  - site: SLICEM
+    cells:
+    - { cell: SP.A, bels: [H6LUT] }
+    - { cell: SP.B, bels: [G6LUT] }
+    - { cell: SP.C, bels: [F6LUT] }
+    - { cell: SP.D, bels: [E6LUT] }
+    - { cell: DP.A, bels: [D6LUT] }
+    - { cell: DP.B, bels: [C6LUT] }
+    - { cell: DP.C, bels: [B6LUT] }
+    - { cell: DP.D, bels: [A6LUT] }
+    - { cell: F7.SPA, bels: [F7MUX_EF] }
+    - { cell: F7.SPB, bels: [F7MUX_GH] }
+    - { cell: F7.DPA, bels: [F7MUX_CD] }
+    - { cell: F7.DPB, bels: [F7MUX_AB] }
+    - { cell: F8.SP, bels: [F8MUX_TOP] }
+    - { cell: F8.DP, bels: [F8MUX_BOT] }
 - name: RAM512X1S
   sites:
   - site: SLICEM
