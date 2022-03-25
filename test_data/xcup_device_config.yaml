@@ -298,8 +298,8 @@ macro_clusters:
     - { cell: DP.B, bels: [C6LUT] }
     - { cell: DP.C, bels: [B6LUT] }
     - { cell: DP.D, bels: [A6LUT] }
-    - { cell: F7.SPA, bels: [F7MUX_EF] }
-    - { cell: F7.SPB, bels: [F7MUX_GH] }
+    - { cell: F7.SPA, bels: [F7MUX_GH] }
+    - { cell: F7.SPB, bels: [F7MUX_EF] }
     - { cell: F7.DPA, bels: [F7MUX_CD] }
     - { cell: F7.DPB, bels: [F7MUX_AB] }
     - { cell: F8.SP, bels: [F8MUX_TOP] }
