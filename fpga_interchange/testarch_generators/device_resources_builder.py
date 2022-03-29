@@ -42,11 +42,18 @@ class PackagePin():
         self.bel_name = bel_name
 
 
+class PackageGrade():
+    def __init__(self, name, speed, temp):
+        self.name = name
+        self.speed = speed
+        self.temp = temp
+
+
 class Package():
     def __init__(self, name):
         self.name = name
         self.pins = {}
-        # TODO: Speed grades
+        self.grades = [PackageGrade("-1", "-1", "c")]
 
     def add_pin(self, name, site_name, bel_name):
         """
@@ -369,8 +376,8 @@ Wire = namedtuple("Wire", "tile wire wire_type")
 
 
 class DeviceResources():
-    def __init__(self):
-        self.name = ""
+    def __init__(self, name):
+        self.name = name
 
         # Site and tile types
         self.site_types = {}
@@ -761,6 +768,11 @@ class DeviceResourcesCapnp():
             for pin in package.pins.values():
                 self.add_string_id(pin.name)
 
+            for grade in package.grades:
+                self.add_string_id(grade.name)
+                self.add_string_id(grade.speed)
+                self.add_string_id(grade.temp)
+
         # Do not index package pin site and bel names. They should have been
         # already indexed during site processing
 
@@ -775,6 +787,12 @@ class DeviceResourcesCapnp():
             for param in v:
                 self.add_string_id(param.name)
                 self.add_string_id(param.default)
+
+        self.add_string_id("GND")
+        self.add_string_id("G")
+
+        self.add_string_id("VCC")
+        self.add_string_id("V")
 
     def write_timings(self, device):
         self.node_timing_map = {}
@@ -1102,6 +1120,14 @@ class DeviceResourcesCapnp():
         for i, package in enumerate(self.device.packages.values()):
             package_capnp = device.packages[i]
             package_capnp.name = self.get_string_id(package.name)
+
+            package_capnp.init("grades", len(package.grades))
+            for j, grade in enumerate(package.grades):
+                grade_capnp = package_capnp.grades[j]
+
+                grade_capnp.name = self.get_string_id(grade.name)
+                grade_capnp.speedGrade = self.get_string_id(grade.speed)
+                grade_capnp.temperatureGrade = self.get_string_id(grade.temp)
 
             package_capnp.init("packagePins", len(package.pins))
             for j, pin in enumerate(package.pins.values()):
