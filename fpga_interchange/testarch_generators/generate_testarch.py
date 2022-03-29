@@ -30,7 +30,7 @@ class TestArchGenerator():
     """
 
     def __init__(self, args):
-        self.device = DeviceResources()
+        self.device = DeviceResources("testarch")
 
         self.grid_size = (10, 10)
 
@@ -641,19 +641,9 @@ class TestArchGenerator():
                          })
 
         mapping = CellBelMapping("GND")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="POWER", bels=["GND"], pin_map={
-                    "G": "G",
-                }))
         self.device.add_cell_bel_mapping(mapping)
 
         mapping = CellBelMapping("VCC")
-        mapping.entries.append(
-            CellBelMappingEntry(
-                site_type="POWER", bels=["VCC"], pin_map={
-                    "V": "V",
-                }))
         self.device.add_cell_bel_mapping(mapping)
 
     def make_parameters(self):
