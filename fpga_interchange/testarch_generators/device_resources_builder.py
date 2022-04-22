@@ -258,13 +258,20 @@ class SiteTypeInTileType():
         self.alt_pins_to_primary_pins = {}
 
 
+class PseudoCell():
+    def __init__(self, bel, bel_pins):
+        self.bel = bel
+        self.bel_pins = bel_pins
+
+
 class PIP():
     def __init__(self,
                  wire0,
                  wire1,
                  delay_type,
                  is_buffered20=True,
-                 is_buffered21=True):
+                 is_buffered21=True,
+                 pseudo_cells=None):
         self.wire0 = wire0
         self.wire1 = wire1
 
@@ -272,9 +279,9 @@ class PIP():
         self.is_buffered20 = is_buffered20  # TODO:
         self.is_buffered21 = is_buffered21
 
-        self.delay_type = delay_type
+        self.pseudo_cells = pseudo_cells
 
-        # TODO: Pseudo cells
+        self.delay_type = delay_type
 
 
 class TileType():
@@ -317,11 +324,13 @@ class TileType():
                 wire1,
                 delay_type,
                 is_buffered20=True,
-                is_buffered21=True):
+                is_buffered21=True,
+                pseudo_cells=None):
         """
         Adds a new PIP to the tile type
         """
-        pip = PIP(wire0, wire1, delay_type, is_buffered20, is_buffered21)
+        pip = PIP(wire0, wire1, delay_type, is_buffered20, is_buffered21,
+                  pseudo_cells)
         assert pip not in self.pips, pip
         self.pips.add(pip)
 
@@ -1004,7 +1013,16 @@ class DeviceResourcesCapnp():
                 pip_capnp.buffered21 = pip.is_buffered21
                 pip_capnp.timing = self.pip_timing_map[pip.delay_type]
 
-                # TODO: Pseudo cells
+                # Pseudo cells
+                if pip.pseudo_cells:
+                    pip_capnp.init("pseudoCells", len(pip.pseudo_cells))
+                    for j, pcell in enumerate(pip.pseudo_cells):
+                        pcell_capnp = pip_capnp.pseudoCells[j]
+                        pcell_capnp.bel = self.get_string_id(pcell.bel)
+
+                        pcell_capnp.init("pins", len(pcell.bel_pins))
+                        for k, pin in enumerate(pcell.bel_pins):
+                            pcell_capnp.pins[k] = self.get_string_id(pin)
 
             # Index site types
             site_type_list = list(tile_type.site_types.values())
