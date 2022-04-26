@@ -414,6 +414,9 @@ class DeviceResources():
 
         # Constant generators
         self.constants = {}
+        self.default_constant = ConstantType.NO_PREFERENCE
+        self.gnd_cell_pin = ("GND", "G")
+        self.vcc_cell_pin = ("VCC", "V")
 
         # Nodes
         self.nodes = []
@@ -605,11 +608,11 @@ class DeviceResources():
         for wire in tile_type.wires:
             self.add_wire(tile_name, wire, tile_type.wire_type[wire])
 
-    def add_const_source(self, site_name, bel_name, bel_port, constant):
-        assert (site_name, bel_name,
-                bel_port) not in self.constants, (site_name, bel_name,
+    def add_const_source(self, site_type, bel_name, bel_port, constant):
+        assert (site_type, bel_name,
+                bel_port) not in self.constants, (site_type, bel_name,
                                                   bel_port)
-        self.constants[(site_name, bel_name, bel_port)] = constant
+        self.constants[(site_type, bel_name, bel_port)] = constant
 
     def add_node(self, wire_ids, node_type):
         """
@@ -797,11 +800,13 @@ class DeviceResourcesCapnp():
                 self.add_string_id(param.name)
                 self.add_string_id(param.default)
 
-        self.add_string_id("GND")
-        self.add_string_id("G")
+        if self.device.gnd_cell_pin:
+            for name in self.device.gnd_cell_pin:
+                self.add_string_id(name)
 
-        self.add_string_id("VCC")
-        self.add_string_id("V")
+        if self.device.vcc_cell_pin:
+            for name in self.device.vcc_cell_pin:
+                self.add_string_id(name)
 
     def write_timings(self, device):
         self.node_timing_map = {}
@@ -1168,19 +1173,27 @@ class DeviceResourcesCapnp():
         Packs all constant sources/bels objects to the cap'n'proto schema
         """
 
-        device.constants.defaultBestConstant = "noPreference"
+        device.constants.defaultBestConstant = self.device.default_constant.value
+
         device.constants.init("siteSources", len(self.device.constants))
         for i, (key, const) in enumerate(self.device.constants.items()):
             device.constants.siteSources[i].siteType = self.get_string_id(
                 key[0])
             device.constants.siteSources[i].bel = self.get_string_id(key[1])
             device.constants.siteSources[i].belPin = self.get_string_id(key[2])
-            device.constants.siteSources[
-                i].constant = "vcc" if const == "VCC" else "gnd"
-        device.constants.gndCellType = self.get_string_id("GND")
-        device.constants.gndCellPin = self.get_string_id("G")
-        device.constants.vccCellType = self.get_string_id("VCC")
-        device.constants.vccCellPin = self.get_string_id("V")
+            device.constants.siteSources[i].constant.value
+
+        if self.device.gnd_cell_pin:
+            device.constants.gndCellType = self.get_string_id(
+                self.device.gnd_cell_pin[0])
+            device.constants.gndCellPin = self.get_string_id(
+                self.device.gnd_cell_pin[1])
+
+        if self.device.vcc_cell_pin:
+            device.constants.vccCellType = self.get_string_id(
+                self.device.vcc_cell_pin[0])
+            device.constants.vccCellPin = self.get_string_id(
+                self.device.vcc_cell_pin[1])
 
     def write_cell_bel_mappings(self, device):
         """
