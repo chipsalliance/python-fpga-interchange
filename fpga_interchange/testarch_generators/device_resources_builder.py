@@ -1181,7 +1181,7 @@ class DeviceResourcesCapnp():
                 key[0])
             device.constants.siteSources[i].bel = self.get_string_id(key[1])
             device.constants.siteSources[i].belPin = self.get_string_id(key[2])
-            device.constants.siteSources[i].constant.value
+            device.constants.siteSources[i].constant = const.value
 
         if self.device.gnd_cell_pin:
             device.constants.gndCellType = self.get_string_id(
