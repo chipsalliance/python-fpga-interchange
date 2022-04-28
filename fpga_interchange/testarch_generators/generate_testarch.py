@@ -289,12 +289,14 @@ class TestArchGenerator():
         # VCC bel
         bel_vcc = site_type.add_bel("VCC", "VCC", BelCategory.LOGIC)
         bel_vcc.add_pin("V", Direction.Output)
-        self.device.add_const_source(site_type.name, bel_vcc.name, 'V', 'VCC')
+        self.device.add_const_source(site_type.name, bel_vcc.name, 'V',
+                                     ConstantType.VCC)
 
         # GND bel
         bel_gnd = site_type.add_bel("GND", "GND", BelCategory.LOGIC)
         bel_gnd.add_pin("G", Direction.Output)
-        self.device.add_const_source(site_type.name, bel_gnd.name, 'G', 'GND')
+        self.device.add_const_source(site_type.name, bel_gnd.name, 'G',
+                                     ConstantType.GND)
 
         # Wires
         site_type.add_wire("V", [("VCC", "V"), ("V", "V")])
