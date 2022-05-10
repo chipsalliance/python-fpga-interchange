@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2021 The SymbiFlow Authors.
+# Copyright (C) 2021 The F4PGA Authors.
 #
 # Use this source code is governed by a ISC-style
 # license that can be found in LICENSE file or at

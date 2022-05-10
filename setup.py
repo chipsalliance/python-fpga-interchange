@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2020  The SymbiFlow Authors.
+# Copyright (C) 2020  The F4PGA Authors.
 #
 # Use of this source code is governed by a ISC-style
 # license that can be found in the LICENSE file or at
@@ -17,12 +17,12 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="python-fpga-interchange",
     version="0.0.18",
-    author="SymbiFlow Authors",
-    author_email="symbiflow@lists.librecores.org",
+    author="F4PGA Authors",
+    author_email="f4pga-wg@lists.chipsalliance.org",
     description="Python library for reading and writing FPGA interchange files",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/SymbiFlow/python-fpga-interchange",
+    url="https://github.com/chipsalliance/python-fpga-interchange",
     python_requires=">=3.7",
     packages=setuptools.find_packages(),
     include_package_data=True,
