@@ -433,13 +433,35 @@ def convert_yosys_json(device,
 
     consts = device.get_constants()
 
+    # Explicit top-level module
+    if top is not None:
+        if top not in yosys_json['modules']:
+            raise RuntimeError(
+                'Could not find the top module {} in yosys modules: {}'.format(
+                    top, ', '.join(yosys_json['modules'].keys())))
+        top_module = yosys_json['modules'][top]
+
+    # Automatically find top-level module. It should have the "top" attribute
+    # set to 1
+    else:
+        for top, top_module in yosys_json['modules'].items():
+            if 'attributes' in top_module:
+                attributes = top_module['attributes']
+                is_top = int(attributes.get("top", "0")) != 0
+                if is_top:
+                    break
+        else:
+            raise RuntimeError(
+                'Could not find the top module in yosys modules: {}'.format(
+                    ', '.join(yosys_json['modules'].keys())))
+
     name = top
+    top_instance_name = top
+
     property_map = {}
-    top_module = yosys_json['modules'][top]
     if 'attributes' in top_module:
         property_map.update(top_module['attributes'])
 
-    top_instance_name = top
     top_instance = CellInstance(
         property_map=property_map, view='netlist', cell_name=top)
 
@@ -511,7 +533,8 @@ def main():
 
     parser.add_argument('--schema_dir', required=True)
     parser.add_argument('--device', required=True)
-    parser.add_argument('--top', required=True)
+    parser.add_argument(
+        '--top', type=str, default=None, help="Top-level module name")
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument(
         '--library',
@@ -526,11 +549,6 @@ def main():
         yosys_json = json.load(f)
 
     assert 'modules' in yosys_json, yosys_json.keys()
-
-    if args.top not in yosys_json['modules']:
-        raise RuntimeError(
-            'Could not find top module in yosys modules: {}'.format(', '.join(
-                yosys_json['modules'].keys())))
 
     interchange = Interchange(args.schema_dir)
 
