@@ -18,20 +18,45 @@ from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
         CellInstance, Direction, Library
 from fpga_interchange.parameter_definitions import ParameterFormat
 
+BUS_INDEX_RE = re.compile(r"(?P<name>[^\s\[\]]*)(\[(?P<index>[0-9]+)\])?")
 
-def is_bus(bits, offset, upto):
+
+def is_bus(name, bits, offset, upto):
     """ Returns true if this port/net is a bus.
 
-    >>> is_bus([2], offset=0, upto=0)
+    >>> is_bus("net", [2], offset=0, upto=0)
     False
-    >>> is_bus([2, 3], offset=0, upto=0)
+    >>> is_bus("net", [2, 3], offset=0, upto=0)
     True
-    >>> is_bus([2], offset=1, upto=0)
+    >>> is_bus("net", [2], offset=1, upto=0)
     True
-    >>> is_bus([2], offset=0, upto=1)
+    >>> is_bus("net", [2], offset=0, upto=1)
     True
-
+    >>> is_bus("net[3]", [100], offset=3, upto=0)
+    False
+    >>> is_bus("net[3]", [100], offset=4, upto=0)
+    True
     """
+
+    # In case of a port which is a result of the "splitnets" pass the
+    # original offset is preserved even though the port is no longer a bus.
+    #
+    # Detect it here by looking at the bit index in brackets (which is a part
+    # of the name) and if it matches the offset then treat the port/net as
+    # non-bus.
+    #
+    # This approach assumes that after possible port/net split bit indexing
+    # follows the typical square bracket format "<name>[<index>]".
+
+    match = BUS_INDEX_RE.fullmatch(name)
+    assert match is not None, name
+
+    index = match.group("index")
+    if index != None:
+        index = int(index)
+        if index == offset and len(bits) == 1:
+            return False
+
     return len(bits) > 1 or offset != 0 or upto != 0
 
 
@@ -206,7 +231,7 @@ def convert_cell(device, module_name, module_data, library, libraries, modules,
 
         offset = net_data.get('offset', 0)
         upto = net_data.get('upto', 0)
-        if is_bus(net_data['bits'], offset, upto):
+        if is_bus(net_name, net_data['bits'], offset, upto):
             for bit_index, bit in interp_yosys_net(net_data['bits'], offset,
                                                    upto):
                 name = '{}[{}]'.format(net_name, bit_index)
@@ -333,7 +358,7 @@ def convert_cell(device, module_name, module_data, library, libraries, modules,
         offset = port_data.get('offset', 0)
         upto = port_data.get('upto', False)
 
-        if is_bus(port_data['bits'], offset, upto):
+        if is_bus(port_name, port_data['bits'], offset, upto):
             end = offset
             start = offset + len(port_data['bits']) - 1
 
@@ -381,7 +406,7 @@ def convert_cell(device, module_name, module_data, library, libraries, modules,
             offset = port.get('offset', 0)
             upto = port.get('upto', False)
 
-            if is_bus(bits, offset, upto):
+            if is_bus(port_name, bits, offset, upto):
                 for bit_index, bit in interp_yosys_net(bits, offset, upto):
                     cell.connect_net_to_instance(
                         get_net(bit), cell_name, port_name, bit_index)
