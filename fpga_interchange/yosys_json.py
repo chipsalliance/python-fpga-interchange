@@ -18,7 +18,7 @@ from fpga_interchange.logical_netlist import LogicalNetlist, Cell, \
         CellInstance, Direction, Library
 from fpga_interchange.parameter_definitions import ParameterFormat
 
-BUS_INDEX_RE = re.compile(r"(?P<name>[^\s\[\]]*)(\[(?P<index>[0-9]+)\])?")
+BUS_INDEX_RE = re.compile(r"(?P<name>[^\s\[\]]*)\[(?P<index>[0-9]+)\]")
 
 
 def is_bus(name, bits, offset, upto):
@@ -49,12 +49,9 @@ def is_bus(name, bits, offset, upto):
     # follows the typical square bracket format "<name>[<index>]".
 
     match = BUS_INDEX_RE.fullmatch(name)
-    assert match is not None, name
-
-    index = match.group("index")
-    if index != None:
-        index = int(index)
-        if index == offset and len(bits) == 1:
+    if match is not None:
+        index = match.group("index")
+        if index is not None and int(index) == offset and len(bits) == 1:
             return False
 
     return len(bits) > 1 or offset != 0 or upto != 0
