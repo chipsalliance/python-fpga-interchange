@@ -1,6 +1,6 @@
 pytest
 psutil
-git+https://github.com/capnproto/pycapnp.git
+pycapnp==1.1.0
 ninja
 pyyaml
 yapf==0.24.0
