@@ -79,7 +79,7 @@ def main():
             offset = port_data.get('offset', 0)
             upto = port_data.get('upto', False)
 
-            if is_bus(port_data['bits'], offset, upto):
+            if is_bus(port_name, port_data['bits'], offset, upto):
                 end = offset
                 start = offset + len(port_data['bits']) - 1
 
