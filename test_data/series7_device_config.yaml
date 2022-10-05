@@ -146,6 +146,22 @@ clusters:
       ports:
         - DATAOUT
 
+- name: LUTFF
+  root_cell_types:
+    - FDCE
+    - FDPE
+    - FDRE
+    - FDSE
+  cluster_cells:
+    - cells:
+      - LUT1
+      - LUT2
+      - LUT3
+      - LUT4
+      - LUT5
+      - LUT6
+      ports:
+      - D
 macro_clusters:
 - name: LUT6_2
   sites:

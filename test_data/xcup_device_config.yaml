@@ -145,6 +145,24 @@ disabled_site_pips:
     ipin: A6
     opin: O6
 
+clusters:
+- name: LUTFF
+  root_cell_types:
+    - FDCE
+    - FDPE
+    - FDRE
+    - FDSE
+  cluster_cells:
+    - cells:
+      - LUT1
+      - LUT2
+      - LUT3
+      - LUT4
+      - LUT5
+      - LUT6
+      ports:
+      - D
+
 macro_clusters:
 - name: RAM32X1S
   sites:
