@@ -287,8 +287,9 @@ class LogicalNetlistBuilder():
             entry.key = self.string_id(k)
 
             if isinstance(v, str):
-                if v[0] == '"' and v[-1] == '"':
-                    v = v[1:-1]
+                if len(v) >= 2:
+                    if v[0] == '"' and v[-1] == '"':
+                        v = v[1:-1]
                 entry.textValue = self.string_id(v)
             elif isinstance(v, bool):
                 entry.boolValue = v
