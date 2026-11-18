@@ -26,19 +26,20 @@ setuptools.setup(
     python_requires=">=3.7",
     packages=setuptools.find_packages(),
     include_package_data=True,
-    install_requires=["pycapnp==1.1.0", "python-sat"],
+    install_requires=["pycapnp==2.2.4", "python-sat"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: ISC License",
         "Operating System :: OS Independent",
     ],
     entry_points={
-        'console_scripts': [
-            'fpga_inter_add_prim_lib=fpga_interchange.add_prim_lib:main',
-            'fpga_inter_convert=fpga_interchange.convert:main',
-            'fpga_inter_nextpnr_emit=fpga_interchange.nextpnr_emit:main',
-            'fpga_inter_patch=fpga_interchange.patch:main',
-            'fpga_inter_yosys_json=fpga_interchange.yosys_json:main',
-            'fpga_inter_fasm_generator=fpga_interchange.fasm_generator:main',
+        "console_scripts": [
+            "fpga_inter_add_prim_lib=fpga_interchange.add_prim_lib:main",
+            "fpga_inter_convert=fpga_interchange.convert:main",
+            "fpga_inter_nextpnr_emit=fpga_interchange.nextpnr_emit:main",
+            "fpga_inter_patch=fpga_interchange.patch:main",
+            "fpga_inter_yosys_json=fpga_interchange.yosys_json:main",
+            "fpga_inter_fasm_generator=fpga_interchange.fasm_generator:main",
         ],
-    })
+    },
+)
