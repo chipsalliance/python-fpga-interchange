@@ -1,6 +1,6 @@
 pytest
 psutil
-pycapnp==1.1.0
+pycapnp==2.2.4
 ninja
 pyyaml
 yapf==0.24.0

@@ -95,23 +95,28 @@ def read_capnp_file(capnp_schema,
     if compression_format == CompressionFormat.GZIP:
         f_comp = gzip.GzipFile(fileobj=f_in, mode='rb')
         if is_packed:
-            return capnp_schema.from_bytes_packed(
+            capnp_obj = capnp_schema.from_bytes_packed(
                 f_comp.read(),
                 traversal_limit_in_words=NO_TRAVERSAL_LIMIT,
                 nesting_limit=NESTING_LIMIT)
         else:
-            return capnp_schema.from_bytes(
+            capnp_obj = capnp_schema.from_bytes(
                 f_comp.read(),
                 traversal_limit_in_words=NO_TRAVERSAL_LIMIT,
                 nesting_limit=NESTING_LIMIT)
     else:
         assert compression_format == CompressionFormat.UNCOMPRESSED
         if is_packed:
-            return capnp_schema.read_packed(
+            capnp_obj = capnp_schema.read_packed(
                 f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
         else:
-            return capnp_schema.read(
+            capnp_obj = capnp_schema.read(
                 f_in, traversal_limit_in_words=NO_TRAVERSAL_LIMIT)
+
+    if hasattr(capnp_obj, "__enter__") and hasattr(capnp_obj, "__exit__"):
+        with capnp_obj as res:
+            return res
+    return capnp_obj
 
 
 def write_capnp_file(capnp_obj,
